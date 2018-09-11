@@ -126,6 +126,7 @@ struct pa_bluetooth_adapter {
     pa_bluetooth_discovery *discovery;
     char *path;
     char *address;
+    pa_hashmap *uuids; /* char* -> char* (hashmap-as-a-set) */
 
     bool valid;
 };
