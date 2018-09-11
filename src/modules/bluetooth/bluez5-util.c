@@ -171,32 +171,43 @@ static const char *transport_state_to_string(pa_bluetooth_transport_state_t stat
 }
 
 bool pa_bluetooth_device_supports_profile(const pa_bluetooth_device *device, pa_bluetooth_profile_t profile) {
+    bool r;
+
     switch (profile) {
         case PA_BLUETOOTH_PROFILE_A2DP_SINK:
-            return !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_A2DP_SINK) &&
+            r = !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_A2DP_SINK) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_A2DP_SOURCE));
+            break;
         case PA_BLUETOOTH_PROFILE_A2DP_SOURCE:
-            return !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_A2DP_SOURCE) &&
+            r = !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_A2DP_SOURCE) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_A2DP_SINK));
+            break;
         case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
-            return !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS) &&
+            r = !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_HSP_AG)) ||
                    !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS_ALT) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_HSP_AG)) ||
                    !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HFP_HF) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_HFP_AG));
+            break;
         case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-            return !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_AG) &&
+            r = !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_AG) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_HSP_HS)) ||
                    !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_AG) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_HSP_HS_ALT)) ||
                    !!(pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HFP_AG) &&
                       pa_hashmap_get(device->adapter->uuids, PA_BLUETOOTH_UUID_HFP_HF));
+            break;
         case PA_BLUETOOTH_PROFILE_OFF:
+        default:
             pa_assert_not_reached();
+            break;
     }
 
-    pa_assert_not_reached();
+    pa_log_debug("Checking if device %s (%s) supports profile %s: %s",
+                 device->alias, device->address, pa_bluetooth_profile_to_string(profile), r ? "true" : "false");
+
+    return r;
 }
 
 static bool device_is_profile_connected(pa_bluetooth_device *device, pa_bluetooth_profile_t profile) {
