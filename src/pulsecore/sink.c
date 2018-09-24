@@ -264,7 +264,7 @@ pa_sink* pa_sink_new(
 
     s->sample_spec = data->sample_spec;
     s->channel_map = data->channel_map;
-    s->default_sample_rate = s->sample_spec.rate;
+    s->default_sample_spec = s->sample_spec;
     pa_sample_spec_init(&s->saved_spec);
     pa_channel_map_init(&s->saved_map);
 
@@ -273,7 +273,7 @@ pa_sink* pa_sink_new(
     else
         s->alternate_sample_rate = s->core->alternate_sample_rate;
 
-    s->avoid_resampling = data->avoid_resampling;
+    s->avoid_processing = data->avoid_processing;
 
     s->inputs = pa_idxset_new(NULL, NULL);
     s->n_corked = 0;
@@ -369,7 +369,7 @@ pa_sink* pa_sink_new(
     source_data.driver = data->driver;
     source_data.module = data->module;
     source_data.card = data->card;
-    source_data.avoid_resampling = data->avoid_resampling;
+    source_data.avoid_processing = data->avoid_processing;
 
     dn = pa_proplist_gets(s->proplist, PA_PROP_DEVICE_DESCRIPTION);
     pa_proplist_setf(source_data.proplist, PA_PROP_DEVICE_DESCRIPTION, "Monitor of %s", dn ? dn : s->name);
@@ -1451,13 +1451,15 @@ void pa_sink_render_full(pa_sink *s, size_t length, pa_memchunk *result) {
 int pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough, bool restore) {
     int ret = -1;
     pa_sample_spec desired_spec;
-    uint32_t default_rate = s->default_sample_rate;
+    pa_sample_format_t default_format = s->default_sample_spec.format;
+    uint32_t default_rate = s->default_sample_spec.rate;
     uint32_t alternate_rate = s->alternate_sample_rate;
+    uint8_t default_channels = s->default_sample_spec.channels;
     uint32_t idx;
     pa_sink_input *i;
     bool default_rate_is_usable = false;
     bool alternate_rate_is_usable = false;
-    bool avoid_resampling = s->avoid_resampling;
+    bool avoid_processing = s->avoid_processing;
     pa_channel_map old_map, *new_map;
 
     pa_assert(restore || (spec != NULL));
@@ -1469,7 +1471,7 @@ int pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, pa_channel_map *map, b
     if (!s->reconfigure)
         return -1;
 
-    if (PA_UNLIKELY(default_rate == alternate_rate && !passthrough && !restore && !avoid_resampling)) {
+    if (PA_UNLIKELY(default_rate == alternate_rate && !passthrough && !restore && !avoid_processing)) {
         pa_log_debug("Default and alternate sample rates are the same, so there is no point in switching.");
         return -1;
     }
@@ -1508,13 +1510,15 @@ int pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, pa_channel_map *map, b
         /* We have to try to use the sink input spec */
         desired_spec = *spec;
 
-    } else if (avoid_resampling) {
-        /* We just try to set the sink input's sample rate if it's not too low */
+    } else if (avoid_processing) {
         desired_spec = s->sample_spec;
+
         if (spec->rate >= default_rate || spec->rate >= alternate_rate)
             desired_spec.rate = spec->rate;
-        /* FIXME: don't set this if it's too low */
-        desired_spec.format = spec->format;
+        if (spec->channels >= default_channels)
+            desired_spec.channels = spec->channels;
+        if (pa_sample_size_of_format(spec->format) >= pa_sample_size_of_format(default_format))
+            desired_spec.format = spec->format;
 
     } else if (default_rate == spec->rate || alternate_rate == spec->rate) {
         /* We can directly try to use this rate */
