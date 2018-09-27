@@ -1,6 +1,6 @@
 project('pulseaudio', 'c', 'cpp',
         version : '10.99.1',
-        meson_version : '>= 0.42.0',
+        meson_version : '>= 0.47.0',
         default_options : [ 'c_std=gnu11', 'cpp_std=c++11' ]
         )
 
@@ -227,6 +227,12 @@ endif
 cdata.set('DISABLE_ORC', 1)
 
 # Module dependencies
+
+if cc.has_header('sys/soundcard.h')
+  cdata.set('HAVE_OSS_OUTPUT', 1)
+  cdata.set('HAVE_OSS_WRAPPER', 1)
+  cdata.set_quoted('PULSEDSP_LOCATION',	join_paths(prefix, get_option('libdir'), 'pulseaudio'))
+endif
 
 # X11 deps, we don't define any HAVE_XXX for these one
 ice_dep = dependency('ice', required : false)
