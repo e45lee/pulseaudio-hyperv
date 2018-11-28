@@ -1401,12 +1401,8 @@ static int sink_input_process_msg(pa_msgobject *o, int code, void *userdata, int
             }
 
             if (code == SINK_INPUT_MESSAGE_DRAIN) {
-                if (!pa_memblockq_is_readable(s->memblockq))
-                    pa_asyncmsgq_post(pa_thread_mq_get()->outq, PA_MSGOBJECT(s), PLAYBACK_STREAM_MESSAGE_DRAIN_ACK, userdata, 0, NULL, NULL);
-                else {
-                    s->drain_tag = PA_PTR_TO_UINT(userdata);
-                    s->drain_request = true;
-                }
+                s->drain_tag = PA_PTR_TO_UINT(userdata);
+                s->drain_request = true;
             }
 
             return 0;
