@@ -166,8 +166,15 @@ void pa__done(pa_module *m) {
     if (u->discovery)
         pa_bluetooth_discovery_unref(u->discovery);
 
-    if (u->loaded_device_modules)
+    if (u->loaded_device_modules) {
+        pa_module *mm;
+        void *state;
+
+        PA_HASHMAP_FOREACH(mm, u->loaded_device_modules, state)
+            pa_module_unload(mm, true);
+
         pa_hashmap_free(u->loaded_device_modules);
+    }
 
     pa_xfree(u);
 }
