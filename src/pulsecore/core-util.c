@@ -1419,36 +1419,12 @@ int pa_unlock_lockfile(const char *fn, int fd) {
     return r;
 }
 
-static int check_ours(const char *p) {
-    struct stat st;
-
-    pa_assert(p);
-
-    if (stat(p, &st) < 0)
-        return -errno;
-
-#ifdef HAVE_GETUID
-    if (st.st_uid != getuid())
-        return -EACCES;
-#endif
-
-    return 0;
-}
-
 static char *get_pulse_home(void) {
     char *h, *ret;
-    int t;
 
     h = pa_get_home_dir_malloc();
     if (!h) {
         pa_log_error("Failed to get home directory.");
-        return NULL;
-    }
-
-    t = check_ours(h);
-    if (t < 0 && t != -ENOENT) {
-        pa_log_error("Home directory not accessible: %s", pa_cstrerror(-t));
-        pa_xfree(h);
         return NULL;
     }
 
