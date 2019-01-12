@@ -1,4 +1,5 @@
 libbluez5_util_sources = [
+  'a2dp-codec-faststream.c',
   'a2dp-codec-sbc.c',
   'a2dp-codec-util.c',
   'bluez5-util.c',

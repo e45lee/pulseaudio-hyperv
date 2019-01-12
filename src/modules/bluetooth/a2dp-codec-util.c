@@ -26,6 +26,8 @@
 
 #include "a2dp-codec-util.h"
 
+extern const pa_a2dp_codec pa_a2dp_codec_faststream;
+extern const pa_a2dp_codec pa_a2dp_codec_faststream_mic;
 extern const pa_a2dp_codec pa_a2dp_codec_sbc;
 #ifdef HAVE_OPENAPTX
 extern const pa_a2dp_codec pa_a2dp_codec_aptx;
@@ -35,6 +37,8 @@ extern const pa_a2dp_codec pa_a2dp_codec_aptx_hd;
 /* This is list of supported codecs. Their order is important.
  * Codec with higher index has higher priority. */
 static const pa_a2dp_codec *pa_a2dp_codecs[] = {
+    &pa_a2dp_codec_faststream,
+    &pa_a2dp_codec_faststream_mic,
     &pa_a2dp_codec_sbc,
 #ifdef HAVE_OPENAPTX
     &pa_a2dp_codec_aptx,
