@@ -1036,7 +1036,7 @@ static int pa_cli_command_sink_default(pa_core *c, pa_tokenizer *t, pa_strbuf *b
     }
 
     if ((s = pa_namereg_get(c, n, PA_NAMEREG_SINK)))
-        pa_core_set_configured_default_sink(c, s->name);
+        pa_core_set_configured_default_sink(c, s->name, true);
     else
         pa_strbuf_printf(buf, "Sink %s does not exist.\n", n);
 

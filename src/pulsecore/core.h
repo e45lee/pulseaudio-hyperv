@@ -243,7 +243,7 @@ enum {
 
 pa_core* pa_core_new(pa_mainloop_api *m, bool shared, bool enable_memfd, size_t shm_size);
 
-void pa_core_set_configured_default_sink(pa_core *core, const char *sink);
+void pa_core_set_configured_default_sink(pa_core *core, const char *sink, bool from_user);
 void pa_core_set_configured_default_source(pa_core *core, const char *source);
 
 /* These should be called whenever something changes that may affect the
@@ -255,7 +255,7 @@ void pa_core_set_configured_default_source(pa_core *core, const char *source);
  * pa_core_update_default_source() internally, so it's sufficient to only call
  * pa_core_update_default_sink() when something happens that affects the sink
  * ordering. */
-void pa_core_update_default_sink(pa_core *core);
+void pa_core_update_default_sink(pa_core *core, bool from_user);
 void pa_core_update_default_source(pa_core *core);
 
 void pa_core_set_exit_idle_time(pa_core *core, int time);

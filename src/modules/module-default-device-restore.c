@@ -69,7 +69,7 @@ static void load(struct userdata *u) {
             pa_log_warn("Invalid sink name: %s", ln);
         else {
             pa_log_info("Restoring default sink '%s'.", ln);
-            pa_core_set_configured_default_sink(u->core, ln);
+            pa_core_set_configured_default_sink(u->core, ln, false);
         }
 
     } else if (errno != ENOENT)

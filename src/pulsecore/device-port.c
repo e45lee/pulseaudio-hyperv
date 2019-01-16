@@ -96,7 +96,7 @@ void pa_device_port_set_available(pa_device_port *p, pa_available_t status) {
          * default sink/source, so port availability changes may affect the
          * default sink/source choice. */
         if (p->direction == PA_DIRECTION_OUTPUT)
-            pa_core_update_default_sink(p->core);
+            pa_core_update_default_sink(p->core, false);
         else
             pa_core_update_default_source(p->core);
 

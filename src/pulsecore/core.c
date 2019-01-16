@@ -230,7 +230,7 @@ static void core_free(pa_object *o) {
     pa_xfree(c);
 }
 
-void pa_core_set_configured_default_sink(pa_core *core, const char *sink) {
+void pa_core_set_configured_default_sink(pa_core *core, const char *sink, bool from_user) {
     char *old_sink;
 
     pa_assert(core);
@@ -246,7 +246,7 @@ void pa_core_set_configured_default_sink(pa_core *core, const char *sink) {
                 old_sink ? old_sink : "(unset)", sink ? sink : "(unset)");
     pa_subscription_post(core, PA_SUBSCRIPTION_EVENT_SERVER | PA_SUBSCRIPTION_EVENT_CHANGE, PA_INVALID_INDEX);
 
-    pa_core_update_default_sink(core);
+    pa_core_update_default_sink(core, from_user);
 
 finish:
     pa_xfree(old_sink);
@@ -312,7 +312,7 @@ static int compare_sinks(pa_sink *a, pa_sink *b) {
     return 0;
 }
 
-void pa_core_update_default_sink(pa_core *core) {
+void pa_core_update_default_sink(pa_core *core, bool from_user) {
     pa_sink *best = NULL;
     pa_sink *sink;
     uint32_t idx;
@@ -349,6 +349,10 @@ void pa_core_update_default_sink(pa_core *core) {
 
     pa_subscription_post(core, PA_SUBSCRIPTION_EVENT_SERVER | PA_SUBSCRIPTION_EVENT_CHANGE, PA_INVALID_INDEX);
     pa_hook_fire(&core->hooks[PA_CORE_HOOK_DEFAULT_SINK_CHANGED], core->default_sink);
+
+    /* try to move the streams from old_default_sink to the new default_sink conditionally */
+    if (old_default_sink)
+        pa_sink_move_streams_to_default_sink(core, old_default_sink, from_user);
 }
 
 /* a  < b  ->  return -1
