@@ -759,6 +759,9 @@ void pa_sink_unlink(pa_sink* s) {
 
     pa_core_update_default_sink(s->core, false);
 
+    if (linked)
+        pa_sink_move_streams_to_default_sink(s->core, s, false);
+
     if (s->card)
         pa_idxset_remove_by_data(s->card->sinks, s, NULL);
 
@@ -3942,6 +3945,9 @@ void pa_sink_move_streams_to_default_sink(pa_core *core, pa_sink *old_sink, bool
     pa_assert(core);
     pa_assert(old_sink);
 
+    if (core->state == PA_CORE_SHUTDOWN)
+        return;
+
     if (core->default_sink == NULL || core->default_sink->unlink_requested)
         return;
 
@@ -3959,7 +3965,7 @@ void pa_sink_move_streams_to_default_sink(pa_core *core, pa_sink *old_sink, bool
             if (pa_safe_streq(old_sink->name, i->preferred_sink) && !old_sink_is_unavailable)
                 continue;
 
-            pa_log_info("The sink input %u \"%s\" is moving to %s due to default_sink is changed.",
+            pa_log_info("The sink input %u \"%s\" is moving to %s due to sink is unlinked or default_sink is changed.",
                         i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_APPLICATION_NAME)), core->default_sink->name);
             pa_sink_input_move_to(i, core->default_sink, from_user);
         }
