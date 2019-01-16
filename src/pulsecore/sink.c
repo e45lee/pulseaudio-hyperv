@@ -727,6 +727,8 @@ void pa_sink_put(pa_sink* s) {
     /* This function must be called after the PA_CORE_HOOK_SINK_PUT hook,
      * because module-switch-on-connect needs to know the old default sink */
     pa_core_update_default_sink(s->core, false);
+
+    pa_core_move_streams_to_newly_available_preferred_sink(s->core, s);
 }
 
 /* Called from main context */
