@@ -1,5 +1,5 @@
+WARNING: Issues with data may languish in bug purgatory.  
 Unless you are sure its not relevant please attach files for each command under the environment heading.  
-WARNING: Incomplete bugs may languish in bug purgatory.  
   
 environment  
 	`uname -a`  
