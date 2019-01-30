@@ -1,4 +1,4 @@
-WARNING: Issues with data may languish in bug purgatory.    
+WARNING: Missing data may cause bugs to languish.  
 Unless you are sure its not relevant please attach files for each command under the environment heading. 
  
   
