@@ -1,4 +1,5 @@
-Unless you are sure the data is not relevant to the issue please attach files for each command under the environment heading.
+Unless you are sure its not relevant please attach files for each command under the environment heading.  
+WARNING: Incomplete bugs may languish in bug purgatory.  
   
 environment  
 	`uname -a`  
