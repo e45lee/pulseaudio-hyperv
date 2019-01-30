@@ -1,3 +1,5 @@
+Unless you are sure the data is not relevant to the issue please attach files for each command under the environment heading.
+  
 environment  
 	`uname -a`  
 	`aplay -l`  
