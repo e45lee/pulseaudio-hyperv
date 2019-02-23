@@ -54,14 +54,14 @@ typedef enum pa_bluetooth_hook {
     PA_BLUETOOTH_HOOK_MAX
 } pa_bluetooth_hook_t;
 
-typedef enum profile {
-    PA_BLUETOOTH_PROFILE_A2DP_SINK,
-    PA_BLUETOOTH_PROFILE_A2DP_SOURCE,
-    PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT,
-    PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY,
-    PA_BLUETOOTH_PROFILE_OFF
-} pa_bluetooth_profile_t;
-#define PA_BLUETOOTH_PROFILE_COUNT PA_BLUETOOTH_PROFILE_OFF
+/* Profile index is used also for card profile priority. Higher number has higher priority.
+ * All A2DP profiles have higher priority as all non-A2DP profiles.
+ * And all A2DP sink profiles have higher priority as all A2DP source profiles. */
+#define PA_BLUETOOTH_PROFILE_OFF                    0
+#define PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY  1
+#define PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT      2
+#define PA_BLUETOOTH_PROFILE_A2DP_START_INDEX       3
+typedef unsigned pa_bluetooth_profile_t;
 
 typedef enum pa_bluetooth_transport_state {
     PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED,
@@ -86,8 +86,6 @@ struct pa_bluetooth_transport {
     uint8_t *config;
     size_t config_size;
 
-    const pa_a2dp_codec *a2dp_codec;
-
     uint16_t microphone_gain;
     uint16_t speaker_gain;
 
@@ -109,6 +107,7 @@ struct pa_bluetooth_device {
     bool tried_to_link_with_adapter;
     bool valid;
     bool autodetect_mtu;
+    bool change_a2dp_profile_in_progress;
 
     /* Device information */
     char *path;
@@ -117,8 +116,10 @@ struct pa_bluetooth_device {
     char *address;
     uint32_t class_of_device;
     pa_hashmap *uuids; /* char* -> char* (hashmap-as-a-set) */
+    pa_hashmap *a2dp_sink_endpoints; /* pa_a2dp_codec_id* -> pa_hashmap ( char* (remote endpoint) -> struct a2dp_codec_capabilities* ) */
+    pa_hashmap *a2dp_source_endpoints; /* pa_a2dp_codec_id* -> pa_hashmap ( char* (remote endpoint) -> struct a2dp_codec_capabilities* ) */
 
-    pa_bluetooth_transport *transports[PA_BLUETOOTH_PROFILE_COUNT];
+    pa_bluetooth_transport **transports;
 
     pa_time_event *wait_for_profiles_timer;
 };
@@ -129,6 +130,7 @@ struct pa_bluetooth_adapter {
     char *address;
 
     bool valid;
+    bool media_application_registered;
 };
 
 #ifdef HAVE_BLUEZ_5_OFONO_HEADSET
@@ -161,6 +163,9 @@ void pa_bluetooth_transport_put(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_unlink(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t);
 
+size_t pa_bluetooth_device_find_a2dp_endpoints_for_codec(const pa_bluetooth_device *device, const pa_a2dp_codec *a2dp_codec, bool is_a2dp_sink, const char **endpoints, size_t endpoints_max_count);
+bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *d, pa_bluetooth_profile_t profile, void (*cb)(bool, void *), void *userdata);
+
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d);
 
 pa_bluetooth_device* pa_bluetooth_discovery_get_device_by_path(pa_bluetooth_discovery *y, const char *path);
@@ -168,7 +173,20 @@ pa_bluetooth_device* pa_bluetooth_discovery_get_device_by_address(pa_bluetooth_d
 
 pa_hook* pa_bluetooth_discovery_hook(pa_bluetooth_discovery *y, pa_bluetooth_hook_t hook);
 
+unsigned pa_bluetooth_profile_count(void);
+bool pa_bluetooth_profile_is_a2dp_sink(pa_bluetooth_profile_t profile);
+bool pa_bluetooth_profile_is_a2dp_source(pa_bluetooth_profile_t profile);
+const pa_a2dp_codec *pa_bluetooth_profile_to_a2dp_codec(pa_bluetooth_profile_t profile);
+pa_bluetooth_profile_t pa_bluetooth_profile_for_a2dp_codec(const char *codec_name, bool is_a2dp_sink);
 const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile);
+
+static inline bool pa_bluetooth_profile_is_a2dp(pa_bluetooth_profile_t profile) {
+    return pa_bluetooth_profile_is_a2dp_sink(profile) || pa_bluetooth_profile_is_a2dp_source(profile);
+}
+
+static inline bool pa_bluetooth_profile_support_a2dp_backchannel(pa_bluetooth_profile_t profile) {
+    return pa_bluetooth_profile_to_a2dp_codec(profile)->support_backchannel;
+}
 
 static inline bool pa_bluetooth_uuid_is_hsp_hs(const char *uuid) {
     return pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS) || pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS_ALT);
