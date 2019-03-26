@@ -44,6 +44,7 @@ PA_MODULE_USAGE(
         "source=<source to connect to> "
         "sink=<sink to connect to> "
         "adjust_time=<how often to readjust rates in s> "
+        "adjust_time_msec=<how often to readjust rates in ms> "
         "latency_msec=<latency in ms> "
         "max_latency_msec=<maximum latency in ms> "
         "low_device_latency=<boolean, use half of the normal device latency> "
@@ -69,7 +70,7 @@ PA_MODULE_USAGE(
 
 #define MIN_DEVICE_LATENCY (2.5*PA_USEC_PER_MSEC)
 
-#define DEFAULT_ADJUST_TIME_USEC (10*PA_USEC_PER_SEC)
+#define DEFAULT_ADJUST_TIME_USEC (1*PA_USEC_PER_SEC)
 
 typedef struct loopback_msg loopback_msg;
 
@@ -191,6 +192,7 @@ static const char* const valid_modargs[] = {
     "source",
     "sink",
     "adjust_time",
+    "adjust_time_msec",
     "latency_msec",
     "max_latency_msec",
     "low_device_latency",
@@ -1536,6 +1538,7 @@ int pa__init(pa_module *m) {
     bool channels_set = false;
     pa_memchunk silence;
     uint32_t adjust_time_sec;
+    uint32_t adjust_time_msec;
     const char *n;
     bool remix = true;
     bool low_device_latency = false;
@@ -1672,10 +1675,18 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    if (adjust_time_sec != DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_SEC)
+    adjust_time_msec = DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_MSEC;
+    if (pa_modargs_get_value_u32(ma, "adjust_time_msec", &adjust_time_msec) < 0 || (adjust_time_msec != 0 && adjust_time_msec < 100)) {
+        pa_log("Failed to parse adjust_time_msec value");
+        goto fail;
+    }
+
+    /* If adjust_time and adjust_time_msec are both specified, prefer the adjust_time_msec value */
+    u->adjust_time = DEFAULT_ADJUST_TIME_USEC;
+    if (adjust_time_msec != DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_MSEC)
+        u->adjust_time = adjust_time_msec * PA_USEC_PER_MSEC;
+    else if (adjust_time_sec != DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_SEC)
         u->adjust_time = adjust_time_sec * PA_USEC_PER_SEC;
-    else
-        u->adjust_time = DEFAULT_ADJUST_TIME_USEC;
 
     u->real_adjust_time = u->adjust_time;
 
