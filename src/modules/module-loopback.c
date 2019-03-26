@@ -46,6 +46,7 @@ PA_MODULE_USAGE(
         "adjust_time=<how often to readjust rates in s> "
         "latency_msec=<latency in ms> "
         "max_latency_msec=<maximum latency in ms> "
+        "low_device_latency=<boolean, use half of the normal device latency> "
         "fast_adjust_threshold_msec=<threshold for fast adjust in ms> "
         "adjust_threshold_usec=<threshold for latency adjustment in usec> "
         "format=<sample format> "
@@ -100,6 +101,7 @@ struct userdata {
     pa_usec_t adjust_time;
     pa_usec_t fast_adjust_threshold;
     uint32_t adjust_threshold;
+    bool low_device_latency;
 
     /* Latency boundaries and current values */
     pa_usec_t min_source_latency;
@@ -191,6 +193,7 @@ static const char* const valid_modargs[] = {
     "adjust_time",
     "latency_msec",
     "max_latency_msec",
+    "low_device_latency",
     "fast_adjust_threshold_msec",
     "adjust_threshold_usec",
     "format",
@@ -802,11 +805,14 @@ static void update_effective_source_latency(struct userdata *u, pa_source *sourc
  * Set source output latency to one third of the overall latency if possible.
  * The choice of one third is rather arbitrary somewhere between the minimum
  * possible latency which would cause a lot of CPU load and half the configured
- * latency which would quickly lead to underruns */
+ * latency which would quickly lead to underruns. In low device latency mode set
+ * source to one sixth of the overall latency. */
 static void set_source_output_latency(struct userdata *u, pa_source *source) {
     pa_usec_t latency, requested_latency;
 
     requested_latency = u->latency / 3;
+    if (u->low_device_latency)
+        requested_latency = u->latency / 6;
 
     /* Normally we try to configure sink and source latency equally. If the
      * sink latency cannot match the requested source latency try to set the
@@ -1188,11 +1194,14 @@ static int sink_input_process_msg_cb(pa_msgobject *obj, int code, void *data, in
  * Set sink input latency to one third of the overall latency if possible.
  * The choice of one third is rather arbitrary somewhere between the minimum
  * possible latency which would cause a lot of CPU load and half the configured
- * latency which would quickly lead to underruns. */
+ * latency which would quickly lead to underruns. In low device latency mode
+ * set sink to one sixth of the overall latency. */
 static void set_sink_input_latency(struct userdata *u, pa_sink *sink) {
      pa_usec_t latency, requested_latency;
 
     requested_latency = u->latency / 3;
+    if (u->low_device_latency)
+        requested_latency = u->latency / 6;
 
     /* Normally we try to configure sink and source latency equally. If the
      * source latency cannot match the requested sink latency try to set the
@@ -1529,6 +1538,7 @@ int pa__init(pa_module *m) {
     uint32_t adjust_time_sec;
     const char *n;
     bool remix = true;
+    bool low_device_latency = false;
 
     pa_assert(m);
 
@@ -1627,6 +1637,11 @@ int pa__init(pa_module *m) {
         max_latency_msec = latency_msec;
     }
 
+    if (pa_modargs_get_value_boolean(ma, "low_device_latency", &low_device_latency) < 0) {
+        pa_log("Invalid boolean device latency parameter");
+        goto fail;
+    }
+
     m->userdata = u = pa_xnew0(struct userdata, 1);
     u->core = m->core;
     u->module = m;
@@ -1648,6 +1663,7 @@ int pa__init(pa_module *m) {
     u->latency_error = 0;
     u->adjust_threshold = adjust_threshold;
     u->target_latency_cross_counter = 0;
+    u->low_device_latency = low_device_latency;
     u->initial_adjust_pending = true;
 
     adjust_time_sec = DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_SEC;
