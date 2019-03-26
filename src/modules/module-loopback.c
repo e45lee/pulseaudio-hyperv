@@ -48,6 +48,8 @@ PA_MODULE_USAGE(
         "latency_msec=<latency in ms> "
         "max_latency_msec=<maximum latency in ms> "
         "low_device_latency=<boolean, use half of the normal device latency> "
+        "log_interval=<how often to log in s> "
+        "log_interval_msec=<how often to log in ms> "
         "fast_adjust_threshold_msec=<threshold for fast adjust in ms> "
         "adjust_threshold_usec=<threshold for latency adjustment in usec> "
         "format=<sample format> "
@@ -103,6 +105,7 @@ struct userdata {
     pa_usec_t fast_adjust_threshold;
     uint32_t adjust_threshold;
     bool low_device_latency;
+    uint32_t log_interval;
 
     /* Latency boundaries and current values */
     pa_usec_t min_source_latency;
@@ -139,6 +142,7 @@ struct userdata {
     uint32_t underrun_counter;
     uint32_t adjust_counter;
     uint32_t target_latency_cross_counter;
+    uint32_t log_counter;
 
     /* Various booleans */
     bool fixed_alsa_source;
@@ -196,6 +200,8 @@ static const char* const valid_modargs[] = {
     "latency_msec",
     "max_latency_msec",
     "low_device_latency",
+    "log_interval",
+    "log_interval_msec",
     "fast_adjust_threshold_msec",
     "adjust_threshold_usec",
     "format",
@@ -535,18 +541,25 @@ static void adjust_rates(struct userdata *u) {
     /* Calculate new rate */
     new_rate = rate_controller(u, base_rate, old_rate, (int32_t)(filtered_latency - final_latency), latency_difference);
 
-    pa_log_debug("Loopback status %s to %s:\n    Source latency: %0.2f ms\n    Buffer: %0.2f ms\n    Sink latency: %0.2f ms\n    End-to-end latency: %0.2f ms\n"
-                 "    Deviation from target latency at optimum rate: %0.2f usec\n    Average prediction error: ± %0.2f usec\n    Optimum rate: %0.2f Hz\n    Deviation from base rate: %i Hz",
-                u->source_output->source->name,
-                u->sink_input->sink->name,
-                (double) u->latency_snapshot.source_latency / PA_USEC_PER_MSEC,
-                (double) current_buffer_latency / PA_USEC_PER_MSEC,
-                (double) u->latency_snapshot.sink_latency / PA_USEC_PER_MSEC,
-                (double) current_latency / PA_USEC_PER_MSEC,
-                (double) latency_at_optimum_rate - final_latency,
-                (double) u->latency_error,
-                u->drift_compensation_rate + base_rate,
-                (int32_t)(new_rate - base_rate));
+    /* Log every log_interval iterations if the log_interval parameter is set */
+    if (u->log_interval != 0) {
+        u->log_counter--;
+        if (u->log_counter == 0) {
+            pa_log_debug("Loopback status %s to %s:\n    Source latency: %0.2f ms\n    Buffer: %0.2f ms\n    Sink latency: %0.2f ms\n    End-to-end latency: %0.2f ms\n"
+                         "    Deviation from target latency at optimum rate: %0.2f usec\n    Average prediction error: ± %0.2f usec\n    Optimum rate: %0.2f Hz\n    Deviation from base rate: %i Hz",
+                        u->source_output->source->name,
+                        u->sink_input->sink->name,
+                        (double) u->latency_snapshot.source_latency / PA_USEC_PER_MSEC,
+                        (double) current_buffer_latency / PA_USEC_PER_MSEC,
+                        (double) u->latency_snapshot.sink_latency / PA_USEC_PER_MSEC,
+                        (double) current_latency / PA_USEC_PER_MSEC,
+                        (double) latency_at_optimum_rate - final_latency,
+                        (double) u->latency_error,
+                        u->drift_compensation_rate + base_rate,
+                        (int32_t)(new_rate - base_rate));
+            u->log_counter = u->log_interval;
+        }
+    }
 
     /* If the latency difference changed sign, we have crossed the target latency. */
     if ((int64_t)latency_difference * u->last_latency_difference < 0)
@@ -926,11 +939,12 @@ static void source_output_moving_cb(pa_source_output *o, pa_source *dest) {
     u->iteration_counter = 0;
     u->underrun_counter = 0;
 
-    /* Reset booleans, latency error and counter */
+    /* Reset booleans, latency error and counters */
     u->source_sink_changed = true;
     u->underrun_occured = false;
     u->source_latency_offset_changed = false;
     u->target_latency_cross_counter = 0;
+    u->log_counter = u->log_interval;
     u->latency_error = 0;
 
     /* Send a mesage to the output thread that the source has changed.
@@ -1338,11 +1352,12 @@ static void sink_input_moving_cb(pa_sink_input *i, pa_sink *dest) {
     u->iteration_counter = 0;
     u->underrun_counter = 0;
 
-    /* Reset booleans, latency error and counter */
+    /* Reset booleans, latency error and counters */
     u->source_sink_changed = true;
     u->underrun_occured = false;
     u->sink_latency_offset_changed = false;
     u->target_latency_cross_counter = 0;
+    u->log_counter = u->log_interval;
     u->latency_error = 0;
 
     u->output_thread_info.pop_called = false;
@@ -1537,8 +1552,8 @@ int pa__init(pa_module *m) {
     bool rate_set = false;
     bool channels_set = false;
     pa_memchunk silence;
-    uint32_t adjust_time_sec;
-    uint32_t adjust_time_msec;
+    uint32_t adjust_time_sec, adjust_time_msec;
+    uint32_t log_interval_sec, log_interval_msec;
     const char *n;
     bool remix = true;
     bool low_device_latency = false;
@@ -1681,7 +1696,7 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    /* If adjust_time and adjust_time_msec are both specified, prefer the adjust_time_msec value */
+    /* If adjust_time and adjust_time_msec are both specified, use adjust_time_msec */
     u->adjust_time = DEFAULT_ADJUST_TIME_USEC;
     if (adjust_time_msec != DEFAULT_ADJUST_TIME_USEC / PA_USEC_PER_MSEC)
         u->adjust_time = adjust_time_msec * PA_USEC_PER_MSEC;
@@ -1753,6 +1768,34 @@ int pa__init(pa_module *m) {
      * after the pa_source_output_new() call. */
     ss = u->source_output->sample_spec;
     map = u->source_output->channel_map;
+
+    /* Get log interval, default is 0, which means no logging */
+    log_interval_sec = 0;
+    if (pa_modargs_get_value_u32(ma, "log_interval", &log_interval_sec) < 0) {
+        pa_log_info("Invalid log interval specification");
+        goto fail;
+    }
+
+    log_interval_msec = 0;
+    if (pa_modargs_get_value_u32(ma, "log_interval_msec", &log_interval_msec) < 0 || (log_interval_msec !=0 && log_interval_msec < 100)) {
+        pa_log_info("Invalid log interval specification");
+        goto fail;
+    }
+
+    /* Estimate number of iterations for logging, if both parameters are specified,
+     * log_interval_msec is used */
+    u->log_interval = 0;
+    if (u->adjust_time != 0 && (log_interval_msec != 0 || log_interval_sec != 0)) {
+        if (log_interval_msec != 0)
+            u->log_interval = (int)((double)log_interval_msec * PA_USEC_PER_MSEC / u->adjust_time + 0.5);
+        else if (log_interval_sec != 0)
+            u->log_interval = (int)((double)log_interval_sec * PA_USEC_PER_SEC / u->adjust_time + 0.5);
+        /* Logging was specified, but log interval parameter was too small,
+         * therefore log on every iteration */
+        if (u->log_interval == 0)
+            u->log_interval = 1;
+    }
+    u->log_counter = u->log_interval;
 
     pa_sink_input_new_data_init(&sink_input_data);
     sink_input_data.driver = __FILE__;
