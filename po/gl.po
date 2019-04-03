@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PulseAudio\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-02-20 01:34+0100\n"
+"POT-Creation-Date: 2019-04-04 00:05+0200\n"
 "PO-Revision-Date: 2019-02-20 01:36+0200\n"
 "Last-Translator: Fran Dieguez <frandieguez@gnome.org>\n"
 "Language-Team: Galician\n"
@@ -220,8 +220,8 @@ msgid ""
 "valid file name 'file:<path>', 'newfile:<path>'."
 msgstr ""
 "O destino do rexistro non é correcto: use «syslog», «journal», «stderr», "
-"«auto» ou un nome válido de ficheiro «ficheiro:<path>», "
-"«novo_ficheiro:<path>»."
+"«auto» ou un nome válido de ficheiro «ficheiro:<path>», «novo_ficheiro:"
+"<path>»."
 
 #: ../src/daemon/cmdline.c:330
 msgid ""
@@ -865,7 +865,7 @@ msgstr "Saída %s"
 msgid "%s Input"
 msgstr "Entrada %s"
 
-#: ../src/modules/alsa/alsa-sink.c:587 ../src/modules/alsa/alsa-sink.c:771
+#: ../src/modules/alsa/alsa-sink.c:651 ../src/modules/alsa/alsa-sink.c:841
 #, c-format
 msgid ""
 "ALSA woke us up to write new data to the device, but there was actually "
@@ -882,7 +882,7 @@ msgstr ""
 "Espertáronnos co POLLOUT -- con todo un posterior snd_pcm_avail() devolveu 0 "
 "ou outro valor < min_avail."
 
-#: ../src/modules/alsa/alsa-source.c:543 ../src/modules/alsa/alsa-source.c:694
+#: ../src/modules/alsa/alsa-source.c:610 ../src/modules/alsa/alsa-source.c:776
 #, c-format
 msgid ""
 "ALSA woke us up to read new data from the device, but there was actually "
@@ -899,7 +899,7 @@ msgstr ""
 "Espertáronnos co POLLIN -- con todo un posterior snd_pcm_avail() devolveu 0 "
 "ou outro valor < min_avail."
 
-#: ../src/modules/alsa/alsa-util.c:1168 ../src/modules/alsa/alsa-util.c:1262
+#: ../src/modules/alsa/alsa-util.c:1173 ../src/modules/alsa/alsa-util.c:1267
 #, c-format
 msgid ""
 "snd_pcm_avail() returned a value that is exceptionally large: %lu byte (%lu "
@@ -912,17 +912,17 @@ msgid_plural ""
 "Most likely this is a bug in the ALSA driver '%s'. Please report this issue "
 "to the ALSA developers."
 msgstr[0] ""
-"snd_pcm_avail() devolveu un valor que é excepcionalmente grande: %lu bytes (%"
-"lu ms).\n"
+"snd_pcm_avail() devolveu un valor que é excepcionalmente grande: %lu bytes "
+"(%lu ms).\n"
 "O máis probábel é que sexa un erro do controlador ALSA «%s». Informe disto "
 "aos desenvolvedores de ALSA."
 msgstr[1] ""
-"snd_pcm_avail() devolveu un valor que é excepcionalmente grande: %lu bytes (%"
-"lu ms).\n"
+"snd_pcm_avail() devolveu un valor que é excepcionalmente grande: %lu bytes "
+"(%lu ms).\n"
 "O máis probábel é que sexa un erro do controlador ALSA «%s». Informe disto "
 "aos desenvolvedores de ALSA."
 
-#: ../src/modules/alsa/alsa-util.c:1234
+#: ../src/modules/alsa/alsa-util.c:1239
 #, c-format
 msgid ""
 "snd_pcm_delay() returned a value that is exceptionally large: %li byte (%s"
@@ -945,7 +945,7 @@ msgstr[1] ""
 "O máis probábel é que sexa un erro do controlador ALSA «%s». Informe disto "
 "aos desenvolvedores de ALSA."
 
-#: ../src/modules/alsa/alsa-util.c:1281
+#: ../src/modules/alsa/alsa-util.c:1286
 #, c-format
 msgid ""
 "snd_pcm_avail_delay() returned strange values: delay %lu is less than avail "
@@ -958,7 +958,7 @@ msgstr ""
 "O máis probábel é que sexa un erro do controlador ALSA «%s». Informe disto "
 "aos desenvolvedores de ALSA."
 
-#: ../src/modules/alsa/alsa-util.c:1324
+#: ../src/modules/alsa/alsa-util.c:1329
 #, c-format
 msgid ""
 "snd_pcm_mmap_begin() returned a value that is exceptionally large: %lu byte "
@@ -1522,11 +1522,11 @@ msgstr ""
 msgid "Invalid log target."
 msgstr "Obxectivo do rexistro incorrecto."
 
-#: ../src/pulsecore/sink.c:3507
+#: ../src/pulsecore/sink.c:3511
 msgid "Built-in Audio"
 msgstr "Audio interno"
 
-#: ../src/pulsecore/sink.c:3512
+#: ../src/pulsecore/sink.c:3516
 msgid "Modem"
 msgstr "Módem"
 
@@ -2316,8 +2316,10 @@ msgstr[1] "Actualmente en uso: %u bloques contendo %s bytes en total.\n"
 msgid "Allocated during whole lifetime: %u block containing %s bytes total.\n"
 msgid_plural ""
 "Allocated during whole lifetime: %u blocks containing %s bytes total.\n"
-msgstr[0] "Asignados ao longo do tempo: %u bloques contendo %s bytes en total.\n"
-msgstr[1] "Asignados ao longo do tempo: %u bloques contendo %s bytes en total.\n"
+msgstr[0] ""
+"Asignados ao longo do tempo: %u bloques contendo %s bytes en total.\n"
+msgstr[1] ""
+"Asignados ao longo do tempo: %u bloques contendo %s bytes en total.\n"
 
 #: ../src/utils/pactl.c:182
 #, c-format
