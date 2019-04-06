@@ -29,6 +29,11 @@
 extern const pa_a2dp_codec pa_a2dp_codec_faststream;
 extern const pa_a2dp_codec pa_a2dp_codec_faststream_mic;
 extern const pa_a2dp_codec pa_a2dp_codec_sbc;
+extern const pa_a2dp_codec pa_a2dp_codec_sbc_lq;
+extern const pa_a2dp_codec pa_a2dp_codec_sbc_mq;
+extern const pa_a2dp_codec pa_a2dp_codec_sbc_hq;
+extern const pa_a2dp_codec pa_a2dp_codec_sbc_xq1;
+extern const pa_a2dp_codec pa_a2dp_codec_sbc_xq2;
 #ifdef HAVE_OPENAPTX
 extern const pa_a2dp_codec pa_a2dp_codec_aptx;
 extern const pa_a2dp_codec pa_a2dp_codec_aptx_hd;
@@ -37,13 +42,20 @@ extern const pa_a2dp_codec pa_a2dp_codec_aptx_hd;
 /* This is list of supported codecs. Their order is important.
  * Codec with higher index has higher priority. */
 static const pa_a2dp_codec *pa_a2dp_codecs[] = {
-    &pa_a2dp_codec_faststream,
-    &pa_a2dp_codec_faststream_mic,
-    &pa_a2dp_codec_sbc,
+    &pa_a2dp_codec_sbc_lq,
+    &pa_a2dp_codec_faststream,        /* Exactly same as SBC-LQ, but could provide lower latency */
+    &pa_a2dp_codec_faststream_mic,    /* Exactly same as FastStream, but with voice backchannel */
+    &pa_a2dp_codec_sbc_mq,
+    &pa_a2dp_codec_sbc,               /* SBC in automatic mode, from SBC-LQ to SBC-HQ; not SBC-XQ */
 #ifdef HAVE_OPENAPTX
     &pa_a2dp_codec_aptx,
+#endif
+    &pa_a2dp_codec_sbc_hq,            /* SBC-HQ has similar quality as aptX */
+#ifdef HAVE_OPENAPTX
     &pa_a2dp_codec_aptx_hd,
 #endif
+    &pa_a2dp_codec_sbc_xq1,           /* SBC-XQ has similar quality as aptX-HD */
+    &pa_a2dp_codec_sbc_xq2,           /* SBC-XQ has similar quality as aptX-HD */
 };
 
 unsigned int pa_bluetooth_a2dp_codec_count(void) {
