@@ -36,8 +36,71 @@
 #include "a2dp-codec-api.h"
 #include "rtp.h"
 
-#define SBC_BITPOOL_DEC_LIMIT 32
-#define SBC_BITPOOL_DEC_STEP 5
+/* Below are capabilities tables for different qualities. Order of capabilities in tables are from the most preferred to the least preferred. */
+
+#define FIXED_SBC_CAPS(mode, freq, bitpool) { .channel_mode = (mode), .frequency = (freq), .min_bitpool = (bitpool), .max_bitpool = (bitpool), .allocation_method = SBC_ALLOCATION_LOUDNESS, .subbands = SBC_SUBBANDS_8, .block_length = SBC_BLOCK_LENGTH_16 }
+
+/* SBC Low Quality, Joint Stereo is same as FastStream's SBC codec configuration, Mono was calculated to match Joint Stereo */
+static const a2dp_sbc_t sbc_lq_caps_table[] = {
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_44100, 29), /* 195.7 kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_48000, 29), /* 213   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_44100, 15), /* 104.7 kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_48000, 15), /* 114   kbps */
+};
+
+/* SBC Middle Quality, based on A2DP spec: Recommended sets of SBC parameters */
+static const a2dp_sbc_t sbc_mq_caps_table[] = {
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_44100, SBC_BITPOOL_MQ_JOINT_STEREO_44100), /* bitpool = 35, 228.8 kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_48000, SBC_BITPOOL_MQ_JOINT_STEREO_48000), /* bitpool = 33, 237   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_44100, SBC_BITPOOL_MQ_MONO_44100),         /* bitpool = 19, 126.8 kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_48000, SBC_BITPOOL_MQ_MONO_48000),         /* bitpool = 18, 132   kbps */
+};
+
+/* SBC High Quality, based on A2DP spec: Recommended sets of SBC parameters */
+static const a2dp_sbc_t sbc_hq_caps_table[] = {
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_44100, SBC_BITPOOL_HQ_JOINT_STEREO_44100), /* bitpool = 53, 328   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_48000, SBC_BITPOOL_HQ_JOINT_STEREO_48000), /* bitpool = 51, 345   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_44100, SBC_BITPOOL_HQ_MONO_44100),         /* bitpool = 31, 192.9 kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_48000, SBC_BITPOOL_HQ_MONO_48000),         /* bitpool = 29, 210   kbps */
+};
+
+/* SBC eXtreme Quality, calculated to minimize wasted bytes and to be below max possible 512 kbps */
+static const a2dp_sbc_t sbc_xq1_caps_table[] = {
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_44100, 76), /* 454.8 kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_JOINT_STEREO, SBC_SAMPLING_FREQ_48000, 76), /* 495   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_STEREO,       SBC_SAMPLING_FREQ_44100, 76), /* 452   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_STEREO,       SBC_SAMPLING_FREQ_48000, 76), /* 492   kbps */
+};
+static const a2dp_sbc_t sbc_xq2_caps_table[] = {
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_DUAL_CHANNEL, SBC_SAMPLING_FREQ_44100, 38), /* 452   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_DUAL_CHANNEL, SBC_SAMPLING_FREQ_48000, 38), /* 492   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_44100, 37), /* 226   kbps */
+    FIXED_SBC_CAPS(SBC_CHANNEL_MODE_MONO,         SBC_SAMPLING_FREQ_48000, 37), /* 246   kbps */
+};
+/* In most cases bluetooth headsets would support only sbc dual channel mode
+ * for 2 channels as they have limited maximal bitpool value to 53.
+ * We need to define it in two tables to disallow invalid combination of
+ * joint stereo with bitpool 38 which is not XQ. */
+
+#undef FIXED_SBC_CAPS
+
+/* SBC Auto Quality, only one row which allow any possible configuration up to common High Quality */
+/* We need to ensure that bitrate is below max possible 512 kbps, therefore limit configuration to High Quality */
+static const a2dp_sbc_t sbc_auto_caps_table[] = { {
+    .channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_DUAL_CHANNEL | SBC_CHANNEL_MODE_STEREO | SBC_CHANNEL_MODE_JOINT_STEREO,
+    .frequency = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_32000 | SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000,
+    .allocation_method = SBC_ALLOCATION_SNR | SBC_ALLOCATION_LOUDNESS,
+    .subbands = SBC_SUBBANDS_4 | SBC_SUBBANDS_8,
+    .block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8 | SBC_BLOCK_LENGTH_12 | SBC_BLOCK_LENGTH_16,
+    .min_bitpool = SBC_MIN_BITPOOL,
+    .max_bitpool = SBC_BITPOOL_HQ_JOINT_STEREO_44100,
+} };
+
+/* Bitpool limits and steps for reducing bitrate in Auto Quality mode */
+#define SBC_SEPARATE_BITPOOL_DEC_LIMIT 10
+#define SBC_COMBINED_BITPOOL_DEC_LIMIT 25
+#define SBC_SEPARATE_BITPOOL_DEC_STEP   2
+#define SBC_COMBINED_BITPOOL_DEC_STEP   4
 
 struct sbc_info {
     sbc_t sbc;                           /* Codec data */
@@ -53,60 +116,235 @@ struct sbc_info {
     uint8_t max_bitpool;
 };
 
+static bool are_capabilities_compatible(const a2dp_sbc_t *capabilities1, const a2dp_sbc_t *capabilities2) {
+    if (!(capabilities1->channel_mode & capabilities2->channel_mode))
+        return false;
+
+    if (!(capabilities1->frequency & capabilities2->frequency))
+        return false;
+
+    if (!(capabilities1->allocation_method & capabilities2->allocation_method))
+        return false;
+
+    if (!(capabilities1->subbands & capabilities2->subbands))
+        return false;
+
+    if (!(capabilities1->block_length & capabilities2->block_length))
+        return false;
+
+    if (capabilities1->min_bitpool > capabilities2->max_bitpool || capabilities2->min_bitpool > capabilities1->max_bitpool)
+        return false;
+
+    if (capabilities1->min_bitpool > capabilities1->max_bitpool || capabilities2->min_bitpool > capabilities2->max_bitpool)
+        return false;
+
+    return true;
+}
+
 static bool can_accept_capabilities(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding) {
     const a2dp_sbc_t *capabilities = (const a2dp_sbc_t *) capabilities_buffer;
 
     if (capabilities_size != sizeof(*capabilities))
         return false;
 
-    if (!(capabilities->frequency & (SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_32000 | SBC_SAMPLING_FREQ_44100 | SBC_SAMPLING_FREQ_48000)))
+    return are_capabilities_compatible(capabilities, &sbc_auto_caps_table[0]);
+}
+
+static bool can_accept_capabilities_table(const uint8_t *capabilities_buffer, uint8_t capabilities_size, const a2dp_sbc_t capabilities_table[], unsigned capabilities_table_elements) {
+    const a2dp_sbc_t *capabilities = (const a2dp_sbc_t *) capabilities_buffer;
+    unsigned i;
+
+    if (!can_accept_capabilities(capabilities_buffer, capabilities_size, false))
         return false;
 
-    if (!(capabilities->channel_mode & (SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_DUAL_CHANNEL | SBC_CHANNEL_MODE_STEREO | SBC_CHANNEL_MODE_JOINT_STEREO)))
-        return false;
+    for (i = 0; i < capabilities_table_elements; i++) {
+        if (!are_capabilities_compatible(capabilities, &capabilities_table[i]))
+            continue;
+        return true;
+    }
 
-    if (!(capabilities->allocation_method & (SBC_ALLOCATION_SNR | SBC_ALLOCATION_LOUDNESS)))
-        return false;
+    return false;
+}
 
-    if (!(capabilities->subbands & (SBC_SUBBANDS_4 | SBC_SUBBANDS_8)))
-        return false;
+static bool can_accept_capabilities_lq(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding) {
+    return can_accept_capabilities_table(capabilities_buffer, capabilities_size, sbc_lq_caps_table, PA_ELEMENTSOF(sbc_lq_caps_table));
+}
 
-    if (!(capabilities->block_length & (SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8 | SBC_BLOCK_LENGTH_12 | SBC_BLOCK_LENGTH_16)))
-        return false;
+static bool can_accept_capabilities_mq(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding) {
+    return can_accept_capabilities_table(capabilities_buffer, capabilities_size, sbc_mq_caps_table, PA_ELEMENTSOF(sbc_mq_caps_table));
+}
 
-    return true;
+static bool can_accept_capabilities_hq(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding) {
+    return can_accept_capabilities_table(capabilities_buffer, capabilities_size, sbc_hq_caps_table, PA_ELEMENTSOF(sbc_hq_caps_table));
+}
+
+static bool can_accept_capabilities_xq1(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding) {
+    return can_accept_capabilities_table(capabilities_buffer, capabilities_size, sbc_xq1_caps_table, PA_ELEMENTSOF(sbc_xq1_caps_table));
+}
+
+static bool can_accept_capabilities_xq2(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding) {
+    return can_accept_capabilities_table(capabilities_buffer, capabilities_size, sbc_xq2_caps_table, PA_ELEMENTSOF(sbc_xq2_caps_table));
+}
+
+static const char *choose_remote_endpoint_table(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, const a2dp_sbc_t capabilities_table[], unsigned capabilities_table_elements) {
+    const pa_a2dp_codec_capabilities *a2dp_capabilities;
+    const a2dp_sbc_t *capabilities;
+    const char *key;
+    void *state;
+    unsigned i;
+    uint8_t table_range;
+    uint8_t current_range;
+    const char *best_key = NULL;
+    uint8_t best_range = 0;
+    uint8_t frequency = 0;
+    bool is_mono = (default_sample_spec->channels <= 1);
+
+    static const struct {
+        uint32_t rate;
+        uint8_t cap;
+    } freq_table[] = {
+        { 16000U, SBC_SAMPLING_FREQ_16000 },
+        { 32000U, SBC_SAMPLING_FREQ_32000 },
+        { 44100U, SBC_SAMPLING_FREQ_44100 },
+        { 48000U, SBC_SAMPLING_FREQ_48000 }
+    };
+
+    for (i = 0; i < PA_ELEMENTSOF(freq_table); i++) {
+        if (freq_table[i].rate == default_sample_spec->rate) {
+            frequency = freq_table[i].cap;
+            break;
+        }
+    }
+
+    if (!frequency)
+        return NULL;
+
+    /* choose remote capabilities which are compatible and its bitpool range is nearest to one from capabilities table */
+    PA_HASHMAP_FOREACH_KV(key, a2dp_capabilities, capabilities_hashmap, state) {
+        /* skip remote capabilities which are not compatible */
+        if (!can_accept_capabilities(a2dp_capabilities->buffer, a2dp_capabilities->size, false))
+            continue;
+
+        capabilities = (const a2dp_sbc_t *) a2dp_capabilities->buffer;
+
+        /* choose capabilities from our table which is compatible with sample spec and remote capabilities */
+        for (i = 0; i < capabilities_table_elements; i++) {
+            if (!are_capabilities_compatible(capabilities, &capabilities_table[i]))
+                continue;
+            /* For mono mode both capabilities must support mono */
+            if (is_mono && !((capabilities->channel_mode & SBC_CHANNEL_MODE_MONO) & (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_MONO)))
+                continue;
+            /* For non-mono mode both capabilities must support at least one common non-mode mode */
+            if (!is_mono && !((capabilities->channel_mode & (SBC_CHANNEL_MODE_JOINT_STEREO | SBC_CHANNEL_MODE_STEREO | SBC_CHANNEL_MODE_DUAL_CHANNEL)) & (capabilities_table[i].channel_mode & (SBC_CHANNEL_MODE_JOINT_STEREO | SBC_CHANNEL_MODE_STEREO | SBC_CHANNEL_MODE_DUAL_CHANNEL))))
+                continue;
+            /* And both capabilites must be compatible with chosen frequency */
+            if (!(capabilities->frequency & frequency) || !(capabilities_table[i].frequency & frequency))
+                continue;
+            break;
+        }
+
+        /* skip if nothing is compatible */
+        if (i == capabilities_table_elements)
+            continue;
+
+        /* calculate current bitpool range compatible with both remote capabilities and capabilities from our table */
+        if (capabilities->min_bitpool > capabilities_table[i].min_bitpool) {
+            if (capabilities->max_bitpool > capabilities_table[i].max_bitpool)
+                current_range = capabilities_table[i].max_bitpool - capabilities->min_bitpool;
+            else
+                current_range = capabilities->max_bitpool - capabilities->min_bitpool;
+        } else {
+            if (capabilities->max_bitpool > capabilities_table[i].max_bitpool)
+                current_range = capabilities_table[i].max_bitpool - capabilities_table[i].min_bitpool;
+            else
+                current_range = capabilities->max_bitpool - capabilities_table[i].min_bitpool;
+        }
+
+        table_range = capabilities_table[i].max_bitpool - capabilities_table[i].min_bitpool;
+
+        /* use current remote capabilities if its bitpool range is closer to bitpool range in table */
+        if (!best_key || abs((int)current_range - (int)(table_range)) < abs((int)best_range - (int)(table_range))) {
+            best_range = current_range;
+            best_key = key;
+        }
+    }
+
+    return best_key;
+}
+
+static const char *choose_remote_endpoint_lq(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    return choose_remote_endpoint_table(capabilities_hashmap, default_sample_spec, sbc_lq_caps_table, PA_ELEMENTSOF(sbc_lq_caps_table));
+}
+
+static const char *choose_remote_endpoint_mq(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    return choose_remote_endpoint_table(capabilities_hashmap, default_sample_spec, sbc_mq_caps_table, PA_ELEMENTSOF(sbc_mq_caps_table));
+}
+
+static const char *choose_remote_endpoint_hq(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    return choose_remote_endpoint_table(capabilities_hashmap, default_sample_spec, sbc_hq_caps_table, PA_ELEMENTSOF(sbc_hq_caps_table));
+}
+
+static const char *choose_remote_endpoint_xq1(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    return choose_remote_endpoint_table(capabilities_hashmap, default_sample_spec, sbc_xq1_caps_table, PA_ELEMENTSOF(sbc_xq1_caps_table));
+}
+
+static const char *choose_remote_endpoint_xq2(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    return choose_remote_endpoint_table(capabilities_hashmap, default_sample_spec, sbc_xq2_caps_table, PA_ELEMENTSOF(sbc_xq2_caps_table));
 }
 
 static const char *choose_remote_endpoint(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
-    const pa_a2dp_codec_capabilities *a2dp_capabilities;
-    const char *key;
-    void *state;
-
-    /* There is no preference, just choose random valid entry */
-    PA_HASHMAP_FOREACH_KV(key, a2dp_capabilities, capabilities_hashmap, state) {
-        if (can_accept_capabilities(a2dp_capabilities->buffer, a2dp_capabilities->size, for_encoding))
-            return key;
-    }
-
-    return NULL;
+    return choose_remote_endpoint_table(capabilities_hashmap, default_sample_spec, sbc_auto_caps_table, PA_ELEMENTSOF(sbc_auto_caps_table));
 }
 
-static uint8_t fill_capabilities(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+static uint8_t fill_capabilities_table(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE], const a2dp_sbc_t capabilities_table[], unsigned capabilities_table_elements) {
     a2dp_sbc_t *capabilities = (a2dp_sbc_t *) capabilities_buffer;
+    unsigned i;
 
     pa_zero(*capabilities);
 
-    capabilities->channel_mode = SBC_CHANNEL_MODE_MONO | SBC_CHANNEL_MODE_DUAL_CHANNEL | SBC_CHANNEL_MODE_STEREO |
-                                 SBC_CHANNEL_MODE_JOINT_STEREO;
-    capabilities->frequency = SBC_SAMPLING_FREQ_16000 | SBC_SAMPLING_FREQ_32000 | SBC_SAMPLING_FREQ_44100 |
-                              SBC_SAMPLING_FREQ_48000;
-    capabilities->allocation_method = SBC_ALLOCATION_SNR | SBC_ALLOCATION_LOUDNESS;
-    capabilities->subbands = SBC_SUBBANDS_4 | SBC_SUBBANDS_8;
-    capabilities->block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8 | SBC_BLOCK_LENGTH_12 | SBC_BLOCK_LENGTH_16;
-    capabilities->min_bitpool = SBC_MIN_BITPOOL;
-    capabilities->max_bitpool = SBC_BITPOOL_HQ_JOINT_STEREO_44100;
+    capabilities->min_bitpool = 0xFF;
+    capabilities->max_bitpool = 0x00;
+
+    for (i = 0; i < capabilities_table_elements; i++) {
+        capabilities->channel_mode |= capabilities_table[i].channel_mode;
+        capabilities->frequency |= capabilities_table[i].frequency;
+        capabilities->allocation_method |= capabilities_table[i].allocation_method;
+        capabilities->subbands |= capabilities_table[i].subbands;
+        capabilities->block_length |= capabilities_table[i].block_length;
+        if (capabilities->min_bitpool > capabilities_table[i].min_bitpool)
+            capabilities->min_bitpool = capabilities_table[i].min_bitpool;
+        if (capabilities->max_bitpool < capabilities_table[i].max_bitpool)
+            capabilities->max_bitpool = capabilities_table[i].max_bitpool;
+    }
+
+    pa_assert(capabilities->min_bitpool != 0xFF);
+    pa_assert(capabilities->max_bitpool != 0x00);
 
     return sizeof(*capabilities);
+}
+
+static uint8_t fill_capabilities_lq(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_capabilities_table(capabilities_buffer, sbc_lq_caps_table, PA_ELEMENTSOF(sbc_lq_caps_table));
+}
+
+static uint8_t fill_capabilities_mq(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_capabilities_table(capabilities_buffer, sbc_mq_caps_table, PA_ELEMENTSOF(sbc_mq_caps_table));
+}
+
+static uint8_t fill_capabilities_hq(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_capabilities_table(capabilities_buffer, sbc_hq_caps_table, PA_ELEMENTSOF(sbc_hq_caps_table));
+}
+
+static uint8_t fill_capabilities_xq1(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_capabilities_table(capabilities_buffer, sbc_xq1_caps_table, PA_ELEMENTSOF(sbc_xq1_caps_table));
+}
+
+static uint8_t fill_capabilities_xq2(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_capabilities_table(capabilities_buffer, sbc_xq2_caps_table, PA_ELEMENTSOF(sbc_xq2_caps_table));
+}
+
+static uint8_t fill_capabilities(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_capabilities_table(capabilities_buffer, sbc_auto_caps_table, PA_ELEMENTSOF(sbc_auto_caps_table));
 }
 
 static bool is_configuration_valid(const uint8_t *config_buffer, uint8_t config_size) {
@@ -153,6 +391,229 @@ static bool is_configuration_valid(const uint8_t *config_buffer, uint8_t config_
     return true;
 }
 
+static bool are_configs_compatible(const a2dp_sbc_t *config1, const a2dp_sbc_t *config2) {
+    if (config1->frequency != config2->frequency)
+        return false;
+
+    if (config1->channel_mode != config2->channel_mode)
+        return false;
+
+    if (config1->allocation_method != config2->allocation_method)
+        return false;
+
+    if (config1->subbands != config2->subbands)
+        return false;
+
+    if (config1->block_length != config2->block_length)
+        return false;
+
+    /* second config must have constant bitpool */
+    pa_assert(config2->min_bitpool == config2->max_bitpool);
+
+    if (config1->min_bitpool > config2->min_bitpool || config1->max_bitpool < config2->min_bitpool)
+        return false;
+
+    return true;
+}
+
+static bool is_configuration_valid_table(const uint8_t *config_buffer, uint8_t config_size, const a2dp_sbc_t capabilities_table[], unsigned capabilities_table_elements) {
+    const a2dp_sbc_t *config;
+    unsigned i;
+
+    if (!is_configuration_valid(config_buffer, config_size))
+        return false;
+
+    config = (const a2dp_sbc_t *) config_buffer;
+
+    for (i = 0; i < capabilities_table_elements; i++) {
+        if (!are_configs_compatible(config, &capabilities_table[i]))
+            continue;
+        return true;
+    }
+
+    pa_log_error("Some configuration settings are invalid for current quality");
+    return false;
+}
+
+static bool is_configuration_valid_lq(const uint8_t *config_buffer, uint8_t config_size) {
+    return is_configuration_valid_table(config_buffer, config_size, sbc_lq_caps_table, PA_ELEMENTSOF(sbc_lq_caps_table));
+}
+
+static bool is_configuration_valid_mq(const uint8_t *config_buffer, uint8_t config_size) {
+    return is_configuration_valid_table(config_buffer, config_size, sbc_mq_caps_table, PA_ELEMENTSOF(sbc_mq_caps_table));
+}
+
+static bool is_configuration_valid_hq(const uint8_t *config_buffer, uint8_t config_size) {
+    return is_configuration_valid_table(config_buffer, config_size, sbc_hq_caps_table, PA_ELEMENTSOF(sbc_hq_caps_table));
+}
+
+static bool is_configuration_valid_xq1(const uint8_t *config_buffer, uint8_t config_size) {
+    return is_configuration_valid_table(config_buffer, config_size, sbc_xq1_caps_table, PA_ELEMENTSOF(sbc_xq1_caps_table));
+}
+
+static bool is_configuration_valid_xq2(const uint8_t *config_buffer, uint8_t config_size) {
+    return is_configuration_valid_table(config_buffer, config_size, sbc_xq2_caps_table, PA_ELEMENTSOF(sbc_xq2_caps_table));
+}
+
+static uint8_t fill_preferred_configuration_table(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE], const a2dp_sbc_t capabilities_table[], unsigned capabilities_table_elements) {
+    a2dp_sbc_t *config = (a2dp_sbc_t *) config_buffer;
+    const a2dp_sbc_t *capabilities = (const a2dp_sbc_t *) capabilities_buffer;
+    bool is_mono = (default_sample_spec->channels <= 1);
+    unsigned i;
+    int j;
+
+    static const struct {
+        uint32_t rate;
+        uint8_t cap;
+    } freq_table[] = {
+        { 16000U, SBC_SAMPLING_FREQ_16000 },
+        { 32000U, SBC_SAMPLING_FREQ_32000 },
+        { 44100U, SBC_SAMPLING_FREQ_44100 },
+        { 48000U, SBC_SAMPLING_FREQ_48000 }
+    };
+
+    if (capabilities_size != sizeof(*capabilities)) {
+        pa_log_error("Invalid size of capabilities buffer");
+        return 0;
+    }
+
+    pa_zero(*config);
+
+    /* Find the lowest freq that is at least as high as the requested sampling rate */
+    for (j = 0; (unsigned) j < PA_ELEMENTSOF(freq_table); j++) {
+        if (freq_table[j].rate >= default_sample_spec->rate && (capabilities->frequency & freq_table[j].cap)) {
+            for (i = 0; i < capabilities_table_elements; i++) {
+                if (capabilities_table[i].frequency & freq_table[j].cap) {
+                    config->frequency = freq_table[j].cap;
+                    break;
+                }
+            }
+            if (i != capabilities_table_elements)
+                break;
+        }
+    }
+
+    if ((unsigned) j == PA_ELEMENTSOF(freq_table)) {
+        for (--j; j >= 0; j--) {
+            if (capabilities->frequency & freq_table[j].cap) {
+                for (i = 0; i < capabilities_table_elements; i++) {
+                    if (capabilities_table[i].frequency & freq_table[j].cap) {
+                        config->frequency = freq_table[j].cap;
+                        break;
+                    }
+                }
+                if (i != capabilities_table_elements)
+                    break;
+            }
+        }
+
+        if (j < 0) {
+            pa_log_error("No suitable sample rate");
+            return 0;
+        }
+    }
+
+    pa_assert((unsigned) j < PA_ELEMENTSOF(freq_table));
+
+    for (i = 0; i < capabilities_table_elements; i++) {
+        if ((capabilities->block_length & SBC_BLOCK_LENGTH_16) && (capabilities_table[i].block_length & SBC_BLOCK_LENGTH_16))
+            config->block_length = SBC_BLOCK_LENGTH_16;
+        else if ((capabilities->block_length & SBC_BLOCK_LENGTH_12) && (capabilities_table[i].block_length & SBC_BLOCK_LENGTH_12))
+            config->block_length = SBC_BLOCK_LENGTH_12;
+        else if ((capabilities->block_length & SBC_BLOCK_LENGTH_8) && (capabilities_table[i].block_length & SBC_BLOCK_LENGTH_8))
+            config->block_length = SBC_BLOCK_LENGTH_8;
+        else if ((capabilities->block_length & SBC_BLOCK_LENGTH_4) && (capabilities_table[i].block_length & SBC_BLOCK_LENGTH_4))
+            config->block_length = SBC_BLOCK_LENGTH_4;
+        else {
+            pa_log_debug("No supported block lengths in table %u", i);
+            continue;
+        }
+
+        if ((capabilities->subbands & SBC_SUBBANDS_8) && (capabilities_table[i].subbands & SBC_SUBBANDS_8))
+            config->subbands = SBC_SUBBANDS_8;
+        else if ((capabilities->subbands & SBC_SUBBANDS_4) && (capabilities_table[i].subbands & SBC_SUBBANDS_4))
+            config->subbands = SBC_SUBBANDS_4;
+        else {
+            pa_log_debug("No supported subbands in table %u", i);
+            continue;
+        }
+
+        if ((capabilities->allocation_method & SBC_ALLOCATION_LOUDNESS) && (capabilities_table[i].allocation_method & SBC_ALLOCATION_LOUDNESS))
+            config->allocation_method = SBC_ALLOCATION_LOUDNESS;
+        else if ((capabilities->allocation_method & SBC_ALLOCATION_SNR) && (capabilities_table[i].allocation_method & SBC_ALLOCATION_SNR))
+            config->allocation_method = SBC_ALLOCATION_SNR;
+        else {
+            pa_log_debug("No supported allocation method in table %u", i);
+            continue;
+        }
+
+        if (is_mono) {
+            if ((capabilities->channel_mode & SBC_CHANNEL_MODE_MONO) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_MONO))
+                config->channel_mode = SBC_CHANNEL_MODE_MONO;
+            else if ((capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO))
+                config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+            else if ((capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_STEREO))
+                config->channel_mode = SBC_CHANNEL_MODE_STEREO;
+            else if ((capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL))
+                config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+            else {
+                pa_log_debug("No supported channel mode in table %u", i);
+                continue;
+            }
+        } else {
+            if ((capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO))
+                config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+            else if ((capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_STEREO))
+                config->channel_mode = SBC_CHANNEL_MODE_STEREO;
+            else if ((capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL))
+                config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+            else if ((capabilities->channel_mode & SBC_CHANNEL_MODE_MONO) && (capabilities_table[i].channel_mode & SBC_CHANNEL_MODE_MONO))
+                config->channel_mode = SBC_CHANNEL_MODE_MONO;
+            else {
+                pa_log_debug("No supported channel mode in table %u", i);
+                continue;
+            }
+        }
+
+        config->min_bitpool = PA_MAX(capabilities->min_bitpool, capabilities_table[i].min_bitpool);
+        config->max_bitpool = PA_MIN(capabilities->max_bitpool, capabilities_table[i].max_bitpool);
+
+        if (config->min_bitpool > config->max_bitpool) {
+            pa_log_debug("No supported bitpool in table %u [%u, %u], need [%u, %u]", i, capabilities_table[i].min_bitpool, capabilities_table[i].max_bitpool, capabilities->min_bitpool, capabilities->max_bitpool);
+            continue;
+        }
+
+        break;
+    }
+
+    if (i == capabilities_table_elements) {
+        pa_log_error("No supported configuration");
+        return 0;
+    }
+
+    return sizeof(*config);
+}
+
+static uint8_t fill_preferred_configuration_lq(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_preferred_configuration_table(default_sample_spec, capabilities_buffer, capabilities_size, config_buffer, sbc_lq_caps_table, PA_ELEMENTSOF(sbc_lq_caps_table));
+}
+
+static uint8_t fill_preferred_configuration_mq(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_preferred_configuration_table(default_sample_spec, capabilities_buffer, capabilities_size, config_buffer, sbc_mq_caps_table, PA_ELEMENTSOF(sbc_mq_caps_table));
+}
+
+static uint8_t fill_preferred_configuration_hq(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_preferred_configuration_table(default_sample_spec, capabilities_buffer, capabilities_size, config_buffer, sbc_hq_caps_table, PA_ELEMENTSOF(sbc_hq_caps_table));
+}
+
+static uint8_t fill_preferred_configuration_xq1(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_preferred_configuration_table(default_sample_spec, capabilities_buffer, capabilities_size, config_buffer, sbc_xq1_caps_table, PA_ELEMENTSOF(sbc_xq1_caps_table));
+}
+
+static uint8_t fill_preferred_configuration_xq2(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE]) {
+    return fill_preferred_configuration_table(default_sample_spec, capabilities_buffer, capabilities_size, config_buffer, sbc_xq2_caps_table, PA_ELEMENTSOF(sbc_xq2_caps_table));
+}
+
 static uint8_t default_bitpool(uint8_t freq, uint8_t mode) {
     /* These bitpool values were chosen based on the A2DP spec recommendation */
     switch (freq) {
@@ -197,117 +658,13 @@ static uint8_t default_bitpool(uint8_t freq, uint8_t mode) {
 
 static uint8_t fill_preferred_configuration(const pa_sample_spec *default_sample_spec, const uint8_t *capabilities_buffer, uint8_t capabilities_size, uint8_t config_buffer[MAX_A2DP_CAPS_SIZE]) {
     a2dp_sbc_t *config = (a2dp_sbc_t *) config_buffer;
-    const a2dp_sbc_t *capabilities = (const a2dp_sbc_t *) capabilities_buffer;
-    int i;
+    uint8_t ret;
 
-    static const struct {
-        uint32_t rate;
-        uint8_t cap;
-    } freq_table[] = {
-        { 16000U, SBC_SAMPLING_FREQ_16000 },
-        { 32000U, SBC_SAMPLING_FREQ_32000 },
-        { 44100U, SBC_SAMPLING_FREQ_44100 },
-        { 48000U, SBC_SAMPLING_FREQ_48000 }
-    };
+    ret = fill_preferred_configuration_table(default_sample_spec, capabilities_buffer, capabilities_size, config_buffer, sbc_auto_caps_table, PA_ELEMENTSOF(sbc_auto_caps_table));
+    config->max_bitpool = PA_MIN(default_bitpool(config->frequency, config->channel_mode), config->max_bitpool);
+    config->max_bitpool = PA_MAX(config->max_bitpool, config->min_bitpool);
 
-    if (capabilities_size != sizeof(*capabilities)) {
-        pa_log_error("Invalid size of capabilities buffer");
-        return 0;
-    }
-
-    pa_zero(*config);
-
-    /* Find the lowest freq that is at least as high as the requested sampling rate */
-    for (i = 0; (unsigned) i < PA_ELEMENTSOF(freq_table); i++)
-        if (freq_table[i].rate >= default_sample_spec->rate && (capabilities->frequency & freq_table[i].cap)) {
-            config->frequency = freq_table[i].cap;
-            break;
-        }
-
-    if ((unsigned) i == PA_ELEMENTSOF(freq_table)) {
-        for (--i; i >= 0; i--) {
-            if (capabilities->frequency & freq_table[i].cap) {
-                config->frequency = freq_table[i].cap;
-                break;
-            }
-        }
-
-        if (i < 0) {
-            pa_log_error("Not suitable sample rate");
-            return 0;
-        }
-    }
-
-    pa_assert((unsigned) i < PA_ELEMENTSOF(freq_table));
-
-    if (default_sample_spec->channels <= 1) {
-        if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
-            config->channel_mode = SBC_CHANNEL_MODE_MONO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-        else {
-            pa_log_error("No supported channel modes");
-            return 0;
-        }
-    } else {
-        if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
-            config->channel_mode = SBC_CHANNEL_MODE_MONO;
-        else {
-            pa_log_error("No supported channel modes");
-            return 0;
-        }
-    }
-
-    if (capabilities->block_length & SBC_BLOCK_LENGTH_16)
-        config->block_length = SBC_BLOCK_LENGTH_16;
-    else if (capabilities->block_length & SBC_BLOCK_LENGTH_12)
-        config->block_length = SBC_BLOCK_LENGTH_12;
-    else if (capabilities->block_length & SBC_BLOCK_LENGTH_8)
-        config->block_length = SBC_BLOCK_LENGTH_8;
-    else if (capabilities->block_length & SBC_BLOCK_LENGTH_4)
-        config->block_length = SBC_BLOCK_LENGTH_4;
-    else {
-        pa_log_error("No supported block lengths");
-        return 0;
-    }
-
-    if (capabilities->subbands & SBC_SUBBANDS_8)
-        config->subbands = SBC_SUBBANDS_8;
-    else if (capabilities->subbands & SBC_SUBBANDS_4)
-        config->subbands = SBC_SUBBANDS_4;
-    else {
-        pa_log_error("No supported subbands");
-        return 0;
-    }
-
-    if (capabilities->allocation_method & SBC_ALLOCATION_LOUDNESS)
-        config->allocation_method = SBC_ALLOCATION_LOUDNESS;
-    else if (capabilities->allocation_method & SBC_ALLOCATION_SNR)
-        config->allocation_method = SBC_ALLOCATION_SNR;
-    else {
-        pa_log_error("No supported allocation method");
-        return 0;
-    }
-
-    config->min_bitpool = (uint8_t) PA_MAX(SBC_MIN_BITPOOL, capabilities->min_bitpool);
-    config->max_bitpool = (uint8_t) PA_MIN(default_bitpool(config->frequency, config->channel_mode), capabilities->max_bitpool);
-
-    if (config->min_bitpool > config->max_bitpool) {
-        pa_log_error("No supported bitpool");
-        return 0;
-    }
-
-    return sizeof(*config);
+    return ret;
 }
 
 static void set_params(struct sbc_info *sbc_info) {
@@ -500,19 +857,27 @@ static size_t reduce_encoder_bitrate(void *codec_info, size_t write_link_mtu) {
     uint8_t bitpool;
 
     /* Check if bitpool is already at its limit */
-    if (sbc_info->sbc.bitpool <= SBC_BITPOOL_DEC_LIMIT)
-        return 0;
-
-    bitpool = sbc_info->sbc.bitpool - SBC_BITPOOL_DEC_STEP;
-
-    if (bitpool < SBC_BITPOOL_DEC_LIMIT)
-        bitpool = SBC_BITPOOL_DEC_LIMIT;
+    if (sbc_info->mode == SBC_CHANNEL_MODE_MONO || sbc_info->mode == SBC_CHANNEL_MODE_DUAL_CHANNEL) {
+        /* For Mono and Dual Channel modes bitpool value is separete for each channel */
+        bitpool = sbc_info->sbc.bitpool - SBC_SEPARATE_BITPOOL_DEC_STEP;
+        if (bitpool <= SBC_SEPARATE_BITPOOL_DEC_LIMIT)
+            return 0;
+    } else {
+        /* For Stereo modes bitpool value is combined for both channels */
+        bitpool = sbc_info->sbc.bitpool - SBC_COMBINED_BITPOOL_DEC_STEP;
+        if (bitpool <= SBC_COMBINED_BITPOOL_DEC_LIMIT)
+            return 0;
+    }
 
     if (sbc_info->sbc.bitpool == bitpool)
         return 0;
 
     set_bitpool(sbc_info, bitpool);
     return get_block_size(codec_info, write_link_mtu);
+}
+
+static size_t reduce_encoder_bitrate_none(void *codec_info, size_t write_link_mtu) {
+    return 0;
 }
 
 static size_t encode_buffer(void *codec_info, uint32_t timestamp, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed) {
@@ -662,9 +1027,69 @@ static size_t decode_buffer(void *codec_info, uint32_t *timestamp, const uint8_t
     return d - output_buffer;
 }
 
+const pa_a2dp_codec pa_a2dp_codec_sbc_lq = {
+    .name = "sbc_lq",
+    .description = "SBC (Low Quality)",
+    .id = { A2DP_CODEC_SBC, 0, 0 },
+    .support_backchannel = false,
+    .can_accept_capabilities = can_accept_capabilities_lq,
+    .choose_remote_endpoint = choose_remote_endpoint_lq,
+    .fill_capabilities = fill_capabilities_lq,
+    .is_configuration_valid = is_configuration_valid_lq,
+    .fill_preferred_configuration = fill_preferred_configuration_lq,
+    .init = init,
+    .deinit = deinit,
+    .reset = reset,
+    .get_read_block_size = get_block_size,
+    .get_write_block_size = get_block_size,
+    .reduce_encoder_bitrate = reduce_encoder_bitrate_none,
+    .encode_buffer = encode_buffer,
+    .decode_buffer = decode_buffer,
+};
+
+const pa_a2dp_codec pa_a2dp_codec_sbc_mq = {
+    .name = "sbc_mq",
+    .description = "SBC (Middle Quality)",
+    .id = { A2DP_CODEC_SBC, 0, 0 },
+    .support_backchannel = false,
+    .can_accept_capabilities = can_accept_capabilities_mq,
+    .choose_remote_endpoint = choose_remote_endpoint_mq,
+    .fill_capabilities = fill_capabilities_mq,
+    .is_configuration_valid = is_configuration_valid_mq,
+    .fill_preferred_configuration = fill_preferred_configuration_mq,
+    .init = init,
+    .deinit = deinit,
+    .reset = reset,
+    .get_read_block_size = get_block_size,
+    .get_write_block_size = get_block_size,
+    .reduce_encoder_bitrate = reduce_encoder_bitrate_none,
+    .encode_buffer = encode_buffer,
+    .decode_buffer = decode_buffer,
+};
+
+const pa_a2dp_codec pa_a2dp_codec_sbc_hq = {
+    .name = "sbc_hq",
+    .description = "SBC (High Quality)",
+    .id = { A2DP_CODEC_SBC, 0, 0 },
+    .support_backchannel = false,
+    .can_accept_capabilities = can_accept_capabilities_hq,
+    .choose_remote_endpoint = choose_remote_endpoint_hq,
+    .fill_capabilities = fill_capabilities_hq,
+    .is_configuration_valid = is_configuration_valid_hq,
+    .fill_preferred_configuration = fill_preferred_configuration_hq,
+    .init = init,
+    .deinit = deinit,
+    .reset = reset,
+    .get_read_block_size = get_block_size,
+    .get_write_block_size = get_block_size,
+    .reduce_encoder_bitrate = reduce_encoder_bitrate_none,
+    .encode_buffer = encode_buffer,
+    .decode_buffer = decode_buffer,
+};
+
 const pa_a2dp_codec pa_a2dp_codec_sbc = {
     .name = "sbc",
-    .description = "SBC",
+    .description = "SBC (Automatic Quality)",
     .id = { A2DP_CODEC_SBC, 0, 0 },
     .support_backchannel = false,
     .can_accept_capabilities = can_accept_capabilities,
@@ -678,6 +1103,46 @@ const pa_a2dp_codec pa_a2dp_codec_sbc = {
     .get_read_block_size = get_block_size,
     .get_write_block_size = get_block_size,
     .reduce_encoder_bitrate = reduce_encoder_bitrate,
+    .encode_buffer = encode_buffer,
+    .decode_buffer = decode_buffer,
+};
+
+const pa_a2dp_codec pa_a2dp_codec_sbc_xq1 = {
+    .name = "sbc_xq1",
+    .description = "SBC (eXtreme Quality profile 1)",
+    .id = { A2DP_CODEC_SBC, 0, 0 },
+    .support_backchannel = false,
+    .can_accept_capabilities = can_accept_capabilities_xq1,
+    .choose_remote_endpoint = choose_remote_endpoint_xq1,
+    .fill_capabilities = fill_capabilities_xq1,
+    .is_configuration_valid = is_configuration_valid_xq1,
+    .fill_preferred_configuration = fill_preferred_configuration_xq1,
+    .init = init,
+    .deinit = deinit,
+    .reset = reset,
+    .get_read_block_size = get_block_size,
+    .get_write_block_size = get_block_size,
+    .reduce_encoder_bitrate = reduce_encoder_bitrate_none,
+    .encode_buffer = encode_buffer,
+    .decode_buffer = decode_buffer,
+};
+
+const pa_a2dp_codec pa_a2dp_codec_sbc_xq2 = {
+    .name = "sbc_xq2",
+    .description = "SBC (eXtreme Quality profile 2)",
+    .id = { A2DP_CODEC_SBC, 0, 0 },
+    .support_backchannel = false,
+    .can_accept_capabilities = can_accept_capabilities_xq2,
+    .choose_remote_endpoint = choose_remote_endpoint_xq2,
+    .fill_capabilities = fill_capabilities_xq2,
+    .is_configuration_valid = is_configuration_valid_xq2,
+    .fill_preferred_configuration = fill_preferred_configuration_xq2,
+    .init = init,
+    .deinit = deinit,
+    .reset = reset,
+    .get_read_block_size = get_block_size,
+    .get_write_block_size = get_block_size,
+    .reduce_encoder_bitrate = reduce_encoder_bitrate_none,
     .encode_buffer = encode_buffer,
     .decode_buffer = decode_buffer,
 };
