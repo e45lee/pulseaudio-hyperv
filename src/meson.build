@@ -72,7 +72,7 @@ libpulsecommon_sources = [
   'pulsecore/svolume_arm.c',
 ]
 
-libpulsecommon_headers = [
+libpulse_headers = [
   'pulse/client-conf.h',
   'pulse/fork-detect.h',
   'pulse/format.h',
@@ -86,6 +86,9 @@ libpulsecommon_headers = [
   'pulse/timeval.h',
   'pulse/rtclock.h',
   'pulse/volume.h',
+]
+
+libpulsecore_headers = [
   'pulsecore/atomic.h',
   'pulsecore/authkey.h',
   'pulsecore/conf-parser.h',
@@ -156,7 +159,7 @@ if dbus_dep.found()
     'pulsecore/dbus-util.c',
     'pulsecore/rtkit.c',
   ]
-  libpulsecommon_headers += [
+  libpulsecore_headers += [
     'pulsecore/dbus-util.h',
     'pulsecore/rtkit.h',
   ]
@@ -167,14 +170,21 @@ if x11_dep.found()
     'pulse/client-conf-x11.c',
     'pulsecore/x11prop.c',
   ]
-  libpulsecommon_headers += [
+  libpulse_headers += [
     'pulse/client-conf-x11.h',
+  ]
+  libpulsecore_headers += [
     'pulsecore/x11prop.h',
   ]
 endif
 
 # FIXME: Do non-POSIX thread things
 # FIXME: Do SIMD things
+
+libpulsecommon_headers = [
+  libpulse_headers,
+  libpulsecore_headers,
+]
 
 libpulsecommon = shared_library('pulsecommon-' + pa_version_major_minor,
   libpulsecommon_sources,
@@ -186,6 +196,16 @@ libpulsecommon = shared_library('pulsecommon-' + pa_version_major_minor,
   implicit_include_directories : false)
 
 libpulsecommon_dep = declare_dependency(link_with: libpulsecommon)
+
+install_headers(
+  libpulse_headers,
+  subdir : 'pulse',
+)
+
+install_headers(
+  libpulsecore_headers,
+  subdir : 'pulsecore',
+)
 
 subdir('pulse')
 subdir('pulsecore')
