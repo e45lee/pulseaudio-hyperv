@@ -64,6 +64,7 @@ libpulse_headers = [
   'rtclock.h',
   'sample.h',
   'scache.h',
+  'simple.h',
   'stream.h',
   'subscribe.h',
   'thread-mainloop.h',
