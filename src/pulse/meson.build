@@ -1,4 +1,17 @@
-configure_file(input : 'version.h.in', output :  'version.h', configuration : cdata)
+cdata_version = configuration_data({
+  'PA_MAJOR' : pa_version_major,
+  'PA_MINOR' : pa_version_minor,
+  'PA_API_VERSION' : pa_api_version,
+  'PA_PROTOCOL_VERSION' : pa_protocol_version,
+})
+
+configure_file(
+  input : 'version.h.in',
+  output : 'version.h',
+  configuration : cdata_version,
+  install : true,
+  install_dir : join_paths(get_option('includedir'), 'pulse')
+)
 
 libpulse_sources = [
   'channelmap.c',
