@@ -1,6 +1,6 @@
 project('pulseaudio', 'c', 'cpp',
         version : run_command(find_program('git-version-gen'), join_paths(meson.current_source_dir(), '.tarball-version')).stdout().strip(),
-        meson_version : '>= 0.47.0',
+        meson_version : '>= 0.49.0',
         default_options : [ 'c_std=gnu11', 'cpp_std=c++11' ]
         )
 
