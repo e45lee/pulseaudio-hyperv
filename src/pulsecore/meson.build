@@ -235,3 +235,11 @@ libprotocol_simple = shared_library('protocol_simple',
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
   install : true
 )
+
+pkg = import('pkgconfig')
+
+pkg.generate(
+  libprotocol_simple,
+  description : 'PulseAudio Simplified Synchronous Client Interface',
+  filebase : 'libpulse-simple',
+)
