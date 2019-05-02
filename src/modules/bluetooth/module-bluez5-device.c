@@ -2085,6 +2085,50 @@ static void add_card_profile(pa_bluetooth_profile_t profile, pa_card_new_data *d
     pa_hashmap_put(data->profiles, cp->name, cp);
 }
 
+static void choose_initial_profile(struct userdata *u) {
+    struct pa_bluetooth_transport *transport;
+    pa_card_profile *iter_profile;
+    pa_card_profile *profile;
+    void *state;
+
+    pa_log_debug("Looking for A2DP profile which has active bluez transport for card %s", u->card->name);
+
+    profile = NULL;
+
+    /* Try to find the best A2DP profile with active transport */
+    PA_HASHMAP_FOREACH(iter_profile, u->card->profiles, state) {
+        transport = u->device->transports[*(pa_bluetooth_profile_t *)PA_CARD_PROFILE_DATA(iter_profile)];
+
+        /* Ignore profiles without active bluez transport */
+        if (!transport || transport->state == PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+            continue;
+
+        /* Ignore non-A2DP profiles */
+        if (!pa_startswith(iter_profile->name, "a2dp_"))
+            continue;
+
+        pa_log_debug("%s has active bluez transport", iter_profile->name);
+
+        if (!profile || iter_profile->priority > profile->priority)
+            profile = iter_profile;
+    }
+
+    /* When there is no active A2DP bluez transport, fallback to core pulseaudio function for choosing initial profile */
+    if (!profile) {
+        pa_log_debug("No A2DP profile with bluez active transport was found for card %s", u->card->name);
+        pa_card_choose_initial_profile(u->card);
+        return;
+    }
+
+    /* Do same job as pa_card_choose_initial_profile() */
+    pa_log_info("Setting initial A2DP profile '%s' for card %s", profile->name, u->card->name);
+    u->card->active_profile = profile;
+    u->card->save_profile = false;
+
+    /* Let policy modules override the default. */
+    pa_hook_fire(&u->card->core->hooks[PA_CORE_HOOK_CARD_CHOOSE_INITIAL_PROFILE], u->card);
+}
+
 /* Run from main thread */
 static int add_card(struct userdata *u) {
     const pa_bluetooth_device *d;
@@ -2207,7 +2251,7 @@ static int add_card(struct userdata *u) {
 
     u->card->userdata = u;
     u->card->set_profile = set_profile_cb;
-    pa_card_choose_initial_profile(u->card);
+    choose_initial_profile(u);
     pa_card_put(u->card);
 
     p = PA_CARD_PROFILE_DATA(u->card->active_profile);
