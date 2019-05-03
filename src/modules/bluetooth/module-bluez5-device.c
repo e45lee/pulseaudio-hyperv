@@ -556,6 +556,7 @@ static int a2dp_process_push(struct userdata *u) {
         struct msghdr m;
         bool found_tstamp = false;
         pa_usec_t tstamp;
+        uint32_t timestamp;
         uint8_t *ptr;
         ssize_t l;
         size_t processed;
@@ -591,8 +592,6 @@ static int a2dp_process_push(struct userdata *u) {
 
         pa_assert((size_t) l <= u->decoder_buffer_size);
 
-        /* TODO: get timestamp from rtp */
-
         for (cm = CMSG_FIRSTHDR(&m); cm; cm = CMSG_NXTHDR(&m, cm)) {
             if (cm->cmsg_level == SOL_SOCKET && cm->cmsg_type == SO_TIMESTAMP) {
                 struct timeval *tv = (struct timeval*) CMSG_DATA(cm);
@@ -613,7 +612,8 @@ static int a2dp_process_push(struct userdata *u) {
         ptr = pa_memblock_acquire(memchunk.memblock);
         memchunk.length = pa_memblock_get_length(memchunk.memblock);
 
-        memchunk.length = u->a2dp_codec->decode_buffer(u->decoder_info, u->decoder_buffer, l, ptr, memchunk.length, &processed);
+        timestamp = 0; /* Decoder does not have to fill RTP timestamp */
+        memchunk.length = u->a2dp_codec->decode_buffer(u->decoder_info, &timestamp, u->decoder_buffer, l, ptr, memchunk.length, &processed);
 
         pa_memblock_release(memchunk.memblock);
 
@@ -621,6 +621,14 @@ static int a2dp_process_push(struct userdata *u) {
             pa_log_error("Decoding error");
             ret = -1;
             break;
+        }
+
+        /* Some codecs may provide RTP timestamp, so use it to update read_index for calculation of remote tstamp */
+        if (timestamp) {
+            /* RTP timestamp is only 32bit and may overflow, avoid it by calculating high 32bits from the last read_index */
+            size_t frame_size = pa_frame_size(&u->decoder_sample_spec);
+            uint64_t timestamp_hi = (u->read_index / frame_size) & 0xFFFFFFFF00000000ULL;
+            u->read_index = (timestamp_hi | timestamp) * frame_size;
         }
 
         u->read_index += (uint64_t) memchunk.length;

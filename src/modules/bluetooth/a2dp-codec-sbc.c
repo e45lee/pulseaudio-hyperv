@@ -597,7 +597,7 @@ static size_t encode_buffer(void *codec_info, uint32_t timestamp, const uint8_t 
     return d - output_buffer;
 }
 
-static size_t decode_buffer(void *codec_info, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed) {
+static size_t decode_buffer(void *codec_info, uint32_t *timestamp, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed) {
     struct sbc_info *sbc_info = (struct sbc_info *) codec_info;
 
     struct rtp_header *header;
@@ -657,6 +657,7 @@ static size_t decode_buffer(void *codec_info, const uint8_t *input_buffer, size_
         frame_count--;
     }
 
+    *timestamp = ntohl(header->timestamp);
     *processed = p - input_buffer;
     return d - output_buffer;
 }

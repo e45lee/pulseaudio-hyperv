@@ -91,8 +91,8 @@ typedef struct pa_a2dp_codec {
     size_t (*encode_buffer)(void *codec_info, uint32_t timestamp, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed);
     /* Decode input_buffer of input_size to output_buffer of output_size,
      * returns size of filled ouput_buffer and set processed to size of
-     * processed input_buffer */
-    size_t (*decode_buffer)(void *codec_info, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed);
+     * processed input_buffer and set timestamp */
+    size_t (*decode_buffer)(void *codec_info, uint32_t *timestamp, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed);
 } pa_a2dp_codec;
 
 #endif
