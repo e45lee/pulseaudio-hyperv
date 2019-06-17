@@ -367,6 +367,7 @@ pa_sink* pa_sink_new(
     source_data.driver = data->driver;
     source_data.module = data->module;
     source_data.card = data->card;
+    source_data.avoid_resampling = data->avoid_resampling;
 
     dn = pa_proplist_gets(s->proplist, PA_PROP_DEVICE_DESCRIPTION);
     pa_proplist_setf(source_data.proplist, PA_PROP_DEVICE_DESCRIPTION, "Monitor of %s", dn ? dn : s->name);
@@ -400,6 +401,8 @@ static int sink_set_state(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t 
     bool suspend_cause_changed;
     bool suspending;
     bool resuming;
+    pa_sink_state_t old_state;
+    pa_suspend_cause_t old_suspend_cause;
 
     pa_assert(s);
     pa_assert_ctl_context();
@@ -469,6 +472,7 @@ static int sink_set_state(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t 
         }
     }
 
+    old_suspend_cause = s->suspend_cause;
     if (suspend_cause_changed) {
         char old_cause_buf[PA_SUSPEND_CAUSE_TO_STRING_BUF_SIZE];
         char new_cause_buf[PA_SUSPEND_CAUSE_TO_STRING_BUF_SIZE];
@@ -478,6 +482,7 @@ static int sink_set_state(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t 
         s->suspend_cause = suspend_cause;
     }
 
+    old_state = s->state;
     if (state_changed) {
         pa_log_debug("%s: state: %s -> %s", s->name, pa_sink_state_to_string(s->state), pa_sink_state_to_string(state));
         s->state = state;
@@ -490,7 +495,7 @@ static int sink_set_state(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t 
         }
     }
 
-    if (suspending || resuming) {
+    if (suspending || resuming || suspend_cause_changed) {
         pa_sink_input *i;
         uint32_t idx;
 
@@ -501,7 +506,7 @@ static int sink_set_state(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t 
                 (i->flags & PA_SINK_INPUT_KILL_ON_SUSPEND))
                 pa_sink_input_kill(i);
             else if (i->suspend)
-                i->suspend(i, state == PA_SINK_SUSPENDED);
+                i->suspend(i, old_state, old_suspend_cause);
     }
 
     if ((suspending || resuming || suspend_cause_changed) && s->monitor_source && state != PA_SINK_UNLINKED)
@@ -762,7 +767,11 @@ void pa_sink_unlink(pa_sink* s) {
     }
 
     if (linked)
-        sink_set_state(s, PA_SINK_UNLINKED, 0);
+        /* It's important to keep the suspend cause unchanged when unlinking,
+         * because if we remove the SESSION suspend cause here, the alsa sink
+         * will sync its volume with the hardware while another user is
+         * active, messing up the volume for that other user. */
+        sink_set_state(s, PA_SINK_UNLINKED, s->suspend_cause);
     else
         s->state = PA_SINK_UNLINKED;
 

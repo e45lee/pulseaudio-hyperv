@@ -26,11 +26,24 @@ if udev_dep.found()
   libalsa_util_headers += [ '../udev-util.h' ]
 endif
 
-libalsa_util = shared_library('libalsa_util',
+libalsa_util = shared_library('alsa-util',
   libalsa_util_sources,
   libalsa_util_headers,
   c_args : [pa_c_args, server_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, alsa_dep, dbus_dep, libm_dep, udev_dep],
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )
+
+alsa_udevrules = [
+  '90-pulseaudio.rules',
+]
+
+if udev_dep.found()
+  install_data(alsa_udevrules,
+    install_dir : udevrulesdir,
+  )
+endif
+
+subdir('mixer')

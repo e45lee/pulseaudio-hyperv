@@ -132,7 +132,7 @@ void pa_cmdline_help(const char *argv0) {
            "      --realtime[=BOOL]                 Try to enable realtime scheduling\n"
            "                                        (only available as root, when SUID or\n"
            "                                        with elevated RLIMIT_RTPRIO)\n"
-           "      --disallow-module-loading[=BOOL]  Disallow module user requested module\n"
+           "      --disallow-module-loading[=BOOL]  Disallow user requested module\n"
            "                                        loading/unloading after startup\n"
            "      --disallow-exit[=BOOL]            Disallow user requested exit\n"
            "      --exit-idle-time=SECS             Terminate the daemon when idle and this\n"
@@ -325,7 +325,7 @@ int pa_cmdline_parse(pa_daemon_conf *conf, int argc, char *const argv [], int *d
             case ARG_LOG_TARGET:
                 if (pa_daemon_conf_set_log_target(conf, optarg) < 0) {
 #ifdef HAVE_SYSTEMD_JOURNAL
-                    pa_log(_("Invalid log target: use either 'syslog', 'journal','stderr' or 'auto' or a valid file name 'file:<path>', 'newfile:<path>'."));
+                    pa_log(_("Invalid log target: use either 'syslog', 'journal', 'stderr' or 'auto' or a valid file name 'file:<path>', 'newfile:<path>'."));
 #else
                     pa_log(_("Invalid log target: use either 'syslog', 'stderr' or 'auto' or a valid file name 'file:<path>', 'newfile:<path>'."));
 #endif

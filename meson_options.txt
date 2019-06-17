@@ -1,3 +1,13 @@
+option('gcov',
+       type : 'boolean',
+       description : 'Enable optional gcov coverage analysis')
+option('man',
+       type : 'boolean',
+       description : 'Enable building and installation of man pages')
+option('tests',
+       type : 'boolean',
+       description : 'Enable unit tests')
+
 option('system_user',
         type : 'string', value : 'pulse',
         description : 'User for running the PulseAudio daemon as a system-wide instance (pulse)')
@@ -12,11 +22,32 @@ option('database',
         choices : [ 'gdbm', 'tdb', 'simple' ],
         description : 'Database backend')
 option('legacy-database-entry-format',
-       type : 'boolean', value : 'true',
+       type : 'boolean',
        description : 'Try to load legacy (< 1.0) database files (card, device and volume restore)')
+option('running-from-build-tree',
+       type : 'boolean',
+       description : 'Enable running from build tree')
+
+# Paths
+
 option('pulsedspdir',
        type : 'string',
        description : 'Specify location where OSS wrapper will be installed')
+option('modlibexecdir',
+       type : 'string',
+       description : 'Specify location where modules will be installed')
+option('systemduserunitdir',
+       type : 'string',
+       description : 'Directory for systemd user service files')
+option('udevrulesdir',
+       type : 'string',
+       description : 'Directory for udev rules (defaults to /lib/udev/rules.d)')
+option('bashcompletiondir',
+       type : 'string',
+       description : 'Directory for bash completion files')
+option('zshcompletiondir',
+       type : 'string',
+       description : 'Zsh completions directory')
 
 # Optional features
 
@@ -68,6 +99,9 @@ option('lirc',
 option('openssl',
        type : 'feature', value : 'auto',
        description : 'Optional OpenSSL support (used for Airtunes/RAOP)')
+option('orc',
+       type : 'feature', value : 'auto',
+       description : 'Optimized Inner Loop Runtime Compiler')
 option('samplerate',
        type : 'feature', value : 'disabled',
        description : 'Optional libsamplerate support (DEPRECATED)')

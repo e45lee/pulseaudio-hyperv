@@ -19,11 +19,11 @@ all_modules = [
   [ 'module-detect', 'module-detect.c' ],
   [ 'module-device-manager', 'module-device-manager.c', [], [], [], libprotocol_native ],
   [ 'module-device-restore', 'module-device-restore.c', [], [], [dbus_dep], libprotocol_native ],
-  [ 'module-esound-compat-spawnfd', 'module-esound-compat-spawnfd.c' ],
-  [ 'module-esound-compat-spawnpid', 'module-esound-compat-spawnpid.c' ],
+#  [ 'module-esound-compat-spawnfd', 'module-esound-compat-spawnfd.c' ],
+#  [ 'module-esound-compat-spawnpid', 'module-esound-compat-spawnpid.c' ],
 #  [ 'module-esound-protocol-tcp', 'module-protocol-stub.c' ],
 #  [ 'module-esound-protocol-unix', 'module-protocol-stub.c' ],
-  [ 'module-esound-sink', 'module-esound-sink.c' ],
+#  [ 'module-esound-sink', 'module-esound-sink.c' ],
   [ 'module-filter-apply', 'module-filter-apply.c' ],
   [ 'module-filter-heuristics', 'module-filter-heuristics.c' ],
 #  [ 'module-gconf', 'gconf/module-gconf.c' ],
@@ -77,8 +77,9 @@ if cc.has_header('linux/input.h')
 endif
 
 if cc.has_header('sys/soundcard.h')
+  subdir('oss')
   all_modules += [
-    [ 'module-oss', [ 'oss/module-oss.c', 'oss/oss-util.c', 'oss/oss-util.h' ] ],
+    [ 'module-oss', 'oss/module-oss.c', [], [], [], liboss_util ],
   ]
 endif
 
@@ -105,7 +106,7 @@ if bluez_dep.found()
   all_modules += [
     [ 'module-bluetooth-discover', 'bluetooth/module-bluetooth-discover.c' ],
     [ 'module-bluetooth-policy', 'bluetooth/module-bluetooth-policy.c', [], [], [dbus_dep] ],
-    [ 'module-bluez5-device', 'bluetooth/module-bluez5-device.c', [], [], [sbc_dep], libbluez5_util ],
+    [ 'module-bluez5-device', 'bluetooth/module-bluez5-device.c', [], [], [], libbluez5_util ],
     [ 'module-bluez5-discover', 'bluetooth/module-bluez5-discover.c', [], [], [dbus_dep], libbluez5_util ],
   ]
 endif
@@ -176,9 +177,9 @@ if openssl_dep.found()
   endif
 endif
 
-if systemd_dep.found()
+if libsystemd_dep.found()
   all_modules += [
-    [ 'module-systemd-login', 'module-systemd-login.c', [], [], [systemd_dep] ],
+    [ 'module-systemd-login', 'module-systemd-login.c', [], [], [libsystemd_dep] ],
   ]
 endif
 
@@ -205,6 +206,7 @@ module_echo_cancel_sources = [
   'echo-cancel/module-echo-cancel.c',
   'echo-cancel/null.c',
 ]
+module_echo_cancel_orc_sources = []
 module_echo_cancel_flags = []
 module_echo_cancel_deps = []
 module_echo_cancel_libs = []
@@ -215,15 +217,25 @@ if get_option('adrian-aec')
     'echo-cancel/adrian-aec.c', 'echo-cancel/adrian-aec.h',
   ]
   module_echo_cancel_flags += ['-DHAVE_ADRIAN_EC=1']
-  module_echo_cancel_deps = [libm_dep]
-endif
+  module_echo_cancel_deps += [libm_dep]
 
-# FIXME: support ORC (depends on Adrian)
-#ORC_SOURCE += modules/echo-cancel/adrian-aec
-#module_echo_cancel_sources += [
-#  'echo-cancel/adrian-aec-orc-gen.c', 'echo-cancel/adrian-aec-orc-gen.h'
-#]
-#module_echo_cancel_deps += [orc_dep]
+  if have_orcc
+    orcsrc = 'adrian-aec'
+    orc_h = custom_target(orcsrc + '-orc-gen.h',
+      input : join_paths('echo-cancel', orcsrc + '.orc'),
+      output : orcsrc + '-orc-gen.h',
+      command : orcc_args + ['--header', '-o', '@OUTPUT@', '@INPUT@']
+    )
+    orc_c = custom_target(orcsrc + '-orc-gen.c',
+      input : join_paths('echo-cancel', orcsrc + '.orc'),
+      output : orcsrc + '-orc-gen.c',
+      command : orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@']
+    )
+    module_echo_cancel_orc_sources += [orc_c, orc_h]
+    module_echo_cancel_deps += [orc_dep]
+  endif
+
+endif
 
 if speex_dep.found()
   module_echo_cancel_sources += ['echo-cancel/speex.c']
@@ -237,7 +249,7 @@ endif
 
 all_modules += [
   [ 'module-echo-cancel',
-    module_echo_cancel_sources,
+    module_echo_cancel_sources + module_echo_cancel_orc_sources,
     [],
     module_echo_cancel_flags,
     module_echo_cancel_deps,
@@ -261,6 +273,7 @@ foreach m : all_modules
     include_directories : [configinc, topinc],
     c_args : [pa_c_args, server_c_args, '-DPA_MODULE_NAME=' + name.underscorify()] + extra_flags,
     install : true,
+    install_dir : modlibexecdir,
     dependencies : [thread_dep, libpulse_dep, libpulsecommon_dep, libpulsecore_dep] + extra_deps,
     link_args : [ '-Wl,--no-undefined' ],
     link_with : extra_libs,

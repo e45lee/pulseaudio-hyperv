@@ -53,10 +53,12 @@ PA_MODULE_USAGE(
         "rate=<sample rate> "
         "channels=<number of channels> "
         "channel_map=<channel map>"
-        "formats=<semi-colon separated sink formats>");
+        "formats=<semi-colon separated sink formats>"
+        "norewinds=<disable rewinds>");
 
 #define DEFAULT_SINK_NAME "null"
 #define BLOCK_USEC (PA_USEC_PER_SEC * 2)
+#define NOREWINDS_MAX_LATENCY_USEC (50*PA_USEC_PER_MSEC)
 
 struct userdata {
     pa_core *core;
@@ -71,6 +73,8 @@ struct userdata {
     pa_usec_t timestamp;
 
     pa_idxset *formats;
+
+    bool norewinds;
 };
 
 static const char* const valid_modargs[] = {
@@ -81,6 +85,7 @@ static const char* const valid_modargs[] = {
     "channels",
     "channel_map",
     "formats",
+    "norewinds",
     NULL
 };
 
@@ -135,7 +140,13 @@ static void sink_update_requested_latency_cb(pa_sink *s) {
         u->block_usec = s->thread_info.max_latency;
 
     nbytes = pa_usec_to_bytes(u->block_usec, &s->sample_spec);
-    pa_sink_set_max_rewind_within_thread(s, nbytes);
+
+    if(u->norewinds){
+        pa_sink_set_max_rewind_within_thread(s, 0);
+    } else {
+        pa_sink_set_max_rewind_within_thread(s, nbytes);
+    }
+
     pa_sink_set_max_request_within_thread(s, nbytes);
 }
 
@@ -370,7 +381,17 @@ int pa__init(pa_module*m) {
 
     u->block_usec = BLOCK_USEC;
     nbytes = pa_usec_to_bytes(u->block_usec, &u->sink->sample_spec);
-    pa_sink_set_max_rewind(u->sink, nbytes);
+
+    if(pa_modargs_get_value_boolean(ma, "norewinds", &u->norewinds) < 0){
+        pa_log("Invalid argument, norewinds expects a boolean value.");
+    }
+
+    if(u->norewinds){
+        pa_sink_set_max_rewind(u->sink, 0);
+    } else {
+        pa_sink_set_max_rewind(u->sink, nbytes);
+    }
+
     pa_sink_set_max_request(u->sink, nbytes);
 
     if (!(u->thread = pa_thread_new("null-sink", thread_func, u))) {
@@ -378,7 +399,11 @@ int pa__init(pa_module*m) {
         goto fail;
     }
 
-    pa_sink_set_latency_range(u->sink, 0, BLOCK_USEC);
+    if(u->norewinds){
+        pa_sink_set_latency_range(u->sink, 0, NOREWINDS_MAX_LATENCY_USEC);
+    } else {
+        pa_sink_set_latency_range(u->sink, 0, BLOCK_USEC);
+    }
 
     pa_sink_put(u->sink);
 

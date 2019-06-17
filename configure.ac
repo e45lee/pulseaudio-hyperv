@@ -101,7 +101,7 @@ PKG_PROG_PKG_CONFIG
 
 # gettext
 
-AM_GNU_GETTEXT_VERSION([0.19.8])
+AM_GNU_GETTEXT_VERSION([0.19.3])
 AM_GNU_GETTEXT([external])
 
 GETTEXT_PACKAGE=pulseaudio
@@ -175,7 +175,7 @@ AX_CHECK_COMPILE_FLAG([-std=gnu11],
    [-pedantic -Werror])
 
 AX_APPEND_COMPILE_FLAGS(
-    [-Wall -W -Wextra -pipe -Wno-long-long -Wno-overlength-strings -Wunsafe-loop-optimizations -Wundef -Wformat=2 -Wlogical-op -Wsign-compare -Wformat-security -Wmissing-include-dirs -Wformat-nonliteral -Wold-style-definition -Wpointer-arith -Winit-self -Wdeclaration-after-statement -Wfloat-equal -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wmissing-declarations -Wmissing-noreturn -Wshadow -Wendif-labels -Wcast-align -Wstrict-aliasing -Wwrite-strings -Wno-unused-parameter -ffast-math -fno-common -fdiagnostics-show-option -fdiagnostics-color=auto],
+    [-Wall -W -Wextra -pipe -Wno-long-long -Wno-overlength-strings -Wunsafe-loop-optimizations -Wundef -Wformat=2 -Wlogical-op -Wsign-compare -Wformat-security -Wmissing-include-dirs -Wformat-nonliteral -Wold-style-definition -Wpointer-arith -Winit-self -Wdeclaration-after-statement -Wfloat-equal -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wmissing-declarations -Wmissing-noreturn -Wshadow -Wendif-labels -Wcast-align -Wstrict-aliasing -Wwrite-strings -Wno-unused-parameter -fno-common -fdiagnostics-show-option -fdiagnostics-color=auto],
     [], [-pedantic -Werror])
 
 AS_CASE([" $CFLAGS "], [*" -O0 "*], [], [
@@ -246,6 +246,15 @@ fi
 # If everything else fails use libatomic_ops
 need_libatomic_ops=yes
 
+AC_CACHE_CHECK([whether $CC knows __atomic_store_n()],
+    pulseaudio_cv_atomic_store_n, [
+    AC_LINK_IFELSE(
+        [AC_LANG_PROGRAM([], [[int c = 0; __atomic_store_n(&c, 4, __ATOMIC_SEQ_CST);]])],
+        [pulseaudio_cv_atomic_store_n=yes],
+        [pulseaudio_cv_atomic_store_n=no])
+    ])
+
+
 AC_CACHE_CHECK([whether $CC knows __sync_bool_compare_and_swap()],
     pulseaudio_cv_sync_bool_compare_and_swap, [
     AC_LINK_IFELSE(
@@ -256,6 +265,9 @@ AC_CACHE_CHECK([whether $CC knows __sync_bool_compare_and_swap()],
 
 if test "$pulseaudio_cv_sync_bool_compare_and_swap" = "yes" ; then
     AC_DEFINE([HAVE_ATOMIC_BUILTINS], 1, [Have __sync_bool_compare_and_swap() and friends.])
+    if test "$pulseaudio_cv_atomic_store_n" = "yes" ; then
+         AC_DEFINE([HAVE_ATOMIC_BUILTINS_MEMORY_MODEL], 1, [Have __atomic_store_n() and friends.])
+    fi
     need_libatomic_ops=no
 else
     # HW specific atomic ops stuff
@@ -826,7 +838,7 @@ AS_IF([test "x$enable_alsa" = "xyes" && test "x$HAVE_ALSA" = "x0"],
 AS_IF([test "x$HAVE_ALSA" = "x1"],
     [
         save_CPPFLAGS="$CPPFLAGS"; CPPFLAGS="$CPPFLAGS $ASOUNDLIB_CFLAGS"
-        AC_CHECK_HEADERS([use-case.h], HAVE_ALSA_UCM=1, HAVE_ALSA_UCM=0)
+        AC_CHECK_HEADERS([alsa/use-case.h], HAVE_ALSA_UCM=1, HAVE_ALSA_UCM=0)
         CPPFLAGS="$save_CPPFLAGS"
     ],
     HAVE_ALSA_UCM=0)

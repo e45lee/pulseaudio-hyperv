@@ -20,6 +20,7 @@ libpulsecore_sources = [
   'filter/lfe-filter.c',
   'hook-list.c',
   'ltdl-helper.c',
+  'message-handler.c',
   'mix.c',
   'modargs.c',
   'modinfo.c',
@@ -75,6 +76,7 @@ libpulsecore_headers = [
   'filter/lfe-filter.h',
   'hook-list.h',
   'ltdl-helper.h',
+  'message-handler.h',
   'mix.h',
   'modargs.h',
   'modinfo.h',
@@ -143,6 +145,24 @@ if x11_dep.found()
   libpulsecore_headers += ['x11wrap.h']
 endif
 
+orc_sources = []
+orc_headers = []
+if have_orcc
+  orcsrc = 'svolume'
+  orc_h = custom_target(orcsrc + '-ocr-gen.h',
+    input : orcsrc + '.orc',
+    output : orcsrc + '-orc-gen.h',
+    command : orcc_args + ['--header', '-o', '@OUTPUT@', '@INPUT@']
+  )
+  orc_c = custom_target(orcsrc + '-orc-gen.c',
+    input : orcsrc + '.orc',
+    output : orcsrc + '-orc-gen.c',
+    command : orcc_args + ['--implementation', '-o', '@OUTPUT@', '@INPUT@']
+  )
+  orc_sources = [orc_c, 'svolume_orc.c']
+  orc_headers = [orc_h]
+endif
+
 # FIXME: walk through dependencies and add files
 
 # FIXME: SIMD support (ORC)
@@ -165,13 +185,14 @@ cdata.merge_from(libpulsecore_simd[1])
 #'thread-win32.c',
 
 libpulsecore = shared_library('pulsecore-' + pa_version_major_minor,
-  libpulsecore_sources,
-  libpulsecore_headers,
+  libpulsecore_sources, libpulsecore_headers,
+  orc_sources, orc_headers,
   include_directories : [configinc, topinc],
   c_args : [pa_c_args, server_c_args],
   install : true,
+  install_dir : privlibdir,
   link_with : libpulsecore_simd_lib,
-  dependencies : [libm_dep, libpulsecommon_dep, libpulse_dep, ltdl_dep, shm_dep, sndfile_dep, database_dep, dbus_dep, samplerate_dep, soxr_dep, speex_dep, x11_dep],
+  dependencies : [libm_dep, libpulsecommon_dep, libpulse_dep, ltdl_dep, shm_dep, sndfile_dep, database_dep, dbus_dep, orc_dep, samplerate_dep, soxr_dep, speex_dep, x11_dep],
   implicit_include_directories : false)
 
 libpulsecore_dep = declare_dependency(link_with: libpulsecore)
@@ -179,14 +200,15 @@ libpulsecore_dep = declare_dependency(link_with: libpulsecore)
 # Internal libraries for modules
 # TODO: understand 'c_args' and 'dependencies' better, maybe we can remove some
 
-libavahi_wrap = shared_library('avahi_wrap',
+libavahi_wrap = shared_library('avahi-wrap',
   'avahi-wrap.c',
   'avahi-wrap.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, avahi_dep],
   implicit_include_directories : false, # pulsecore/poll.h <vs> /usr/include/poll.h
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )
 
 libcli = shared_library('cli',
@@ -195,43 +217,48 @@ libcli = shared_library('cli',
   c_args : [pa_c_args, server_c_args, database_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )
 
 libcli_dep = declare_dependency(link_with: libcli)
 
-libprotocol_cli = shared_library('protocol_cli',
+libprotocol_cli = shared_library('protocol-cli',
   'protocol-cli.c',
   'protocol-cli.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, libcli_dep],
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )
 
-libprotocol_http = shared_library('protocol_http',
+libprotocol_http = shared_library('protocol-http',
   ['protocol-http.c', 'mime-type.c'],
   ['protocol-http.h', 'mime-type.h'],
   c_args : [pa_c_args, server_c_args, database_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )
 
-libprotocol_native = shared_library('protocol_native',
+libprotocol_native = shared_library('protocol-native',
   'protocol-native.c',
   ['protocol-native.h', 'native-common.h'],
   c_args : [pa_c_args, server_c_args, database_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, dbus_dep],
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )
 
-libprotocol_simple = shared_library('protocol_simple',
+libprotocol_simple = shared_library('protocol-simple',
   'protocol-simple.c',
   'protocol-simple.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
-  install : true
+  install : true,
+  install_dir : modlibexecdir,
 )

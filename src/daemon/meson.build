@@ -29,7 +29,7 @@ executable('pulseaudio',
   install: true,
   include_directories : [configinc, topinc],
   link_with : [libpulsecore, libpulsecommon, libpulse],
-  dependencies : [ltdl_dep, cap_dep, dbus_dep, systemd_dep],
+  dependencies : [ltdl_dep, cap_dep, dbus_dep, libsystemd_dep],
   c_args : pa_c_args,
 )
 
@@ -44,6 +44,22 @@ if x11_dep.found()
     install : true,
     install_dir : bindir,
   )
+
+  desktop_file = i18n.merge_file(
+    input : 'pulseaudio.desktop.in',
+    output : 'pulseaudio.desktop',
+    po_dir : po_dir,
+    type : 'desktop',
+    install : true,
+    install_dir : join_paths(sysconfdir, 'xdg', 'autostart'),
+  )
+
+  desktop_utils = find_program('desktop-file-validate', required: false)
+  if desktop_utils.found()
+    test('Validate desktop file', desktop_utils,
+      args: [ desktop_file ],
+    )
+  endif
 endif
 
 # Configuration files
@@ -65,6 +81,7 @@ custom_target('daemon.conf',
   output : 'daemon.conf',
   capture : true,
   command : [m4, '@INPUT@'],
+  build_by_default : true,
   install : true,
   install_dir : pulsesysconfdir,
 )
@@ -73,6 +90,7 @@ default_conf = configuration_data()
 default_conf.merge_from(cdata)
 default_conf.set('PA_BINARY', cdata.get_unquoted('PA_BINARY'))
 default_conf.set('PA_SOEXT', cdata.get_unquoted('PA_SOEXT'))
+default_conf.set10('HAVE_AF_UNIX', cc.has_header('sys/un.h'))
 
 default_template_file = configure_file(
   input : 'default.pa.in',
@@ -85,6 +103,7 @@ custom_target('default.pa',
   output : 'default.pa',
   capture : true,
   command : [m4, '@INPUT@'],
+  build_by_default : true,
   install : true,
   install_dir : pulsesysconfdir,
 )
@@ -105,6 +124,30 @@ custom_target('system.pa',
   output : 'system.pa',
   capture : true,
   command : [m4, '@INPUT@'],
+  build_by_default : true,
   install : true,
   install_dir : pulsesysconfdir,
 )
+
+if dbus_dep.found()
+  install_data('pulseaudio-system.conf',
+    install_dir : join_paths(sysconfdir, 'dbus-1', 'system.d')
+  )
+endif
+
+if systemd_dep.found()
+  sd_user_service_conf = configuration_data()
+  sd_user_service_conf.set('PA_BINARY', cdata.get_unquoted('PA_BINARY'))
+
+  sd_user_service_file = configure_file(
+    input : 'systemd/user/pulseaudio.service.in',
+    output : 'pulseaudio.service',
+    configuration : sd_user_service_conf,
+    install : true,
+    install_dir : systemduserunitdir,
+  )
+
+  install_data('systemd/user/pulseaudio.socket',
+    install_dir: systemduserunitdir,
+  )
+endif

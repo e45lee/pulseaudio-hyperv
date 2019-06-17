@@ -1,6 +1,6 @@
 project('pulseaudio', 'c', 'cpp',
         version : run_command(find_program('git-version-gen'), join_paths(meson.current_source_dir(), '.tarball-version')).stdout().strip(),
-        meson_version : '>= 0.47.0',
+        meson_version : '>= 0.50.0',
         default_options : [ 'c_std=gnu11', 'cpp_std=c++11' ]
         )
 
@@ -28,6 +28,10 @@ soversion = 0
 # current = minor * 100 + micro
 libversion = '@0@.@1@.0'.format(soversion, pa_version_minor.to_int() * 100 + pa_version_micro.to_int())
 
+# A simplified, synchronous, ABI-stable interface for client applications.
+# For the version x:y:z always will hold y=z.
+libpulse_simple_version = '1.1.1'
+
 # The ABI-stable GLib adapter for client applications.
 # For the version x:y:z always will hold y=z.
 libpulse_mainloop_glib_version = '0.5.0'
@@ -38,18 +42,54 @@ prefix = get_option('prefix')
 assert(prefix.startswith('/'), 'Prefix is not absolute: "@0@"'.format(prefix))
 
 bindir = join_paths(prefix, get_option('bindir'))
+includedir = join_paths(prefix, get_option('includedir'))
 libdir = join_paths(prefix, get_option('libdir'))
 libexecdir = join_paths(prefix, get_option('libexecdir'))
+mandir = join_paths(prefix, get_option('mandir'))
 datadir = join_paths(prefix, get_option('datadir'))
 localstatedir = join_paths(prefix, get_option('localstatedir'))
 sysconfdir = join_paths(prefix, get_option('sysconfdir'))
+privlibdir = join_paths(get_option('libdir'), 'pulseaudio')
+alsadatadir = join_paths(datadir, 'pulseaudio', 'alsa-mixer')
 
+pkgconfigdir = join_paths(libdir, 'pkgconfig')
 pulselibexecdir = join_paths(libexecdir, 'pulse')
 pulsesysconfdir = join_paths(sysconfdir, 'pulse')
 
+modlibexecdir = get_option('modlibexecdir')
+if modlibexecdir == ''
+  modlibexecdir = join_paths(libdir, 'pulse-' + pa_version_major_minor, 'modules')
+endif
+
 pulsedspdir = get_option('pulsedspdir')
 if pulsedspdir == ''
-  join_paths(libdir, 'pulseaudio')
+  pulsedspdir = join_paths(libdir, 'pulseaudio')
+endif
+
+systemduserunitdir = get_option('systemduserunitdir')
+# the default value is set below
+
+udevrulesdir = get_option('udevrulesdir')
+if udevrulesdir == ''
+  # absolute path, otherwise meson prepends the prefix
+  udevrulesdir = '/lib/udev/rules.d'
+endif
+
+vapidir = join_paths(datadir, 'vala', 'vapi')
+
+bashcompletiondir = get_option('bashcompletiondir')
+if bashcompletiondir == ''
+  bash_completion_dep = dependency('bash-completion', required : false)
+  if bash_completion_dep.found()
+    bashcompletiondir = bash_completion_dep.get_pkgconfig_variable('completionsdir')
+  else
+    bashcompletiondir = join_paths(datadir, 'bash-completion', 'completions')
+  endif
+endif
+
+zshcompletiondir = get_option('zshcompletiondir')
+if zshcompletiondir == ''
+  zshcompletiondir = join_paths(datadir, 'zsh', 'site-functions')
 endif
 
 # Configuration data
@@ -75,13 +115,13 @@ cdata.set_quoted('PA_BINARY', join_paths(bindir, 'pulseaudio'))
 cdata.set_quoted('PA_SYSTEM_RUNTIME_PATH', join_paths(localstatedir, 'run', 'pulse'))
 cdata.set_quoted('PA_SYSTEM_CONFIG_PATH', join_paths(localstatedir, 'lib', 'pulse'))
 cdata.set_quoted('PA_SYSTEM_STATE_PATH', join_paths(localstatedir, 'lib', 'pulse'))
-cdata.set_quoted('PA_DLSEARCHPATH', join_paths(libdir, 'pulse-' + pa_version_major_minor, 'modules'))
+cdata.set_quoted('PA_DLSEARCHPATH', modlibexecdir)
 cdata.set_quoted('PA_SYSTEM_USER', get_option('system_user'))
 cdata.set_quoted('PA_SYSTEM_GROUP', get_option('system_group'))
 cdata.set_quoted('PA_ACCESS_GROUP', get_option('access_group'))
 cdata.set_quoted('PA_CFLAGS', 'Not yet supported on meson')
-cdata.set_quoted('PA_ALSA_PATHS_DIR', join_paths(datadir, 'pulseaudio', 'alsa-mixer', 'paths'))
-cdata.set_quoted('PA_ALSA_PROFILE_SETS_DIR', join_paths(datadir, 'pulseaudio', 'alsa-mixer', 'profile-sets'))
+cdata.set_quoted('PA_ALSA_PATHS_DIR', join_paths(alsadatadir, 'paths'))
+cdata.set_quoted('PA_ALSA_PROFILE_SETS_DIR', join_paths(alsadatadir, 'profile-sets'))
 cdata.set_quoted('DESKTOPFILEDIR', join_paths(datadir, 'applications'))
 
 # Platform specifics
@@ -123,12 +163,14 @@ check_headers = [
   'regex.h',
   'sched.h',
   'sys/capability.h',
+  'sys/eventfd.h',
   'sys/ioctl.h',
   'sys/mman.h',
   'sys/prctl.h',
   'sys/resource.h',
   'sys/select.h',
   'sys/socket.h',
+  'sys/un.h',
   'sys/wait.h',
   'valgrind/memcheck.h',
   'xlocale.h',
@@ -144,11 +186,6 @@ endforeach
 # FIXME: move this to the above set
 if cc.has_header('pthread.h')
   cdata.set('HAVE_PTHREAD', 1)
-endif
-
-# FIXME: move this to the above set
-if cc.has_header('sys/un.h')
-  cdata.set('HAVE_AF_UNIX', 1)
 endif
 
 # Functions
@@ -197,13 +234,21 @@ foreach f : check_functions
   endif
 endforeach
 
-shm_dep = cc.find_library('rt', required : false)
-if shm_dep.found()
-  cdata.set('HAVE_SHM_OPEN', 1)
-endif
-
 if cc.has_function('SYS_memfd_create', prefix : '#include <sys/syscall.h>')
   cdata.set('HAVE_MEMFD', 1)
+endif
+
+# Symbols
+
+if cc.has_header_symbol('signal.h', 'SIGXCPU')
+  cdata.set('HAVE_SIGXCPU', 1)
+endif
+
+if not cc.has_header_symbol('netinet/in.h', 'INADDR_NONE')
+  if not cc.has_header_symbol('winsock2.h', 'INADDR_NONE')
+    # Define INADDR_NONE if not found (Solaris)
+    cdata.set('INADDR_NONE', '0xffffffff')
+  endif
 endif
 
 # Types
@@ -222,11 +267,24 @@ pa_c_args = ['-DHAVE_CONFIG_H', '-D_GNU_SOURCE']
 server_c_args = ['-D__INCLUDED_FROM_PULSE_AUDIO']
 cdata.set('MESON_BUILD', 1)
 
+# Code coverage
+
+if get_option('gcov')
+  add_project_arguments('--coverage', language: ['c', 'cpp'])
+  add_project_link_arguments('--coverage', language: ['c', 'cpp'])
+endif
+
 # Core Dependencies
 
 libm_dep = cc.find_library('m', required : true)
 thread_dep = dependency('threads')
 cap_dep = cc.find_library('cap', required : false)
+
+shm_dep = cc.find_library('rt', required : false)
+if shm_dep.found()
+  cdata.set('HAVE_SHM_OPEN', 1)
+endif
+
 
 atomictest = '''void func() {
   volatile int atomic = 2;
@@ -234,6 +292,16 @@ atomictest = '''void func() {
 }
 '''
 if cc.compiles(atomictest)
+  newatomictest = '''void func() {
+    int c = 0;
+    __atomic_store_n(&c, 4, __ATOMIC_SEQ_CST);
+  }
+  '''
+
+  if(cc.compiles(newatomictest))
+    cdata.set('HAVE_ATOMIC_BUILTINS_MEMORY_MODEL', true)
+  endif
+
   cdata.set('HAVE_ATOMIC_BUILTINS', true)
 else
   # FIXME: check if we need libatomic_ops
@@ -249,6 +317,8 @@ if get_option('database') == 'tdb'
   database_dep = dependency('tdb')
 elif get_option('database') == 'gdbm'
   database_dep = cc.find_library('gdbm', required : true)
+else
+  database_dep = dependency('', required: false)
 endif
 
 if get_option('ipv6')
@@ -257,6 +327,10 @@ endif
 
 if get_option('legacy-database-entry-format')
   cdata.set('ENABLE_LEGACY_DATABASE_ENTRY_FORMAT', 1)
+endif
+
+if get_option('running-from-build-tree')
+  cdata.set('HAVE_RUNNING_FROM_BUILD_TREE', 1)
 endif
 
 alsa_dep = dependency('alsa', version : '>= 1.0.24', required : get_option('alsa'))
@@ -290,6 +364,19 @@ if gtk_dep.found()
   cdata.set('HAVE_GTK', 1)
 endif
 
+have_orcc = false
+orcc_args = []
+orc_dep = dependency('orc-0.4', version : '>= 0.4.11', required : get_option('orc'))
+orcc = find_program('orcc', required : get_option('orc'))
+if orc_dep.found() and orcc.found()
+  have_orcc = true
+  orcc_args = [orcc]
+  #orcc_args = [orcc, '--include', 'glib.h']
+  cdata.set('HAVE_ORC', 1)
+else
+  cdata.set('DISABLE_ORC', 1)
+endif
+
 samplerate_dep = dependency('samplerate', version : '>= 0.1.0', required : get_option('samplerate'))
 if samplerate_dep.found()
   cdata.set('HAVE_LIBSAMPLERATE', 1)
@@ -302,11 +389,15 @@ if soxr_dep.found()
   cdata.set('HAVE_SOXR', 1)
 endif
 
-systemd_dep = dependency('libsystemd', required : get_option('systemd'))
-if systemd_dep.found()
+libsystemd_dep = dependency('libsystemd', required : get_option('systemd'))
+if libsystemd_dep.found()
   cdata.set('HAVE_SYSTEMD_DAEMON', 1)
   cdata.set('HAVE_SYSTEMD_LOGIN', 1)
   cdata.set('HAVE_SYSTEMD_JOURNAL', 1)
+  systemd_dep = dependency('systemd', required : get_option('systemd'))
+  if systemd_dep.found() and systemduserunitdir == ''
+    systemduserunitdir = systemd_dep.get_pkgconfig_variable('systemduserunitdir')
+  endif
 endif
 
 x11_dep = dependency('x11-xcb', required : get_option('x11'))
@@ -317,9 +408,6 @@ if x11_dep.found()
   xtst_dep = dependency('xtst', required : true)
   cdata.set('HAVE_X11', 1)
 endif
-
-# FIXME: support ORC
-cdata.set('DISABLE_ORC', 1)
 
 # Module dependencies
 
@@ -333,7 +421,7 @@ if get_option('hal-compat')
   cdata.set('HAVE_HAL_COMPAT', 1)
 endif
 
-avahi_dep = dependency('avahi-client', version : '>= 0.6.0', required : get_option('avahi'))
+avahi_dep = dependency('avahi-client', version : '>= 0.6.0', required : get_option('avahi'), disabler : true)
 if avahi_dep.found()
   cdata.set('HAVE_AVAHI', 1)
 endif
@@ -389,11 +477,94 @@ if webrtc_dep.found()
   cdata.set('HAVE_WEBRTC', 1)
 endif
 
+# These are required for the CMake file generation
+cdata.set('PA_LIBDIR', libdir)
+cdata.set('PA_INCDIR', includedir)
+if glib_dep.found()
+  cdata.set('HAVE_GLIB20', 1) # to match the AM_CONDITIONAL for CMake file generation
+endif
+
+# Test dependencies
+
+check_dep = dependency('check', version : '>= 0.9.10', required : get_option('tests'))
+
 # Now generate config.h from everything above
 configure_file(output : 'config.h', configuration : cdata)
 
-subdir('man')
+# pkg-config files
+
+pc_cdata = configuration_data()
+
+pc_cdata.set('prefix', prefix)
+pc_cdata.set('exec_prefix', prefix)
+pc_cdata.set('libdir', libdir)
+pc_cdata.set('includedir', includedir)
+pc_cdata.set('modlibexecdir', modlibexecdir)
+pc_cdata.set('PACKAGE_VERSION', pa_version_str)
+pc_cdata.set('PA_MAJORMINOR', pa_version_major_minor)
+# FIXME: the line below is wrong. Currently the meson thread dep lacks documentation,
+# and doesn't allow introspection, ie. none of get_pkgconfig_variable() or
+# get_configtool_variable() work with it, so we have no way to get this flag right,
+# unless we do all the work ourselves. See current work in glib, also meson #553.
+pc_cdata.set('PTHREAD_LIBS', '-pthread')
+
+pc_files = [
+  'libpulse.pc',
+  'libpulse-simple.pc',
+]
+
+if glib_dep.found()
+  pc_files += 'libpulse-mainloop-glib.pc'
+endif
+
+foreach file : pc_files
+  configure_file(
+    input : file + '.in',
+    output : file,
+    configuration : pc_cdata,
+    install_dir : pkgconfigdir)
+endforeach
+
+# CMake files
+
+m4 = find_program('m4', required: true)
+
+cmakedir = join_paths(libdir, 'cmake', 'PulseAudio')
+
+cmake_template_file = configure_file(
+  input : 'PulseAudioConfig.cmake.in',
+  output : 'PulseAudioConfig.cmake.tmp',
+  configuration: cdata,
+)
+
+custom_target('PulseAudioConfig.cmake',
+  input : cmake_template_file,
+  output : 'PulseAudioConfig.cmake',
+  capture : true,
+  command : [m4, '@INPUT@'],
+  build_by_default : true,
+  install : true,
+  install_dir : cmakedir,
+)
+
+configure_file(
+  input : 'PulseAudioConfigVersion.cmake.in',
+  output : 'PulseAudioConfigVersion.cmake',
+  configuration: cdata,
+  install : true,
+  install_dir : cmakedir,
+)
+
+# Subdirs
+
+subdir('po')
+if get_option('man')
+  subdir('man')
+endif
+subdir('shell-completion/bash')
+subdir('shell-completion/zsh')
 subdir('src')
+subdir('vala')
 
 ############################################################
 
@@ -407,15 +578,16 @@ summary = [
   'bindir:                        @0@'.format(bindir),
   'libdir:                        @0@'.format(libdir),
   'libexecdir:                    @0@'.format(libexecdir),
+  'mandir:                        @0@'.format(mandir),
   'datadir:                       @0@'.format(datadir),
   'sysconfdir:                    @0@'.format(sysconfdir),
   'localstatedir:                 @0@'.format(localstatedir),
-#  'modlibexecdir:                 @0@'.format(${modlibexecdir}),
+  'modlibexecdir:                 @0@'.format(modlibexecdir),
   'System Runtime Path:           @0@'.format(cdata.get_unquoted('PA_SYSTEM_RUNTIME_PATH')),
   'System State Path:             @0@'.format(cdata.get_unquoted('PA_SYSTEM_STATE_PATH')),
   'System Config Path:            @0@'.format(cdata.get_unquoted('PA_SYSTEM_CONFIG_PATH')),
-#  'Zsh completions directory:     @0@'.format(${zshcompletiondir}),
-#  'Bash completions directory:    @0@'.format(${bashcompletiondir}),
+  'Bash completions directory:    @0@'.format(bashcompletiondir),
+  'Zsh completions directory:     @0@'.format(zshcompletiondir),
   'Compiler:                      @0@ @1@'.format(cc.get_id(), cc.version()),
 #  'CFLAGS:                        @0@'.format(${CFLAGS}),
 #  'CPPFLAGS:                      @0@'.format(${CPPFLAGS}),
@@ -444,22 +616,24 @@ summary = [
   '    Enable  ofono headsets:    @0@'.format(get_option('bluez5-ofono-headset')),
   'Enable udev:                   @0@'.format(udev_dep.found()),
   '  Enable HAL->udev compat:     @0@'.format(get_option('hal-compat')),
-  'Enable systemd:                @0@'.format(systemd_dep.found()),
+  'Enable systemd:                @0@'.format(libsystemd_dep.found()),
 #  'Enable TCP Wrappers:           @0@'.format(${ENABLE_TCPWRAP}),
   'Enable libsamplerate:          @0@'.format(samplerate_dep.found()),
   'Enable IPv6:                   @0@'.format(get_option('ipv6')),
   'Enable OpenSSL (for Airtunes): @0@'.format(openssl_dep.found()),
   'Enable FFTW:                   @0@'.format(fftw_dep.found()),
-#  'Enable orc:                    @0@'.format(${ENABLE_ORC}),
+  'Enable ORC:                    @0@'.format(have_orcc),
   'Enable Adrian echo canceller:  @0@'.format(get_option('adrian-aec')),
   'Enable Speex (resampler, AEC): @0@'.format(speex_dep.found()),
   'Enable SoXR (resampler):       @0@'.format(soxr_dep.found()),
   'Enable WebRTC echo canceller:  @0@'.format(webrtc_dep.found()),
-#  'Enable gcov coverage:          @0@'.format(${ENABLE_GCOV}),
-#  'Enable unit tests:             @0@'.format(${ENABLE_TESTS}),
+  'Enable Gcov coverage:          @0@'.format(get_option('gcov')),
+  'Enable man pages:              @0@'.format(get_option('man')),
+  'Enable unit tests:             @0@'.format(get_option('tests')),
   '',
   'Database:                      @0@'.format(get_option('database')),
   'Legacy Database Entry Support: @0@'.format(get_option('legacy-database-entry-format')),
+  'Running from build tree:       @0@'.format(get_option('running-from-build-tree')),
   'System User:                   @0@'.format(cdata.get_unquoted('PA_SYSTEM_USER')),
   'System Group:                  @0@'.format(cdata.get_unquoted('PA_SYSTEM_GROUP')),
   'Access Group:                  @0@'.format(cdata.get_unquoted('PA_ACCESS_GROUP')),

@@ -924,7 +924,7 @@ char *pa_split(const char *c, const char *delimiter, const char**state) {
  * as-is without the length parameter, since it is merely pointing to a point
  * within the original string. The variable state points to, should be
  * initialized to NULL before the first call. */
-const char *pa_split_in_place(const char *c, const char *delimiter, int *n, const char**state) {
+const char *pa_split_in_place(const char *c, const char *delimiter, size_t *n, const char**state) {
     const char *current = *state ? *state : c;
     size_t l;
 
@@ -960,7 +960,7 @@ char *pa_split_spaces(const char *c, const char **state) {
 /* Similar to pa_split_spaces, except this returns a string in-place.
    Returned string is generally not NULL-terminated.
    See pa_split_in_place(). */
-const char *pa_split_spaces_in_place(const char *c, int *n, const char **state) {
+const char *pa_split_spaces_in_place(const char *c, size_t *n, const char **state) {
     const char *current = *state ? *state : c;
     size_t l;
 
@@ -1690,7 +1690,7 @@ char *pa_get_runtime_dir(void) {
         struct stat st;
         if (stat(d, &st) == 0 && st.st_uid != getuid()) {
             pa_log(_("XDG_RUNTIME_DIR (%s) is not owned by us (uid %d), but by uid %d! "
-                   "(This could e g happen if you try to connect to a non-root PulseAudio as a root user, over the native protocol. Don't do that.)"),
+                   "(This could e.g. happen if you try to connect to a non-root PulseAudio as a root user, over the native protocol. Don't do that.)"),
                    d, getuid(), st.st_uid);
             goto fail;
         }
@@ -2859,7 +2859,7 @@ bool pa_str_in_list(const char *haystack, const char *delimiters, const char *ne
 /* Checks a whitespace-separated list of words in haystack for needle */
 bool pa_str_in_list_spaces(const char *haystack, const char *needle) {
     const char *s;
-    int n;
+    size_t n;
     const char *state = NULL;
 
     if (!haystack || !needle)
@@ -3093,23 +3093,39 @@ char *pa_replace(const char*s, const char*a, const char *b) {
 char *pa_escape(const char *p, const char *chars) {
     const char *s;
     const char *c;
-    pa_strbuf *buf = pa_strbuf_new();
+    char *out_string, *output;
+    int char_count = strlen(p);
 
+    /* Maximum number of characters in output string
+     * including trailing 0. */
+    char_count = 2 * char_count + 1;
+
+    /* allocate output string */
+    out_string = pa_xmalloc(char_count);
+    output = out_string;
+
+    /* write output string */
     for (s = p; *s; ++s) {
         if (*s == '\\')
-            pa_strbuf_putc(buf, '\\');
+            *output++ = '\\';
         else if (chars) {
             for (c = chars; *c; ++c) {
                 if (*s == *c) {
-                    pa_strbuf_putc(buf, '\\');
+                    *output++ = '\\';
                     break;
                 }
             }
         }
-        pa_strbuf_putc(buf, *s);
+        *output++ = *s;
     }
 
-    return pa_strbuf_to_string_free(buf);
+    *output = 0;
+
+    /* Remove trailing garbage */
+    output = pa_xstrdup(out_string);
+
+    pa_xfree(out_string);
+    return output;
 }
 
 char *pa_unescape(char *p) {

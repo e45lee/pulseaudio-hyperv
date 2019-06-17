@@ -1,5 +1,3 @@
-# TODO How are symlinks installed by meson?
-#      We might need meson.add_install_script()
 
 # man page name, section, [aliases]
 manpages = [
@@ -20,17 +18,14 @@ manpages = [
 # FIXME: Add esdcompat if HAVE_ESOUND
 #manpages += ['esdcompat', '1'],
 
-# FIXME: This should be conditional
-want_man = true
-
 man_data = configuration_data()
 man_data.set('PACKAGE_URL', 'http://pulseaudio.org/')
 man_data.set('PACKAGE_BUGREPORT', 'pulseaudio-discuss (at) lists (dot) freedesktop (dot) org')
 man_data.set('PA_DEFAULT_CONFIG_DIR', cdata.get_unquoted('PA_DEFAULT_CONFIG_DIR'))
 
-perl = find_program('perl', required: want_man == true)
+perl = find_program('perl', required: true)
 xmltoman_cmd = [perl, join_paths(meson.current_source_dir(), 'xmltoman')]
-xmllint = find_program('xmllint', required: want_man == true)
+xmllint = find_program('xmllint', required: false)
 
 foreach tuple : manpages
   stem = tuple[0]
@@ -47,7 +42,7 @@ foreach tuple : manpages
     configuration : man_data,
   )
 
-  mandirn = join_paths(get_option('mandir'), 'man' + section)
+  mandirn = join_paths(mandir, 'man' + section)
 
   custom_target(
     man + '-target',
@@ -55,18 +50,15 @@ foreach tuple : manpages
     output : man,
     capture : true,
     command : xmltoman_cmd + ['@INPUT@'],
-    install : want_man,
+    install : true,
     install_dir : mandirn,
   )
 
-  foreach alias : aliases
-    link = custom_target(
-      alias,
-      output : alias,
-      command : ['ln', '-fs', man, '@OUTPUT@'],
-      install : want_man,
-      install_dir : mandirn,
-    )
+  foreach alias_stem : aliases
+    alias = alias_stem + '.' + section
+    dst = join_paths(mandirn, alias)
+    cmd = 'ln -fs @0@ $DESTDIR@1@'.format(man, dst)
+    meson.add_install_script('sh', '-c', cmd)
   endforeach
 
   if xmllint.found()
