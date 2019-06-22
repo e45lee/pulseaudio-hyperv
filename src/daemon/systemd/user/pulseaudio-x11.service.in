@@ -1,0 +1,11 @@
+[Unit]
+Description=Sound Service (X11 features)
+Requires=pulseaudio.service
+After=pulseaudio.service
+ConditionUser=!root
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@PA_X11_SCRIPT@ load
+ExecStop=@PA_X11_SCRIPT@ unload

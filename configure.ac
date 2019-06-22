@@ -1371,6 +1371,9 @@ AX_DEFINE_DIR(PA_BINARY, PA_BINARY, [Location of pulseaudio binary])
 PACTL_BINARY=${bindir}/pactl${EXEEXT}
 AX_DEFINE_DIR(PACTL_BINARY, PACTL_BINARY, [Location of pactl binary])
 
+PA_X11_SCRIPT=${bindir}/manage-pulseaudio-x11
+AX_DEFINE_DIR(PA_X11_SCRIPT, PA_X11_SCRIPT, [Location of x11 features management script])
+
 AC_SUBST(PA_SOEXT, [.so])
 AC_DEFINE(PA_SOEXT, [".so"], [Shared object extension])
 
@@ -1553,6 +1556,7 @@ AS_IF([test "x$HAVE_ESOUND" = "x1"],
     ])
 
 AC_CONFIG_FILES([src/start-pulseaudio-x11:src/daemon/start-pulseaudio-x11.in], [chmod +x src/start-pulseaudio-x11])
+AC_CONFIG_FILES([src/manage-pulseaudio-x11:src/daemon/manage-pulseaudio-x11.in], [chmod +x src/manage-pulseaudio-x11])
 AC_CONFIG_FILES([src/client.conf:src/pulse/client.conf.in])
 AC_CONFIG_FILES([src/daemon.conf:src/daemon/daemon.conf.in],
     [m4 src/daemon.conf > src/daemon.conf.gen && mv src/daemon.conf.gen src/daemon.conf])
@@ -1563,6 +1567,10 @@ AC_CONFIG_FILES([src/system.pa:src/daemon/system.pa.in],
 AS_IF([test "x$HAVE_SYSTEMD_DAEMON" = "x1"],
     [
         AC_CONFIG_FILES([src/pulseaudio.service:src/daemon/systemd/user/pulseaudio.service.in])
+    ])
+AS_IF([test "x$HAVE_SYSTEMD_DAEMON" = "x1" -a "x$HAVE_X11" = "x1" ],
+    [
+        AC_CONFIG_FILES([src/pulseaudio-x11.service:src/daemon/systemd/user/pulseaudio-x11.service.in])
     ])
 
 # CMake related ProjectConfig files

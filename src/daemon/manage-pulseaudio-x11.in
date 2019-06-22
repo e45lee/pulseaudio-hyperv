@@ -17,6 +17,24 @@
 
 set -e
 
-if [ x"$DISPLAY" != x ] ; then
-    manage-pulseaudio-x11 load
+if [ x"$1" = x"load" ]; then
+    command="load-module"
+elif [ x"$1" = x"unload" ]; then
+    comand="unload-module"
+else
+    echo 'usage: $0 [load|unload]'
+    exit -1
+fi
+
+if [[ -n "$DISPLAY" ]] ; then
+    @PACTL_BINARY@ $command module-x11-publish "display=$DISPLAY" > /dev/null
+    @PACTL_BINARY@ $command module-x11-cork-request "display=$DISPLAY" > /dev/null
+
+    if [ x"$KDE_FULL_SESSION" = x"true" ]; then
+       @PACTL_BINARY@ load-module module-device-manager "do_routing=1" > /dev/null
+    fi
+
+    if [ x"$SESSION_MANAGER" != x ] ; then
+	@PACTL_BINARY@ $command module-x11-xsmp "display=$DISPLAY session_manager=$SESSION_MANAGER" > /dev/null
+    fi
 fi
