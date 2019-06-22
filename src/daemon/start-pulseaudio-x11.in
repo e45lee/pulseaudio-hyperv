@@ -17,6 +17,6 @@
 
 set -e
 
-if [ x"$DISPLAY" != x ] ; then
+if [[ -z "$PULSE_NO_X11_AUTOSTART" && -n "$DISPLAY" ]] ; then
     manage-pulseaudio-x11 load
 fi
