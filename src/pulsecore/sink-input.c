@@ -2173,13 +2173,28 @@ void pa_sink_input_request_rewind(
     /* Check if rewinding for the maximum is requested, and if so, fix up */
     if (nbytes <= 0) {
 
-        /* Calculate maximum number of bytes that could be rewound in theory */
-        nbytes = i->sink->thread_info.max_rewind + lbq;
+        /* Calculate maximum number of bytes that could be rewound in theory.
+         * If the sink has a virtual sink attached, limit rewinding to max_rewind.
+         *
+         * The max_rewind value of a virtual sink depends on the rewinding capability
+         * of its DSP code. The DSP code is rewound in the process_rewind() callback
+         * of the sink input. Therefore rewinding must be limited to max_rewind here. */
+        nbytes = i->sink->thread_info.max_rewind;
+        if (!pa_sink_has_filter_attached(i->sink) && !pa_sink_is_filter(i->sink))
+            nbytes += lbq;
 
         /* Transform from sink domain */
         if (i->thread_info.resampler)
             nbytes = pa_resampler_request(i->thread_info.resampler, nbytes);
     }
+
+    /* There are two situations where nbytes may exceed max_rewind:
+     * 1) If an underrun was detected.
+     * 2) When the sink input is rewound during a move when it is attached to
+     *    the destination sink.
+     * For virtual sinks, the DSP code should be reset instead of rewound in
+     * both cases.
+     * FIXME: For the move case, it should not be necessary to reset the filter. */
 
     /* Remember how much we actually want to rewrite */
     if (i->thread_info.rewrite_nbytes != (size_t) -1) {
