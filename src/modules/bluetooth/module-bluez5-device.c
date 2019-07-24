@@ -412,29 +412,44 @@ static int sco_process_push(struct userdata *u) {
 static void a2dp_prepare_encoder_buffer(struct userdata *u) {
     pa_assert(u);
 
-    if (u->encoder_buffer_size >= u->write_link_mtu)
-        return;
+    if (u->encoder_buffer_size < u->write_link_mtu) {
+        pa_xfree(u->encoder_buffer);
+        u->encoder_buffer = pa_xmalloc(u->write_link_mtu);
+    }
 
-    u->encoder_buffer_size = 2 * u->write_link_mtu;
-    pa_xfree(u->encoder_buffer);
-    u->encoder_buffer = pa_xmalloc(u->encoder_buffer_size);
+    /* Encoder buffer cannot be larger then link MTU, otherwise
+     * encode method would produce larger packets then link MTU */
+    u->encoder_buffer_size = u->write_link_mtu;
 }
 
 /* Run from IO thread */
 static void a2dp_prepare_decoder_buffer(struct userdata *u) {
     pa_assert(u);
 
-    if (u->decoder_buffer_size >= u->read_link_mtu)
-        return;
+    if (u->decoder_buffer_size < u->read_link_mtu) {
+        pa_xfree(u->decoder_buffer);
+        u->decoder_buffer = pa_xmalloc(u->read_link_mtu);
+    }
 
-    u->decoder_buffer_size = 2 * u->read_link_mtu;
-    pa_xfree(u->decoder_buffer);
-    u->decoder_buffer = pa_xmalloc(u->decoder_buffer_size);
+    /* Decoder buffer cannot be larger then link MTU, otherwise
+     * decode method would produce larger output then read_block_size */
+    u->decoder_buffer_size = u->read_link_mtu;
 }
 
 /* Run from IO thread */
 static int a2dp_write_buffer(struct userdata *u, size_t nbytes) {
     int ret = 0;
+
+    /* Encoder function of A2DP codec may provide empty buffer, in this case do
+     * not post any empty buffer via A2DP socket. It may be because of codec
+     * internal state, e.g. encoder is waiting for more samples so it can
+     * provide encoded data. */
+    if (PA_UNLIKELY(!nbytes)) {
+        u->write_index += (uint64_t) u->write_memchunk.length;
+        pa_memblock_unref(u->write_memchunk.memblock);
+        pa_memchunk_reset(&u->write_memchunk);
+        return 0;
+    }
 
     for (;;) {
         ssize_t l;
@@ -508,10 +523,10 @@ static int a2dp_process_render(struct userdata *u) {
 
     pa_memblock_release(u->write_memchunk.memblock);
 
-    if (length == 0)
+    if (processed != u->write_memchunk.length) {
+        pa_log_error("Encoding error");
         return -1;
-
-    pa_assert(processed == u->write_memchunk.length);
+    }
 
     return a2dp_write_buffer(u, length);
 }
@@ -530,14 +545,14 @@ static int a2dp_process_push(struct userdata *u) {
     memchunk.memblock = pa_memblock_new(u->core->mempool, u->read_block_size);
     memchunk.index = memchunk.length = 0;
 
+    a2dp_prepare_decoder_buffer(u);
+
     for (;;) {
         bool found_tstamp = false;
         pa_usec_t tstamp;
         uint8_t *ptr;
         ssize_t l;
         size_t processed;
-
-        a2dp_prepare_decoder_buffer(u);
 
         l = pa_read(u->stream_fd, u->decoder_buffer, u->decoder_buffer_size, &u->stream_write_type);
 
@@ -568,9 +583,12 @@ static int a2dp_process_push(struct userdata *u) {
         memchunk.length = pa_memblock_get_length(memchunk.memblock);
 
         memchunk.length = u->a2dp_codec->decode_buffer(u->decoder_info, u->decoder_buffer, l, ptr, memchunk.length, &processed);
-        if (memchunk.length == 0) {
-            pa_memblock_release(memchunk.memblock);
-            ret = 0;
+
+        pa_memblock_release(memchunk.memblock);
+
+        if (processed != (size_t) l) {
+            pa_log_error("Decoding error");
+            ret = -1;
             break;
         }
 
@@ -578,9 +596,11 @@ static int a2dp_process_push(struct userdata *u) {
         pa_smoother_put(u->read_smoother, tstamp, pa_bytes_to_usec(u->read_index, &u->decoder_sample_spec));
         pa_smoother_resume(u->read_smoother, tstamp, true);
 
-        pa_memblock_release(memchunk.memblock);
-
-        pa_source_post(u->source, &memchunk);
+        /* Decoding of A2DP codec data may result in empty buffer, in this case
+         * do not post empty audio samples. It may happen due to algorithmic
+         * delay of audio codec. */
+        if (PA_LIKELY(memchunk.length))
+            pa_source_post(u->source, &memchunk);
 
         ret = l;
         break;
@@ -749,7 +769,7 @@ static void transport_config_mtu(struct userdata *u) {
 }
 
 /* Run from I/O thread */
-static void setup_stream(struct userdata *u) {
+static int setup_stream(struct userdata *u) {
     struct pollfd *pollfd;
     int one;
 
@@ -757,16 +777,18 @@ static void setup_stream(struct userdata *u) {
 
     /* return if stream is already set up */
     if (u->stream_setup_done)
-        return;
+        return 0;
 
     pa_log_info("Transport %s resuming", u->transport->path);
 
     if (u->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK) {
         pa_assert(u->a2dp_codec);
-        u->a2dp_codec->reset(u->encoder_info);
+        if (u->a2dp_codec->reset(u->encoder_info) < 0)
+            return -1;
     } else if (u->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE) {
         pa_assert(u->a2dp_codec);
-        u->a2dp_codec->reset(u->decoder_info);
+        if (u->a2dp_codec->reset(u->decoder_info) < 0)
+            return -1;
     }
 
     transport_config_mtu(u);
@@ -791,6 +813,8 @@ static void setup_stream(struct userdata *u) {
 
     if (u->source)
         u->read_smoother = pa_smoother_new(PA_USEC_PER_SEC, 2*PA_USEC_PER_SEC, true, true, 10, pa_rtclock_now(), true);
+
+    return 0;
 }
 
 /* Called from I/O thread, returns true if the transport was acquired or
@@ -802,8 +826,10 @@ static bool setup_transport_and_stream(struct userdata *u) {
     if (transport_error < 0) {
         if (transport_error != -EAGAIN)
             return false;
-    } else
-        setup_stream(u);
+    } else {
+        if (setup_stream(u) < 0)
+            return false;
+    }
     return true;
 }
 
