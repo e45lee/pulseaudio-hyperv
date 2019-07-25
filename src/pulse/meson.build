@@ -1,4 +1,9 @@
-configure_file(input : 'version.h.in', output :  'version.h', configuration : cdata)
+configure_file(
+  input : 'version.h.in',
+  output : 'version.h',
+  configuration : cdata,
+  install_dir : join_paths(includedir, 'pulse'),
+)
 
 libpulse_sources = [
   'channelmap.c',
@@ -9,6 +14,7 @@ libpulse_sources = [
   'ext-device-restore.c',
   'ext-stream-restore.c',
   'format.c',
+  'internal.h',
   'introspect.c',
   'mainloop-api.c',
   'mainloop-signal.c',
@@ -40,7 +46,6 @@ libpulse_headers = [
   'ext-stream-restore.h',
   'format.h',
   'gccmacro.h',
-  'internal.h',
   'introspect.h',
   'mainloop-api.h',
   'mainloop-signal.h',
@@ -68,17 +73,17 @@ endif
 libpulse = shared_library('pulse',
   libpulse_sources,
   libpulse_headers,
-  version : libversion,
+  version : libpulse_version,
   include_directories : [configinc, topinc],
   c_args : [pa_c_args],
-  soversion : soversion,
   install : true,
   dependencies : [libm_dep, thread_dep, libpulsecommon_dep, dbus_dep],
   implicit_include_directories : false)
 
 libpulse_dep = declare_dependency(link_with: libpulse)
 
-install_data(libpulse_headers,
+install_data(
+  libpulse_headers, 'simple.h',
   install_dir : join_paths(includedir, 'pulse')
 )
 
