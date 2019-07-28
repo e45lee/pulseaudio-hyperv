@@ -175,9 +175,9 @@ PREOPEN_LIBS = $(modlibexec_LTLIBRARIES)
 endif
 
 if FORCE_PREOPEN
-pulseaudio_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(IMMEDIATE_LDFLAGS) -dlpreopen force $(foreach f,$(PREOPEN_LIBS),-dlpreopen $(f))
+pulseaudio_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(IMMEDIATE_LDFLAGS) -ffast-math -dlpreopen force $(foreach f,$(PREOPEN_LIBS),-dlpreopen $(f))
 else
-pulseaudio_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(IMMEDIATE_LDFLAGS) -dlopen force $(foreach f,$(PREOPEN_LIBS),-dlopen $(f))
+pulseaudio_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(IMMEDIATE_LDFLAGS) -ffast-math -dlopen force $(foreach f,$(PREOPEN_LIBS),-dlopen $(f))
 endif
 
 if HAVE_SYSTEMD_DAEMON
@@ -1345,7 +1345,8 @@ dist_alsaprofilesets_DATA = \
 		modules/alsa/mixer/profile-sets/sb-omni-surround-5.1.conf \
 		modules/alsa/mixer/profile-sets/steelseries-arctis-5-usb-audio.conf \
 		modules/alsa/mixer/profile-sets/steelseries-arctis-7-usb-audio.conf \
-		modules/alsa/mixer/profile-sets/dell-dock-tb16-usb-audio.conf
+		modules/alsa/mixer/profile-sets/dell-dock-tb16-usb-audio.conf \
+		modules/alsa/mixer/profile-sets/cmedia-high-speed-true-hdaudio.conf
 
 if HAVE_UDEV
 dist_udevrules_DATA = \
