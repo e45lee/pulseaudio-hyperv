@@ -61,15 +61,12 @@ libpulsecommon_sources = [
   'pulsecore/socket-util.c',
   'pulsecore/strbuf.c',
   'pulsecore/strlist.c',
-  'pulsecore/svolume_c.c',
-  'pulsecore/svolume_mmx.c',
   'pulsecore/tagstruct.c',
   'pulsecore/thread-posix.c',
   'pulsecore/time-smoother.c',
   'pulsecore/tokenizer.c',
   'pulsecore/usergroup.c',
   'pulsecore/sndfile-util.c',
-  'pulsecore/svolume_arm.c',
 ]
 
 libpulsecommon_headers = [
@@ -181,6 +178,7 @@ libpulsecommon = shared_library('pulsecommon-' + pa_version_major_minor,
   libpulsecommon_headers,
   include_directories : [configinc, topinc],
   c_args : [pa_c_args],
+  link_args : [nodelete_link_args],
   install : true,
   install_dir : privlibdir,
   dependencies : [libm_dep, thread_dep, shm_dep, sndfile_dep, dbus_dep, x11_dep, libsystemd_dep, glib_dep, gtk_dep, asyncns_dep],

@@ -30,9 +30,11 @@ libalsa_util = shared_library('alsa-util',
   libalsa_util_sources,
   libalsa_util_headers,
   c_args : [pa_c_args, server_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, alsa_dep, dbus_dep, libm_dep, udev_dep],
   install : true,
+  install_rpath : privlibdir,
   install_dir : modlibexecdir,
 )
 

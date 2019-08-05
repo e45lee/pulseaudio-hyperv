@@ -49,6 +49,10 @@ libpulsecore_sources = [
   'source-output.c',
   'start-child.c',
   'stream-util.c',
+  'svolume_arm.c',
+  'svolume_c.c',
+  'svolume_mmx.c',
+  'svolume_sse.c',
   'thread-mq.c',
 ]
 
@@ -149,7 +153,7 @@ orc_sources = []
 orc_headers = []
 if have_orcc
   orcsrc = 'svolume'
-  orc_h = custom_target(orcsrc + '-ocr-gen.h',
+  orc_h = custom_target(orcsrc + '-orc-gen.h',
     input : orcsrc + '.orc',
     output : orcsrc + '-orc-gen.h',
     command : orcc_args + ['--header', '-o', '@OUTPUT@', '@INPUT@']
@@ -189,7 +193,9 @@ libpulsecore = shared_library('pulsecore-' + pa_version_major_minor,
   orc_sources, orc_headers,
   include_directories : [configinc, topinc],
   c_args : [pa_c_args, server_c_args],
+  link_args : [nodelete_link_args],
   install : true,
+  install_rpath : privlibdir,
   install_dir : privlibdir,
   link_with : libpulsecore_simd_lib,
   dependencies : [libm_dep, libpulsecommon_dep, libpulse_dep, ltdl_dep, shm_dep, sndfile_dep, database_dep, dbus_dep, orc_dep, samplerate_dep, soxr_dep, speex_dep, x11_dep],
@@ -204,10 +210,12 @@ libavahi_wrap = shared_library('avahi-wrap',
   'avahi-wrap.c',
   'avahi-wrap.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, avahi_dep],
   implicit_include_directories : false, # pulsecore/poll.h <vs> /usr/include/poll.h
   install : true,
+  install_rpath : privlibdir,
   install_dir : modlibexecdir,
 )
 
@@ -215,21 +223,28 @@ libcli = shared_library('cli',
   'cli.c',
   'cli.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
   install : true,
+  install_rpath : privlibdir,
   install_dir : modlibexecdir,
 )
 
 libcli_dep = declare_dependency(link_with: libcli)
 
+# FIXME: meson doesn't support multiple RPATH arguments currently
+rpath_dirs = join_paths(privlibdir) + ':' + join_paths(modlibexecdir)
+
 libprotocol_cli = shared_library('protocol-cli',
   'protocol-cli.c',
   'protocol-cli.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, libcli_dep],
   install : true,
+  install_rpath : rpath_dirs,
   install_dir : modlibexecdir,
 )
 
@@ -237,9 +252,11 @@ libprotocol_http = shared_library('protocol-http',
   ['protocol-http.c', 'mime-type.c'],
   ['protocol-http.h', 'mime-type.h'],
   c_args : [pa_c_args, server_c_args, database_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
   install : true,
+  install_rpath : privlibdir,
   install_dir : modlibexecdir,
 )
 
@@ -247,9 +264,11 @@ libprotocol_native = shared_library('protocol-native',
   'protocol-native.c',
   ['protocol-native.h', 'native-common.h'],
   c_args : [pa_c_args, server_c_args, database_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep, dbus_dep],
   install : true,
+  install_rpath : privlibdir,
   install_dir : modlibexecdir,
 )
 
@@ -257,8 +276,10 @@ libprotocol_simple = shared_library('protocol-simple',
   'protocol-simple.c',
   'protocol-simple.h',
   c_args : [pa_c_args, server_c_args, database_c_args],
+  link_args : [nodelete_link_args],
   include_directories : [configinc, topinc],
   dependencies : [libpulse_dep, libpulsecommon_dep, libpulsecore_dep],
   install : true,
+  install_rpath : privlibdir,
   install_dir : modlibexecdir,
 )

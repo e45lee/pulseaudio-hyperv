@@ -27,6 +27,7 @@ executable('pulseaudio',
   pulseaudio_sources,
   pulseaudio_headers,
   install: true,
+  install_rpath : privlibdir,
   include_directories : [configinc, topinc],
   link_args : ['-ffast-math'],
   link_with : [libpulsecore, libpulsecommon, libpulse],
@@ -92,6 +93,9 @@ default_conf.merge_from(cdata)
 default_conf.set('PA_BINARY', cdata.get_unquoted('PA_BINARY'))
 default_conf.set('PA_SOEXT', cdata.get_unquoted('PA_SOEXT'))
 default_conf.set10('HAVE_AF_UNIX', cc.has_header('sys/un.h'))
+default_conf.set10('OS_IS_WIN32', host_machine.system() == 'windows')
+# We don't support the deprecated GConf option in meson
+default_conf.set10('HAVE_GCONF', 0)
 
 default_template_file = configure_file(
   input : 'default.pa.in',
