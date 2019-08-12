@@ -143,7 +143,7 @@ if gio_dep.found()
   all_modules += [
     [ 'module-gsettings',
       [ 'gsettings/module-gsettings.c', 'stdin-util.c', 'stdin-util.h' ],
-      [], ['-DPA_GSETTINGS_HELPER="' + pulselibexecdir + 'gsettings-helper"'] ]
+      [], ['-DPA_GSETTINGS_HELPER="' + join_paths(pulselibexecdir, 'gsettings-helper') + '"'] ]
   ]
 endif
 
