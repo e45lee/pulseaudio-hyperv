@@ -16,6 +16,7 @@ echo-cancel-test
 esdcompat
 gconf-helper
 gsettings-helper
+manage-pulseaudio-x11
 org.freedesktop.pulseaudio.gschema.valid
 pacat
 pacmd
@@ -26,6 +27,7 @@ pasuspender
 pax11publish
 pulseaudio
 pulseaudio.service
+pulseaudio-x11.service
 start-pulseaudio-x11
 *-orc-gen.[ch]
 # tests

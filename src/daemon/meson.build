@@ -47,6 +47,14 @@ if x11_dep.found()
     install_dir : bindir,
   )
 
+  configure_file(
+    input : 'manage-pulseaudio-x11.in',
+    output : 'manage-pulseaudio-x11',
+    configuration : conf,
+    install : true,
+    install_dir : bindir,
+  )
+
   desktop_file = i18n.merge_file(
     input : 'pulseaudio.desktop.in',
     output : 'pulseaudio.desktop',
@@ -155,4 +163,17 @@ if systemd_dep.found()
   install_data('systemd/user/pulseaudio.socket',
     install_dir: systemduserunitdir,
   )
+
+  if x11_dep.found()
+    sd_user_x11_service_conf = configuration_data()
+    sd_user_x11_service_conf.set('PA_X11_SCRIPT', join_paths(bindir, 'manage-pulseaudio-x11'))
+
+    sd_user_x11_service_file = configure_file(
+      input : 'systemd/user/pulseaudio-x11.service.in',
+      output : 'pulseaudio-x11.service',
+      configuration : sd_user_service_conf,
+      install : true,
+      install_dir : systemduserunitdir,
+    )
+  endif
 endif

@@ -100,8 +100,10 @@ EXTRA_DIST = \
 		daemon/system.pa.in \
 		depmod.py \
 		daemon/esdcompat.in \
+		daemon/manage-pulseaudio-x11.in \
 		daemon/start-pulseaudio-x11.in \
 		daemon/systemd/user/pulseaudio.service.in \
+		daemon/systemd/user/pulseaudio-x11.service.in \
 		daemon/systemd/user/pulseaudio.socket \
 		utils/padsp.in \
 		utils/qpaeq \
@@ -211,7 +213,7 @@ endif
 
 if HAVE_X11
 bin_PROGRAMS += pax11publish
-bin_SCRIPTS += start-pulseaudio-x11
+bin_SCRIPTS += start-pulseaudio-x11 manage-pulseaudio-x11
 endif
 
 pacat_SOURCES = utils/pacat.c
@@ -245,6 +247,10 @@ systemduserunit_DATA = \
     pulseaudio.service \
     daemon/systemd/user/pulseaudio.socket
 
+if HAVE_X11
+systemduserunit_DATA += \
+    pulseaudio-x11.service
+endif
 endif
 
 ###################################
@@ -2202,7 +2208,7 @@ module_allow_passthrough_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_allow_
 ###################################
 
 CLEANFILES += daemon/pulseaudio.desktop
-DISTCLEANFILES = esdcompat client.conf default.pa system.pa daemon.conf start-pulseaudio-x11 pulseaudio.service
+DISTCLEANFILES = esdcompat client.conf default.pa system.pa daemon.conf manage-pulseaudio-x11 start-pulseaudio-x11 pulseaudio.service pulseaudio-x11.service
 
 if OS_IS_WIN32
 SYMLINK_PROGRAM=cd $(DESTDIR)$(bindir) && cp
