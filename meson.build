@@ -167,6 +167,14 @@ elif host_machine.system() == 'windows'
 #  cdata.set('__EXTENSIONS__', 1)
 endif
 
+if cc.has_type('_Bool')
+  cdata.set('HAVE_STD_BOOL', 1)
+endif
+
+if host_machine.cpu_family() == 'x86_64' or cc.sizeof('void *') >= 8
+  cdata.set('HAVE_FAST_64BIT_OPERATIONS', 1)
+endif
+
 # Headers
 
 check_headers = [
@@ -190,7 +198,9 @@ check_headers = [
   'regex.h',
   'sched.h',
   'stdint.h',
+  'sys/atomic.h',
   'sys/capability.h',
+  'sys/conf.h',
   'sys/dl.h',
   'sys/eventfd.h',
   'sys/filio.h',
@@ -219,6 +229,10 @@ endforeach
 # FIXME: move this to the above set
 if cc.has_header('pthread.h')
   cdata.set('HAVE_PTHREAD', 1)
+endif
+
+if cc.has_header_symbol('pthread.h', 'PTHREAD_PRIO_INHERIT')
+  cdata.set('HAVE_PTHREAD_PRIO_INHERIT', 1)
 endif
 
 # Functions
@@ -294,6 +308,20 @@ if not cc.has_header_symbol('netinet/in.h', 'INADDR_NONE')
     cdata.set('INADDR_NONE', '0xffffffff')
   endif
 endif
+
+check_decls = [
+  [ 'environ', 'unistd.h', '#define _GNU_SOURCE' ],
+  [ 'SOUND_PCM_READ_RATE', 'sys/soundcard.h', '' ],
+  [ 'SOUND_PCM_READ_CHANNELS', 'sys/soundcard.h', '' ],
+  [ 'SOUND_PCM_READ_BITS', 'sys/soundcard.h', '' ],
+]
+
+foreach s : check_decls
+  if cc.has_header_symbol(s[1], s[0], prefix : s[2])
+    define = 'HAVE_DECL_' + s[0].to_upper()
+    cdata.set(define, 1)
+  endif
+endforeach
 
 # Types
 
@@ -371,12 +399,23 @@ size_t iconv (iconv_t cd, char * *inbuf, size_t *inbytesleft, char * *outbuf, si
   endif
 endif
 
+# Atomic operations
+
+if get_option('atomic-arm-memory-barrier')
+    cdata.set('ATOMIC_ARM_MEMORY_BARRIER_ENABLED', 1)
+endif
+
+need_libatomic_ops = false
+
 atomictest = '''void func() {
   volatile int atomic = 2;
   __sync_bool_compare_and_swap (&atomic, 2, 3);
 }
 '''
+
 if cc.compiles(atomictest)
+  cdata.set('HAVE_ATOMIC_BUILTINS', 1)
+
   newatomictest = '''void func() {
     int c = 0;
     __atomic_store_n(&c, 4, __ATOMIC_SEQ_CST);
@@ -384,13 +423,73 @@ if cc.compiles(atomictest)
   '''
 
   if(cc.compiles(newatomictest))
-    cdata.set('HAVE_ATOMIC_BUILTINS_MEMORY_MODEL', true)
+    cdata.set('HAVE_ATOMIC_BUILTINS_MEMORY_MODEL', 1)
   endif
 
-  cdata.set('HAVE_ATOMIC_BUILTINS', true)
+elif host_machine.cpu_family() == 'arm'
+  if host_machine.system() == 'linux' and get_option('atomic-arm-linux-helpers')
+    cdata.set('ATOMIC_ARM_LINUX_HELPERS', 1)
+  else
+    armatomictest = '''void func() {
+      volatile int a=0;
+      int o=0, n=1, r;
+      asm volatile ("ldrex    %0, [%1]\n"
+      "subs  %0, %0, %2\n"
+      "strexeq %0, %3, [%1]\n"
+      : "=&r" (r)
+      : "r" (&a), "Ir" (o), "r" (n)
+      : "cc");
+      return (a==1 ? 0 : -1);
+    '''
+
+    if cc.compiles(aratomictest)
+      cdata.set('ATOMIC_ARM_INLINE_ASM', 1)
+    else
+      need_libatomic_ops = true
+    endif
+  endif # arm && !linux
+
+elif not ['freebsd', 'netbsd'].contains(host_machine.system())
+  need_libatomic_ops = true
+endif # !atomic helpers && !arm
+
+if need_libatomic_ops
+  assert(cc.has_header('atomic_ops.h'), 'Need libatomic_ops')
+
+  cdata.set('AO_REQUIRE_CAS', 1)
+
+  if host_machine.system() != 'windows'
+    libatomic_ops_dep = cc.find_library('atomic_ops', required : true)
+  else
+    libatomic_ops_dep = dependency('', required: false)
+  endif
 else
-  # FIXME: check if we need libatomic_ops
+  libatomic_ops_dep = dependency('', required: false)
 endif
+
+# ARM checks
+# ARMV6 instructions we need
+if host_machine.cpu_family() == 'arm'
+  armv6test = '''void func() {
+    volatile int a = -60000, b = 0xaaaabbbb, c = 0xccccdddd;
+    asm volatile ("ldr r0, %2 \n"
+                  "ldr r2, %3 \n"
+                  "ldr r3, %4 \n"
+                  "ssat r1, #8, r0 \n"
+                  "str r1, %0 \n"
+                  "pkhbt r1, r3, r2, LSL #8 \n"
+                  "str r1, %1 \n"
+                  : "=m" (a), "=m" (b)
+                  : "m" (a), "m" (b), "m" (c)
+                  : "r0", "r1", "r2", "r3", "cc");
+    return (a == -128 && b == 0xaabbdddd) ? 0 : -1;
+  '''
+
+  if cc.compiles(armv6test)
+    cdata.set('HAVE_ARMV6', 1)
+  endif
+endif
+# NEON checks are automatically done by the unstable-simd module
 
 # FIXME: make sure it's >= 2.2
 ltdl_dep = cc.find_library('ltdl', required : true)
