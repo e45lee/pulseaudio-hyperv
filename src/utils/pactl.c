@@ -184,6 +184,25 @@ static void stat_callback(pa_context *c, const pa_stat_info *i, void *userdata) 
     complete_action();
 }
 
+
+/* userdata object - used to gather default_sink_name */
+struct Userdata { // define struct
+    char *default_sink_name;
+};
+
+
+static void get_default_sink_name_server_info_callback(pa_context *c, const pa_server_info *i, void *userdata) {
+    if (!i) {
+        pa_log(_("Failed to get server information: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    struct Userdata *userdata_p = (struct Userdata *)userdata;
+    userdata_p->default_sink_name = pa_xstrdup(i->default_sink_name);
+}
+
+
 static void get_server_info_callback(pa_context *c, const pa_server_info *i, void *useerdata) {
     char ss[PA_SAMPLE_SPEC_SNPRINT_MAX], cm[PA_CHANNEL_MAP_SNPRINT_MAX];
 
@@ -242,6 +261,8 @@ static const char* get_available_str_ynonly(int available) {
 
 static void get_sink_info_callback(pa_context *c, const pa_sink_info *i, int is_last, void *userdata) {
 
+    struct Userdata *userdata_p = (struct Userdata*)userdata;
+
     static const char *state_table[] = {
         [1+PA_SINK_INVALID_STATE] = "n/a",
         [1+PA_SINK_RUNNING] = "RUNNING",
@@ -275,16 +296,19 @@ static void get_sink_info_callback(pa_context *c, const pa_sink_info *i, int is_
     nl = true;
 
     if (short_list_format) {
-        printf("%u\t%s\t%s\t%s\t%s\n",
+        printf("%u\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
                i->index,
                i->name,
                pa_strnull(i->driver),
                pa_sample_spec_snprint(s, sizeof(s), &i->sample_spec),
-               state_table[1+i->state]);
+               state_table[1+i->state],
+               i->mute ? _("muted") : _("unmuted"),
+               pa_volume_snprint(cv, sizeof(cv), pa_cvolume_max(&i->volume)),
+               (strcmp(i->name, userdata_p->default_sink_name) == 0 ? _("DEFAULT") : "NON-DEFAULT"));
         return;
     }
 
-    printf(_("Sink #%u\n"
+    printf(_("Sink #%u (%s)\n"
              "\tState: %s\n"
              "\tName: %s\n"
              "\tDescription: %s\n"
@@ -301,6 +325,7 @@ static void get_sink_info_callback(pa_context *c, const pa_sink_info *i, int is_
              "\tFlags: %s%s%s%s%s%s%s\n"
              "\tProperties:\n\t\t%s\n"),
            i->index,
+           (strcmp(i->name, userdata_p->default_sink_name) == 0 ? _("DEFAULT") : "NON-DEFAULT"),
            state_table[1+i->state],
            i->name,
            pa_strnull(i->description),
@@ -1239,9 +1264,11 @@ static void context_state_callback(pa_context *c, void *userdata) {
                     if (list_type) {
                         if (pa_streq(list_type, "modules"))
                             o = pa_context_get_module_info_list(c, get_module_info_callback, NULL);
-                        else if (pa_streq(list_type, "sinks"))
-                            o = pa_context_get_sink_info_list(c, get_sink_info_callback, NULL);
-                        else if (pa_streq(list_type, "sources"))
+                        else if (pa_streq(list_type, "sinks")) {
+                            struct Userdata * tmp_userdata = pa_xmalloc(sizeof *tmp_userdata);
+                            o = pa_context_get_server_info(c, get_default_sink_name_server_info_callback, (void*)tmp_userdata);
+                            o = pa_context_get_sink_info_list(c, get_sink_info_callback, (void*)tmp_userdata);
+                        } else if (pa_streq(list_type, "sources"))
                             o = pa_context_get_source_info_list(c, get_source_info_callback, NULL);
                         else if (pa_streq(list_type, "sink-inputs"))
                             o = pa_context_get_sink_input_info_list(c, get_sink_input_info_callback, NULL);
