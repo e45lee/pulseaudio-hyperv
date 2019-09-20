@@ -223,10 +223,10 @@ static uint8_t fill_preferred_configuration(const pa_sample_spec *default_sample
             return 0;
         }
     } else {
-        if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+        if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
             config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
         else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
             config->channel_mode = SBC_CHANNEL_MODE_STEREO;
         else {
@@ -257,10 +257,11 @@ static uint8_t fill_preferred_configuration(const pa_sample_spec *default_sample
         return 0;
     }
 
-    if (capabilities->allocation_method & SBC_ALLOCATION_SNR)
-        config->allocation_method = SBC_ALLOCATION_SNR;
-    else if (capabilities->allocation_method & SBC_ALLOCATION_LOUDNESS)
+
+    if (capabilities->allocation_method & SBC_ALLOCATION_LOUDNESS)
         config->allocation_method = SBC_ALLOCATION_LOUDNESS;
+    else if (capabilities->allocation_method & SBC_ALLOCATION_SNR)
+        config->allocation_method = SBC_ALLOCATION_SNR;
     else {
         pa_log_error("No supported allocation method");
         return 0;
@@ -331,12 +332,12 @@ static void *init(bool for_encoding, bool for_backchannel, const uint8_t *config
     }
 
     switch (config->channel_mode) {
-        case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-            sbc_info->mode = SBC_MODE_DUAL_CHANNEL;
-            sample_spec->channels = 2;
-            break;
         case SBC_CHANNEL_MODE_JOINT_STEREO:
             sbc_info->mode = SBC_MODE_JOINT_STEREO;
+            sample_spec->channels = 2;
+            break;
+        case SBC_CHANNEL_MODE_DUAL_CHANNEL:
+            sbc_info->mode = SBC_MODE_DUAL_CHANNEL;
             sample_spec->channels = 2;
             break;
         case SBC_CHANNEL_MODE_STEREO:
