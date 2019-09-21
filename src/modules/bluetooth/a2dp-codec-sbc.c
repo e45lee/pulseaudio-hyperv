@@ -36,9 +36,6 @@
 #include "a2dp-codec-api.h"
 #include "rtp.h"
 
-#define SBC_BITPOOL_DEC_LIMIT 32
-#define SBC_BITPOOL_DEC_STEP 5
-
 struct sbc_info {
     sbc_t sbc;                           /* Codec data */
     size_t codesize, frame_length;       /* SBC Codesize, frame_length. We simply cache those values here */
