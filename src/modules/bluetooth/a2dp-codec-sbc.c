@@ -36,9 +36,6 @@
 #include "a2dp-codec-api.h"
 #include "rtp.h"
 
-#define SBC_BITPOOL_DEC_LIMIT 32
-#define SBC_BITPOOL_DEC_STEP 5
-
 struct sbc_info {
     sbc_t sbc;                           /* Codec data */
     size_t codesize, frame_length;       /* SBC Codesize, frame_length. We simply cache those values here */
@@ -104,7 +101,7 @@ static uint8_t fill_capabilities(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]
     capabilities->subbands = SBC_SUBBANDS_4 | SBC_SUBBANDS_8;
     capabilities->block_length = SBC_BLOCK_LENGTH_4 | SBC_BLOCK_LENGTH_8 | SBC_BLOCK_LENGTH_12 | SBC_BLOCK_LENGTH_16;
     capabilities->min_bitpool = SBC_MIN_BITPOOL;
-    capabilities->max_bitpool = SBC_BITPOOL_HQ_JOINT_STEREO_44100;
+    capabilities->max_bitpool = SBC_MAX_BITPOOL_STEREO;
 
     return sizeof(*capabilities);
 }
@@ -163,7 +160,7 @@ static uint8_t default_bitpool(uint8_t freq, uint8_t mode) {
                 case SBC_CHANNEL_MODE_DUAL_CHANNEL:
                 case SBC_CHANNEL_MODE_STEREO:
                 case SBC_CHANNEL_MODE_JOINT_STEREO:
-                    return SBC_BITPOOL_HQ_JOINT_STEREO_44100;
+                    return SBC_MAX_BITPOOL_STEREO;
             }
             break;
 
@@ -171,11 +168,11 @@ static uint8_t default_bitpool(uint8_t freq, uint8_t mode) {
             switch (mode) {
                 case SBC_CHANNEL_MODE_MONO:
                 case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-                    return SBC_BITPOOL_HQ_MONO_44100;
+                    return SBC_MAX_BITPOOL_MONO;
 
                 case SBC_CHANNEL_MODE_STEREO:
                 case SBC_CHANNEL_MODE_JOINT_STEREO:
-                    return SBC_BITPOOL_HQ_JOINT_STEREO_44100;
+                    return SBC_MAX_BITPOOL_STEREO;
             }
             break;
 
@@ -183,11 +180,11 @@ static uint8_t default_bitpool(uint8_t freq, uint8_t mode) {
             switch (mode) {
                 case SBC_CHANNEL_MODE_MONO:
                 case SBC_CHANNEL_MODE_DUAL_CHANNEL:
-                    return SBC_BITPOOL_HQ_MONO_48000;
+                    return SBC_MAX_BITPOOL_MONO;
 
                 case SBC_CHANNEL_MODE_STEREO:
                 case SBC_CHANNEL_MODE_JOINT_STEREO:
-                    return SBC_BITPOOL_HQ_JOINT_STEREO_48000;
+                    return SBC_MAX_BITPOOL_STEREO;
             }
             break;
     }
@@ -240,33 +237,64 @@ static uint8_t fill_preferred_configuration(const pa_sample_spec *default_sample
 
     pa_assert((unsigned) i < PA_ELEMENTSOF(freq_table));
 
-    if (default_sample_spec->channels <= 1) {
-        if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
-            config->channel_mode = SBC_CHANNEL_MODE_MONO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-        else {
-            pa_log_error("No supported channel modes");
-            return 0;
-        }
-    } else {
-        if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
-            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
-            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
-        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
-            config->channel_mode = SBC_CHANNEL_MODE_MONO;
-        else {
-            pa_log_error("No supported channel modes");
-            return 0;
-        }
-    }
+	if ( capabilities->max_bitpool <= (uint8_t) 53) {
+	    if (default_sample_spec->channels <= 1) {
+	        if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
+	            config->channel_mode = SBC_CHANNEL_MODE_MONO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+	            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+	        else {
+	            pa_log_error("No supported channel modes");
+	            return 0;
+	        }
+	    } else {
+	        if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+	            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
+	            config->channel_mode = SBC_CHANNEL_MODE_MONO;
+	        else {
+	            pa_log_error("No supported channel modes");
+	            return 0;
+	        }
+	    }
+	} else {
+	    if (default_sample_spec->channels <= 1) {
+	        if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
+	            config->channel_mode = SBC_CHANNEL_MODE_MONO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+	            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+	        else {
+	            pa_log_error("No supported channel modes");
+	            return 0;
+	        }
+	    } else {
+	        if (capabilities->channel_mode & SBC_CHANNEL_MODE_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_JOINT_STEREO)
+	            config->channel_mode = SBC_CHANNEL_MODE_JOINT_STEREO;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_DUAL_CHANNEL)
+	            config->channel_mode = SBC_CHANNEL_MODE_DUAL_CHANNEL;
+	        else if (capabilities->channel_mode & SBC_CHANNEL_MODE_MONO)
+	            config->channel_mode = SBC_CHANNEL_MODE_MONO;
+	        else {
+	            pa_log_error("No supported channel modes");
+	            return 0;
+	        }
+	    }
+	}
+	
 
     if (capabilities->block_length & SBC_BLOCK_LENGTH_16)
         config->block_length = SBC_BLOCK_LENGTH_16;
@@ -290,10 +318,10 @@ static uint8_t fill_preferred_configuration(const pa_sample_spec *default_sample
         return 0;
     }
 
-    if (capabilities->allocation_method & SBC_ALLOCATION_LOUDNESS)
-        config->allocation_method = SBC_ALLOCATION_LOUDNESS;
-    else if (capabilities->allocation_method & SBC_ALLOCATION_SNR)
+    if (capabilities->allocation_method & SBC_ALLOCATION_SNR)
         config->allocation_method = SBC_ALLOCATION_SNR;
+    else if (capabilities->allocation_method & SBC_ALLOCATION_LOUDNESS)
+        config->allocation_method = SBC_ALLOCATION_LOUDNESS;
     else {
         pa_log_error("No supported allocation method");
         return 0;
