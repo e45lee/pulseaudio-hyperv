@@ -193,7 +193,7 @@ void pa_context_set_event_callback(pa_context *p, pa_context_event_cb_t cb, void
 int pa_context_errno(const pa_context *c);
 
 /** Return non-zero if some data is pending to be written to the connection */
-int pa_context_is_pending(const pa_context *c);
+int pa_context_is_pending(pa_context *c);
 
 /** Return the current context status */
 pa_context_state_t pa_context_get_state(const pa_context *c);
@@ -227,20 +227,20 @@ pa_operation* pa_context_set_default_sink(pa_context *c, const char *name, pa_co
 pa_operation* pa_context_set_default_source(pa_context *c, const char *name, pa_context_success_cb_t cb, void *userdata);
 
 /** Returns 1 when the connection is to a local daemon. Returns negative when no connection has been made yet. */
-int pa_context_is_local(const pa_context *c);
+int pa_context_is_local(pa_context *c);
 
 /** Set a different application name for context on the server. */
 pa_operation* pa_context_set_name(pa_context *c, const char *name, pa_context_success_cb_t cb, void *userdata);
 
 /** Return the server name this context is connected to. */
-const char* pa_context_get_server(const pa_context *c);
+const char* pa_context_get_server(pa_context *c);
 
 /** Return the protocol version of the library. */
 uint32_t pa_context_get_protocol_version(const pa_context *c);
 
 /** Return the protocol version of the connected server.
  * Returns PA_INVALID_INDEX on error. */
-uint32_t pa_context_get_server_protocol_version(const pa_context *c);
+uint32_t pa_context_get_server_protocol_version(pa_context *c);
 
 /** Update the property list of the client, adding new entries. Please
  * note that it is highly recommended to set as many properties
@@ -280,7 +280,7 @@ void pa_context_rttime_restart(const pa_context *c, pa_time_event *e, pa_usec_t 
  * supposed to be used in a construct such as
  * pa_context_get_tile_size(pa_stream_get_context(s),
  * pa_stream_get_sample_spec(ss)); \since 0.9.20 */
-size_t pa_context_get_tile_size(const pa_context *c, const pa_sample_spec *ss);
+size_t pa_context_get_tile_size(pa_context *c, const pa_sample_spec *ss);
 
 /** Load the authentication cookie from a file. This function is primarily
  * meant for PulseAudio's own tunnel modules, which need to load the cookie

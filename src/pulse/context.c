@@ -313,7 +313,7 @@ void pa_context_set_state(pa_context *c, pa_context_state_t st) {
     pa_context_unref(c);
 }
 
-int pa_context_set_error(const pa_context *c, int error) {
+int pa_context_set_error(pa_context *c, int error) {
     pa_assert(error >= 0);
     pa_assert(error < PA_ERR_MAX);
 
@@ -1106,7 +1106,7 @@ void pa_context_set_event_callback(pa_context *c, pa_context_event_cb_t cb, void
     c->event_userdata = userdata;
 }
 
-int pa_context_is_pending(const pa_context *c) {
+int pa_context_is_pending(pa_context *c) {
     pa_assert(c);
     pa_assert(PA_REFCNT_VALUE(c) >= 1);
 
@@ -1275,7 +1275,7 @@ pa_operation* pa_context_set_default_source(pa_context *c, const char *name, pa_
     return o;
 }
 
-int pa_context_is_local(const pa_context *c) {
+int pa_context_is_local(pa_context *c) {
     pa_assert(c);
     pa_assert(PA_REFCNT_VALUE(c) >= 1);
 
@@ -1319,7 +1319,7 @@ const char* pa_get_library_version(void) {
     return pa_get_headers_version();
 }
 
-const char* pa_context_get_server(const pa_context *c) {
+const char* pa_context_get_server(pa_context *c) {
     pa_assert(c);
     pa_assert(PA_REFCNT_VALUE(c) >= 1);
 
@@ -1338,7 +1338,7 @@ uint32_t pa_context_get_protocol_version(const pa_context *c) {
     return PA_PROTOCOL_VERSION;
 }
 
-uint32_t pa_context_get_server_protocol_version(const pa_context *c) {
+uint32_t pa_context_get_server_protocol_version(pa_context *c) {
     pa_assert(c);
     pa_assert(PA_REFCNT_VALUE(c) >= 1);
 
@@ -1621,7 +1621,7 @@ void pa_context_rttime_restart(const pa_context *c, pa_time_event *e, pa_usec_t 
     }
 }
 
-size_t pa_context_get_tile_size(const pa_context *c, const pa_sample_spec *ss) {
+size_t pa_context_get_tile_size(pa_context *c, const pa_sample_spec *ss) {
     size_t fs, mbs;
 
     pa_assert(c);
