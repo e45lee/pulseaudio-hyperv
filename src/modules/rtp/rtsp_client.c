@@ -129,7 +129,7 @@ static void headers_read(pa_rtsp_client *c) {
     pa_assert(c->callback);
 
     /* Deal with a SETUP response */
-    if (STATE_SETUP == c->state) {
+    if (STATE_SETUP == c->state && c->status == STATUS_OK) {
         const char* token_state = NULL;
         const char* pc = NULL;
         c->session = pa_xstrdup(pa_headerlist_gets(c->response_headers, "Session"));
