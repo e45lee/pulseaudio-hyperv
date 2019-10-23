@@ -107,6 +107,7 @@ struct pa_raop_client {
     int udp_sfd;
     int udp_cfd;
     int udp_tfd;
+    int udp_tport;
 
     pa_raop_packet_buffer *pbuf;
 
@@ -124,6 +125,12 @@ struct pa_raop_client {
 
     pa_raop_client_state_cb_t state_callback;
     void *state_userdata;
+
+    // Airplay 2 devices require additionnal authentication
+    // It actually is useful to authenticate Airplay server, not the device (see pa_rtsp_auth_setup for more
+    // details)
+    bool require_post_auth;
+    pa_volume_t initial_volume;
 };
 
 /* Audio TCP packet header [16x8] (cf. rfc4571):
@@ -860,86 +867,113 @@ static void rtsp_stream_cb(pa_rtsp_client *rtsp, pa_rtsp_state_t state, pa_rtsp_
     pa_assert(rtsp == c->rtsp);
 
     switch (state) {
-        case STATE_CONNECT: {
-            char *key, *iv, *sdp = NULL;
-            int frames = 0;
-            const char *ip;
-            char *url;
-            int ipv;
+        case STATE_CONNECT:
+        case STATE_AUTH_SETUP:   {
+            if (c->require_post_auth && state == STATE_CONNECT) {
+                struct {
+                    uint32_t ci1;
+                    uint32_t ci2;
+                } rci;
+                pa_log_debug("RAOP: CONNECTED");
 
-            pa_log_debug("RAOP: CONNECTED");
+                pa_random(&rci, sizeof(rci));
+                c->sci = pa_sprintf_malloc("%08x%08x", rci.ci1, rci.ci2);
+                pa_rtsp_add_header(c->rtsp, "Client-Instance", c->sci);
 
-            ip = pa_rtsp_localip(c->rtsp);
-            if (pa_is_ip6_address(ip)) {
-                ipv = 6;
-                url = pa_sprintf_malloc("rtsp://[%s]/%s", ip, c->sid);
-            } else {
-                ipv = 4;
-                url = pa_sprintf_malloc("rtsp://%s/%s", ip, c->sid);
-            }
-            pa_rtsp_set_url(c->rtsp, url);
-
-            if (c->protocol == PA_RAOP_PROTOCOL_TCP)
-                frames = FRAMES_PER_TCP_PACKET;
-            else if (c->protocol == PA_RAOP_PROTOCOL_UDP)
-                frames = FRAMES_PER_UDP_PACKET;
-
-            switch(c->encryption) {
-                case PA_RAOP_ENCRYPTION_NONE: {
-                    sdp = pa_sprintf_malloc(
-                        "v=0\r\n"
-                        "o=iTunes %s 0 IN IP%d %s\r\n"
-                        "s=iTunes\r\n"
-                        "c=IN IP%d %s\r\n"
-                        "t=0 0\r\n"
-                        "m=audio 0 RTP/AVP 96\r\n"
-                        "a=rtpmap:96 AppleLossless\r\n"
-                        "a=fmtp:96 %d 0 16 40 10 14 2 255 0 0 44100\r\n",
-                        c->sid, ipv, ip, ipv, c->host, frames);
-
-                    break;
+                if (pa_rtsp_auth_setup(
+                        c->rtsp,
+                        "\x01\x4e\xea\xd0\x4e\xa9\x2e\x47\x69\xd2\xe1\xfb\xd0\x96\x81\xd5\x94\xa8\xef\x18\x45\x4a\x24\xae\xaf\xb3\x14\x97\x0d\xa0\xb5\xa3\x49"
+                ) < 0) {
+                    pa_log_error("RAOP: The device supports POST method but we were unable to POST auth-setup");
                 }
 
-                case PA_RAOP_ENCRYPTION_RSA:
-                case PA_RAOP_ENCRYPTION_FAIRPLAY:
-                case PA_RAOP_ENCRYPTION_MFISAP:
-                case PA_RAOP_ENCRYPTION_FAIRPLAY_SAP25: {
-                    key = pa_raop_secret_get_key(c->secret);
-                    if (!key) {
-                        pa_log("pa_raop_secret_get_key() failed.");
-                        pa_rtsp_disconnect(rtsp);
-                        /* FIXME: This is an unrecoverable failure. We should notify
-                         * the pa_raop_client owner so that it could shut itself
-                         * down. */
-                        goto connect_finish;
+                break;
+            }
+            if (!c->require_post_auth || (c->require_post_auth && state == STATE_AUTH_SETUP)) {
+                {
+                    char *key, *iv, *sdp = NULL;
+                    int frames = 0;
+                    const char *ip;
+                    char *url;
+                    int ipv;
+
+                    pa_log_debug("RAOP: AUTH SETUP");
+
+                    ip = pa_rtsp_localip(c->rtsp);
+                    if (pa_is_ip6_address(ip)) {
+                        ipv = 6;
+                        url = pa_sprintf_malloc("rtsp://[%s]/%s", ip, c->sid);
+                    } else {
+                        ipv = 4;
+                        url = pa_sprintf_malloc("rtsp://%s/%s", ip, c->sid);
+                    }
+                    pa_rtsp_set_url(c->rtsp, url);
+
+                    if (c->protocol == PA_RAOP_PROTOCOL_TCP)
+                        frames = FRAMES_PER_TCP_PACKET;
+                    else if (c->protocol == PA_RAOP_PROTOCOL_UDP)
+                        frames = FRAMES_PER_UDP_PACKET;
+
+                    switch(c->encryption) {
+                        case PA_RAOP_ENCRYPTION_NONE: {
+                            sdp = pa_sprintf_malloc(
+                                    "v=0\r\n"
+                                    "o=iTunes %s 0 IN IP%d %s\r\n"
+                                    "s=iTunes\r\n"
+                                    "c=IN IP%d %s\r\n"
+                                    "t=0 0\r\n"
+                                    "m=audio 0 RTP/AVP 96\r\n"
+                                    "a=rtpmap:96 AppleLossless\r\n"
+                                    "a=fmtp:96 %d 0 16 40 10 14 2 255 0 0 44100\r\n",
+                                    c->sid, ipv, ip, ipv, c->host, frames);
+
+                            break;
+                        }
+
+                        case PA_RAOP_ENCRYPTION_RSA:
+                        case PA_RAOP_ENCRYPTION_FAIRPLAY:
+                        case PA_RAOP_ENCRYPTION_MFISAP:
+                        case PA_RAOP_ENCRYPTION_FAIRPLAY_SAP25: {
+                            key = pa_raop_secret_get_key(c->secret);
+                            if (!key) {
+                                pa_log("pa_raop_secret_get_key() failed.");
+                                pa_rtsp_disconnect(rtsp);
+                                /* FIXME: This is an unrecoverable failure. We should notify
+                                 * the pa_raop_client owner so that it could shut itself
+                                 * down. */
+                                goto connect_finish;
+                            }
+
+                            iv = pa_raop_secret_get_iv(c->secret);
+
+                            sdp = pa_sprintf_malloc(
+                                    "v=0\r\n"
+                                    "o=iTunes %s 0 IN IP%d %s\r\n"
+                                    "s=iTunes\r\n"
+                                    "c=IN IP%d %s\r\n"
+                                    "t=0 0\r\n"
+                                    "m=audio 0 RTP/AVP 96\r\n"
+                                    "a=rtpmap:96 AppleLossless\r\n"
+                                    "a=fmtp:96 %d 0 16 40 10 14 2 255 0 0 44100\r\n"
+                                    "a=rsaaeskey:%s\r\n"
+                                    "a=aesiv:%s\r\n",
+                                    c->sid, ipv, ip, ipv, c->host, frames, key, iv);
+
+                            pa_xfree(key);
+                            pa_xfree(iv);
+                            break;
+                        }
                     }
 
-                    iv = pa_raop_secret_get_iv(c->secret);
+                    pa_rtsp_announce(c->rtsp, sdp);
 
-                    sdp = pa_sprintf_malloc(
-                        "v=0\r\n"
-                        "o=iTunes %s 0 IN IP%d %s\r\n"
-                        "s=iTunes\r\n"
-                        "c=IN IP%d %s\r\n"
-                        "t=0 0\r\n"
-                        "m=audio 0 RTP/AVP 96\r\n"
-                        "a=rtpmap:96 AppleLossless\r\n"
-                        "a=fmtp:96 %d 0 16 40 10 14 2 255 0 0 44100\r\n"
-                        "a=rsaaeskey:%s\r\n"
-                        "a=aesiv:%s\r\n",
-                        c->sid, ipv, ip, ipv, c->host, frames, key, iv);
-
-                    pa_xfree(key);
-                    pa_xfree(iv);
+                    connect_finish:
+                    pa_xfree(sdp);
+                    pa_xfree(url);
                     break;
                 }
             }
 
-            pa_rtsp_announce(c->rtsp, sdp);
-
-connect_finish:
-            pa_xfree(sdp);
-            pa_xfree(url);
             break;
         }
 
@@ -970,6 +1004,9 @@ connect_finish:
                     "control_port=%d;timing_port=%d",
                     cport, tport);
             }
+
+            if (c->state_callback)
+                c->state_callback(PA_RAOP_CONNECTED, c->state_userdata);
 
             pa_rtsp_setup(c->rtsp, trs);
 
@@ -1076,8 +1113,6 @@ connect_finish:
 
                 pa_log_debug("Connection established (UDP;control_port=%d;timing_port=%d)", cport, tport);
 
-                if (c->state_callback)
-                    c->state_callback(PA_RAOP_CONNECTED, c->state_userdata);
             }
 
             pa_rtsp_record(c->rtsp, &c->seq, &c->rtptime);
@@ -1143,6 +1178,13 @@ connect_finish:
         case STATE_SET_PARAMETER: {
             pa_log_debug("RAOP: SET_PARAMETER");
 
+            if (c->initial_volume != 0){
+                c->initial_volume = 0;
+                // We just have set initial volume, so raise PA_RAOP_VOLUME_INIT to chain
+                if (c->state_callback)
+                    c->state_callback((int) PA_RAOP_VOLUME_INIT, c->state_userdata);
+            }
+
             break;
         }
 
@@ -1164,7 +1206,7 @@ connect_finish:
             c->udp_sfd = -1;
 
             /* Polling sockets will be closed by sink */
-            c->udp_cfd = c->udp_tfd = -1;
+            c->udp_cfd = c->udp_tfd = c->udp_tport = -1;
             c->tcp_sfd = -1;
 
             pa_rtsp_client_free(c->rtsp);
@@ -1192,8 +1234,9 @@ connect_finish:
             c->udp_sfd = -1;
 
             /* Polling sockets will be closed by sink */
-            c->udp_cfd = c->udp_tfd = -1;
+            c->udp_cfd = c->udp_tfd = c->udp_tport = -1;
             c->tcp_sfd = -1;
+            c->initial_volume = 0;
 
             pa_log_error("RTSP control channel closed (disconnected)");
 
@@ -1318,6 +1361,7 @@ static void rtsp_auth_cb(pa_rtsp_client *rtsp, pa_rtsp_state_t state, pa_rtsp_st
             if (STATUS_OK == status) {
                 publ = pa_xstrdup(pa_headerlist_gets(headers, "Public"));
                 c->sci = pa_xstrdup(pa_rtsp_get_header(c->rtsp, "Client-Instance"));
+                c->require_post_auth = true;
 
                 if (c->password)
                     pa_xfree(c->password);
@@ -1417,6 +1461,8 @@ pa_raop_client* pa_raop_client_new(pa_core *core, const char *host, pa_raop_prot
     c->udp_sfd = -1;
     c->udp_cfd = -1;
     c->udp_tfd = -1;
+    c->udp_tport = -1;
+    c->initial_volume = 0;
 
     c->secret = NULL;
     if (c->encryption != PA_RAOP_ENCRYPTION_NONE)
@@ -1595,6 +1641,10 @@ int pa_raop_client_stream(pa_raop_client *c) {
     }
 
     return rv;
+}
+
+void pa_raop_client_set_initial_volume(pa_raop_client *c, pa_volume_t initial_volume) {
+    c->initial_volume = initial_volume;
 }
 
 int pa_raop_client_set_volume(pa_raop_client *c, pa_volume_t volume) {
@@ -1791,4 +1841,29 @@ void pa_raop_client_set_state_callback(pa_raop_client *c, pa_raop_client_state_c
 
     c->state_callback = callback;
     c->state_userdata = userdata;
+}
+
+void pa_raop_client_set_tport(pa_raop_client *c, int udp_tport) {
+    pa_assert(c);
+
+    if (c->udp_tport < 0) {
+        c->udp_tport = udp_tport;
+        if ((c->udp_tfd = connect_udp_socket(c, c->udp_tfd, udp_tport)) <= 0) {
+            pa_log_error("RAOP: Error while connecting the UDP timing port");
+        }
+    }
+}
+
+void pa_raop_client_send_progress (pa_raop_client *c){
+    char *param;
+
+    pa_assert(c);
+
+    param = pa_sprintf_malloc("progress: %s/%s/%s\r\n", "0","0","0");
+    /* We just hit and hope, cannot wait for the callback. */
+    if (c->rtsp != NULL && pa_rtsp_exec_ready(c->rtsp))
+        pa_rtsp_setparameter(c->rtsp, param);
+
+    pa_xfree(param);
+
 }
