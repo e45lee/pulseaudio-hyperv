@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #    qpaeq is a equalizer interface for pulseaudio's equalizer sinks
 #    Copyright (C) 2009  Jason Newton <nevion@gmail.com
 #
@@ -18,7 +18,6 @@
 
 import os,math,sys
 try:
-    import PyQt5,sip
     from PyQt5 import QtWidgets,QtCore
     import dbus.mainloop.pyqt5
     import dbus
