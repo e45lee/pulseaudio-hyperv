@@ -107,9 +107,8 @@ struct userdata {
     pa_source_output *source_output;
     pa_memblockq *memblockq;
 
-    pa_rtp_context rtp_context;
+    pa_rtp_context *rtp_context;
     pa_sap_context sap_context;
-    size_t mtu;
 
     pa_time_event *sap_event;
 
@@ -144,7 +143,7 @@ static void source_output_push_cb(pa_source_output *o, const pa_memchunk *chunk)
         return;
     }
 
-    pa_rtp_send(&u->rtp_context, u->mtu, u->memblockq);
+    pa_rtp_send(u->rtp_context, u->memblockq);
 }
 
 static pa_source_output_flags_t get_dont_inhibit_auto_suspend_flag(pa_source *source,
@@ -466,8 +465,6 @@ int pa__init(pa_module*m) {
             0,
             NULL);
 
-    u->mtu = mtu;
-
     k = sizeof(sa_dst);
     pa_assert_se((r = getsockname(fd, (struct sockaddr*) &sa_dst, &k)) >= 0);
 
@@ -491,10 +488,12 @@ int pa__init(pa_module*m) {
 
     pa_xfree(n);
 
-    pa_rtp_context_init_send(&u->rtp_context, fd, m->core->cookie, payload, pa_frame_size(&ss));
+    if (!(u->rtp_context = pa_rtp_context_new_send(fd, payload, mtu, &ss)))
+        goto fail;
     pa_sap_context_init_send(&u->sap_context, sap_fd, p);
 
-    pa_log_info("RTP stream initialized with mtu %u on %s:%u from %s ttl=%u, SSRC=0x%08x, payload=%u, initial sequence #%u", mtu, dst_addr, port, src_addr, ttl, u->rtp_context.ssrc, payload, u->rtp_context.sequence);
+    pa_log_info("RTP stream initialized with mtu %u on %s:%u from %s ttl=%u, payload=%u",
+            mtu, dst_addr, port, src_addr, ttl, payload);
     pa_log_info("SDP-Data:\n%s\nEOF", p);
 
     pa_sap_send(&u->sap_context, 0);
@@ -536,7 +535,7 @@ void pa__done(pa_module*m) {
         pa_source_output_unref(u->source_output);
     }
 
-    pa_rtp_context_destroy(&u->rtp_context);
+    pa_rtp_context_free(u->rtp_context);
 
     pa_sap_send(&u->sap_context, 1);
     pa_sap_context_destroy(&u->sap_context);

@@ -40,19 +40,40 @@
 #include <pulsecore/macro.h>
 #include <pulsecore/core-util.h>
 #include <pulsecore/arpa-inet.h>
+#include <pulsecore/poll.h>
 
 #include "rtp.h"
 
-pa_rtp_context* pa_rtp_context_init_send(pa_rtp_context *c, int fd, uint32_t ssrc, uint8_t payload, size_t frame_size) {
-    pa_assert(c);
+typedef struct pa_rtp_context {
+    int fd;
+    uint16_t sequence;
+    uint32_t timestamp;
+    uint32_t ssrc;
+    uint8_t payload;
+    size_t frame_size;
+    size_t mtu;
+
+    uint8_t *recv_buf;
+    size_t recv_buf_size;
+    pa_memchunk memchunk;
+} pa_rtp_context;
+
+pa_rtp_context* pa_rtp_context_new_send(int fd, uint8_t payload, size_t mtu, const pa_sample_spec *ss) {
+    pa_rtp_context *c;
+
     pa_assert(fd >= 0);
+
+    pa_log_info("Initialising native RTP backend for send");
+
+    c = pa_xnew0(pa_rtp_context, 1);
 
     c->fd = fd;
     c->sequence = (uint16_t) (rand()*rand());
     c->timestamp = 0;
-    c->ssrc = ssrc ? ssrc : (uint32_t) (rand()*rand());
+    c->ssrc = (uint32_t) (rand()*rand());
     c->payload = (uint8_t) (payload & 127U);
-    c->frame_size = frame_size;
+    c->frame_size = pa_frame_size(ss);
+    c->mtu = mtu;
 
     c->recv_buf = NULL;
     c->recv_buf_size = 0;
@@ -63,17 +84,16 @@ pa_rtp_context* pa_rtp_context_init_send(pa_rtp_context *c, int fd, uint32_t ssr
 
 #define MAX_IOVECS 16
 
-int pa_rtp_send(pa_rtp_context *c, size_t size, pa_memblockq *q) {
+int pa_rtp_send(pa_rtp_context *c, pa_memblockq *q) {
     struct iovec iov[MAX_IOVECS];
     pa_memblock* mb[MAX_IOVECS];
     int iov_idx = 1;
     size_t n = 0;
 
     pa_assert(c);
-    pa_assert(size > 0);
     pa_assert(q);
 
-    if (pa_memblockq_get_length(q) < size)
+    if (pa_memblockq_get_length(q) < c->mtu)
         return 0;
 
     for (;;) {
@@ -84,7 +104,7 @@ int pa_rtp_send(pa_rtp_context *c, size_t size, pa_memblockq *q) {
 
         if ((r = pa_memblockq_peek(q, &chunk)) >= 0) {
 
-            size_t k = n + chunk.length > size ? size - n : chunk.length;
+            size_t k = n + chunk.length > c->mtu ? c->mtu - n : chunk.length;
 
             pa_assert(chunk.memblock);
 
@@ -99,7 +119,7 @@ int pa_rtp_send(pa_rtp_context *c, size_t size, pa_memblockq *q) {
 
         pa_assert(n % c->frame_size == 0);
 
-        if (r < 0 || n >= size || iov_idx >= MAX_IOVECS) {
+        if (r < 0 || n >= c->mtu || iov_idx >= MAX_IOVECS) {
             uint32_t header[3];
             struct msghdr m;
             ssize_t k;
@@ -140,7 +160,7 @@ int pa_rtp_send(pa_rtp_context *c, size_t size, pa_memblockq *q) {
                 return -1;
             }
 
-            if (r < 0 || pa_memblockq_get_length(q) < size)
+            if (r < 0 || pa_memblockq_get_length(q) < c->mtu)
                 break;
 
             n = 0;
@@ -151,19 +171,25 @@ int pa_rtp_send(pa_rtp_context *c, size_t size, pa_memblockq *q) {
     return 0;
 }
 
-pa_rtp_context* pa_rtp_context_init_recv(pa_rtp_context *c, int fd, size_t frame_size) {
-    pa_assert(c);
+pa_rtp_context* pa_rtp_context_new_recv(int fd, uint8_t payload, const pa_sample_spec *ss) {
+    pa_rtp_context *c;
+
+    pa_log_info("Initialising native RTP backend for receive");
+
+    c = pa_xnew0(pa_rtp_context, 1);
 
     c->fd = fd;
-    c->frame_size = frame_size;
+    c->payload = payload;
+    c->frame_size = pa_frame_size(ss);
 
     c->recv_buf_size = 2000;
     c->recv_buf = pa_xmalloc(c->recv_buf_size);
     pa_memchunk_reset(&c->memchunk);
+
     return c;
 }
 
-int pa_rtp_recv(pa_rtp_context *c, pa_memchunk *chunk, pa_mempool *pool, struct timeval *tstamp) {
+int pa_rtp_recv(pa_rtp_context *c, pa_memchunk *chunk, pa_mempool *pool, uint32_t *rtp_tstamp, struct timeval *tstamp) {
     int size;
     size_t audio_length;
     size_t metadata_length;
@@ -171,6 +197,8 @@ int pa_rtp_recv(pa_rtp_context *c, pa_memchunk *chunk, pa_mempool *pool, struct 
     struct cmsghdr *cm;
     struct iovec iov;
     uint32_t header;
+    uint32_t ssrc;
+    uint8_t payload;
     unsigned cc;
     ssize_t r;
     uint8_t aux[1024];
@@ -246,12 +274,12 @@ int pa_rtp_recv(pa_rtp_context *c, pa_memchunk *chunk, pa_mempool *pool, struct 
     }
 
     memcpy(&header, iov.iov_base, sizeof(uint32_t));
-    memcpy(&c->timestamp, (uint8_t*) iov.iov_base + 4, sizeof(uint32_t));
-    memcpy(&c->ssrc, (uint8_t*) iov.iov_base + 8, sizeof(uint32_t));
+    memcpy(rtp_tstamp, (uint8_t*) iov.iov_base + 4, sizeof(uint32_t));
+    memcpy(&ssrc, (uint8_t*) iov.iov_base + 8, sizeof(uint32_t));
 
     header = ntohl(header);
-    c->timestamp = ntohl(c->timestamp);
-    c->ssrc = ntohl(c->ssrc);
+    *rtp_tstamp = ntohl(*rtp_tstamp);
+    ssrc = ntohl(c->ssrc);
 
     if ((header >> 30) != 2) {
         pa_log_warn("Unsupported RTP version.");
@@ -268,11 +296,21 @@ int pa_rtp_recv(pa_rtp_context *c, pa_memchunk *chunk, pa_mempool *pool, struct 
         goto fail;
     }
 
+    if (ssrc != c->ssrc) {
+        pa_log_debug("Got unexpected SSRC");
+        goto fail;
+    }
+
     cc = (header >> 24) & 0xF;
-    c->payload = (uint8_t) ((header >> 16) & 127U);
+    payload = (uint8_t) ((header >> 16) & 127U);
     c->sequence = (uint16_t) (header & 0xFFFFU);
 
     metadata_length = 12 + cc * 4;
+
+    if (payload != c->payload) {
+        pa_log_debug("Got unexpected payload: %u", payload);
+        goto fail;
+    }
 
     if (metadata_length > (unsigned) size) {
         pa_log_warn("RTP packet too short. (CSRC)");
@@ -335,80 +373,7 @@ fail:
     return -1;
 }
 
-uint8_t pa_rtp_payload_from_sample_spec(const pa_sample_spec *ss) {
-    pa_assert(ss);
-
-    if (ss->format == PA_SAMPLE_ULAW && ss->rate == 8000 && ss->channels == 1)
-        return 0;
-    if (ss->format == PA_SAMPLE_ALAW && ss->rate == 8000 && ss->channels == 1)
-        return 8;
-    if (ss->format == PA_SAMPLE_S16BE && ss->rate == 44100 && ss->channels == 2)
-        return 10;
-    if (ss->format == PA_SAMPLE_S16BE && ss->rate == 44100 && ss->channels == 1)
-        return 11;
-
-    return 127;
-}
-
-pa_sample_spec *pa_rtp_sample_spec_from_payload(uint8_t payload, pa_sample_spec *ss) {
-    pa_assert(ss);
-
-    switch (payload) {
-        case 0:
-            ss->channels = 1;
-            ss->format = PA_SAMPLE_ULAW;
-            ss->rate = 8000;
-            break;
-
-        case 8:
-            ss->channels = 1;
-            ss->format = PA_SAMPLE_ALAW;
-            ss->rate = 8000;
-            break;
-
-        case 10:
-            ss->channels = 2;
-            ss->format = PA_SAMPLE_S16BE;
-            ss->rate = 44100;
-            break;
-
-        case 11:
-            ss->channels = 1;
-            ss->format = PA_SAMPLE_S16BE;
-            ss->rate = 44100;
-            break;
-
-        default:
-            return NULL;
-    }
-
-    return ss;
-}
-
-pa_sample_spec *pa_rtp_sample_spec_fixup(pa_sample_spec * ss) {
-    pa_assert(ss);
-
-    if (!pa_rtp_sample_spec_valid(ss))
-        ss->format = PA_SAMPLE_S16BE;
-
-    pa_assert(pa_rtp_sample_spec_valid(ss));
-    return ss;
-}
-
-int pa_rtp_sample_spec_valid(const pa_sample_spec *ss) {
-    pa_assert(ss);
-
-    if (!pa_sample_spec_valid(ss))
-        return 0;
-
-    return
-        ss->format == PA_SAMPLE_U8 ||
-        ss->format == PA_SAMPLE_ALAW ||
-        ss->format == PA_SAMPLE_ULAW ||
-        ss->format == PA_SAMPLE_S16BE;
-}
-
-void pa_rtp_context_destroy(pa_rtp_context *c) {
+void pa_rtp_context_free(pa_rtp_context *c) {
     pa_assert(c);
 
     pa_assert_se(pa_close(c->fd) == 0);
@@ -417,36 +382,23 @@ void pa_rtp_context_destroy(pa_rtp_context *c) {
         pa_memblock_unref(c->memchunk.memblock);
 
     pa_xfree(c->recv_buf);
-    c->recv_buf = NULL;
-    c->recv_buf_size = 0;
+    pa_xfree(c);
 }
 
-const char* pa_rtp_format_to_string(pa_sample_format_t f) {
-    switch (f) {
-        case PA_SAMPLE_S16BE:
-            return "L16";
-        case PA_SAMPLE_U8:
-            return "L8";
-        case PA_SAMPLE_ALAW:
-            return "PCMA";
-        case PA_SAMPLE_ULAW:
-            return "PCMU";
-        default:
-            return NULL;
-    }
+size_t pa_rtp_context_get_frame_size(pa_rtp_context *c) {
+    return c->frame_size;
 }
 
-pa_sample_format_t pa_rtp_string_to_format(const char *s) {
-    pa_assert(s);
+pa_rtpoll_item* pa_rtp_context_get_rtpoll_item(pa_rtp_context *c, pa_rtpoll *rtpoll) {
+    pa_rtpoll_item *item;
+    struct pollfd *p;
 
-    if (pa_streq(s, "L16"))
-        return PA_SAMPLE_S16BE;
-    else if (pa_streq(s, "L8"))
-        return PA_SAMPLE_U8;
-    else if (pa_streq(s, "PCMA"))
-        return PA_SAMPLE_ALAW;
-    else if (pa_streq(s, "PCMU"))
-        return PA_SAMPLE_ULAW;
-    else
-        return PA_SAMPLE_INVALID;
+    item = pa_rtpoll_item_new(rtpoll, PA_RTPOLL_LATE, 1);
+
+    p = pa_rtpoll_item_get_pollfd(item, NULL);
+    p->fd = c->fd;
+    p->events = POLLIN;
+    p->revents = 0;
+
+    return item;
 }
