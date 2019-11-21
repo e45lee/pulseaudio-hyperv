@@ -1,7 +1,74 @@
-image: registry.freedesktop.org/pulseaudio/pulseaudio/ubuntu:18.04
+stages:
+  - build-container
+  - build-autotools
+  - build-meson
+
+variables:
+  # Update this tag when you want to trigger a rebuild
+  UBUNTU_TAG: 2019-11-21-01
+  UBUNTU_VERSION: 18.04
+  UBUNTU_IMAGE: "$CI_REGISTRY_IMAGE/ubuntu/$DEBIAN_VERSION:$DEBIAN_TAG"
+
+include:
+  - project: 'wayland/ci-templates'
+    ref: master
+    file: '/templates/ubuntu.yml'
+
+# CONTAINERS creation stage
+build-container:
+  extends: .ubuntu@container-ifnot-exists
+  stage: build-container
+  variables:
+    GIT_STRATEGY: none # no need to pull the whole tree for rebuilding the image
+    UBUNTU_DEBS: >-
+      curl
+      autoconf
+      automake
+      autopoint
+      bash-completion
+      check
+      dbus-x11
+      g++
+      gcc
+      gettext
+      git-core
+      libasound2-dev
+      libasyncns-dev
+      libavahi-client-dev
+      libbluetooth-dev
+      libcap-dev
+      libfftw3-dev
+      libglib2.0-dev
+      libgtk-3-dev
+      libice-dev
+      libjack-dev
+      liblircclient-dev
+      libltdl-dev
+      liborc-0.4-dev
+      libsbc-dev
+      libsndfile1-dev
+      libsoxr-dev
+      libspeexdsp-dev
+      libssl-dev
+      libsystemd-dev
+      libtdb-dev
+      libudev-dev
+      libwebrtc-audio-processing-dev
+      libwrap0-dev
+      libx11-xcb-dev
+      libxcb1-dev
+      libxml-parser-perl
+      libxml2-utils
+      libxtst-dev
+      make
+      ninja-build
+      python3-setuptools
+      systemd
+      wget
 
 build-autotools:
   stage: build
+  image: $UBUNTU_IMAGE
   script:
     - export MAKEFLAGS="-j$(nproc)"
     - NOCONFIGURE=1 ./bootstrap.sh
@@ -19,7 +86,15 @@ build-autotools:
 
 build-meson:
   stage: build
+  image: $UBUNTU_IMAGE
   script:
+    # Install meson
+    - wget -q https://github.com/mesonbuild/meson/releases/download/0.50.0/meson-0.50.0.tar.gz
+    - tar -xf meson-0.50.0.tar.gz
+    - cd meson-0.50.0
+    - python3 setup.py install
+    - cd ..
+    # Do the actual build
     - meson build
     - cd build
     - ninja
