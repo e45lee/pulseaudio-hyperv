@@ -721,7 +721,7 @@ static void handle_set_fallback_sink(DBusConnection *conn, DBusMessage *msg, DBu
         return;
     }
 
-    pa_core_set_configured_default_sink(c->core, pa_dbusiface_device_get_sink(fallback_sink)->name);
+    pa_core_set_configured_default_sink(c->core, pa_dbusiface_device_get_sink(fallback_sink)->name, true);
 
     pa_dbus_send_empty_reply(conn, msg);
 }

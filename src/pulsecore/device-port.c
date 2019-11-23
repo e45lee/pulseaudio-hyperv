@@ -92,16 +92,33 @@ void pa_device_port_set_available(pa_device_port *p, pa_available_t status) {
      * be created before port objects, and then p->card could be non-NULL for
      * the whole lifecycle of pa_device_port. */
     if (p->card && p->card->linked) {
+        pa_sink *sink;
         /* A sink or source whose active port is unavailable can't be the
          * default sink/source, so port availability changes may affect the
          * default sink/source choice. */
         if (p->direction == PA_DIRECTION_OUTPUT)
-            pa_core_update_default_sink(p->core);
+            pa_core_update_default_sink(p->core, false);
         else
             pa_core_update_default_source(p->core);
 
         pa_subscription_post(p->core, PA_SUBSCRIPTION_EVENT_CARD|PA_SUBSCRIPTION_EVENT_CHANGE, p->card->index);
         pa_hook_fire(&p->core->hooks[PA_CORE_HOOK_PORT_AVAILABLE_CHANGED], p);
+
+        sink = pa_device_port_get_sink(p);
+        if (!sink)
+            return;
+        if (p != sink->active_port)
+            return;
+        switch (p->direction) {
+        case PA_DIRECTION_OUTPUT:
+            if (sink->active_port->available == PA_AVAILABLE_NO)
+                pa_sink_move_streams_to_default_sink(p->core, sink, false);
+            else
+                pa_core_move_streams_to_newly_available_preferred_sink(p->core, sink);
+            break;
+        case PA_DIRECTION_INPUT:
+            break;
+        }
     }
 }
 
@@ -223,4 +240,17 @@ pa_device_port *pa_device_port_find_best(pa_hashmap *ports)
     }
 
     return best;
+}
+
+pa_sink *pa_device_port_get_sink(pa_device_port *p) {
+    pa_sink *rs = NULL;
+    pa_sink *sink;
+    uint32_t state;
+
+    PA_IDXSET_FOREACH(sink, p->card->sinks, state)
+       if (p == pa_hashmap_get(sink->ports, p->name)) {
+           rs = sink;
+           break;
+       }
+    return rs;
 }

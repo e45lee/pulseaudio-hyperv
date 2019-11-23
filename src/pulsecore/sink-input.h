@@ -119,11 +119,16 @@ struct pa_sink_input {
 
     bool muted:1;
 
-    /* if true then the sink we are connected to and/or the volume
-     * set is worth remembering, i.e. was explicitly chosen by the
-     * user and not automatically. module-stream-restore looks for
+    /* if true then the volume and the mute state of this sink-input
+     * are worth remembering, module-stream-restore looks for
      * this.*/
-    bool save_sink:1, save_volume:1, save_muted:1;
+    bool save_volume:1, save_muted:1;
+
+    /* if users move the sink-input to a sink, and the sink is not default_sink,
+     * the sink->name will be saved in preferred_sink. And later if sink-input
+     * is moved to other sinks for some reason, it still can be restored to the
+     * preferred_sink at an appropriate time */
+    char *preferred_sink;
 
     pa_resample_method_t requested_resample_method, actual_resample_method;
 
@@ -315,7 +320,9 @@ typedef struct pa_sink_input_new_data {
 
     bool volume_writable:1;
 
-    bool save_sink:1, save_volume:1, save_muted:1;
+    bool save_volume:1, save_muted:1;
+
+    char *preferred_sink;
 } pa_sink_input_new_data;
 
 pa_sink_input_new_data* pa_sink_input_new_data_init(pa_sink_input_new_data *data);
@@ -453,6 +460,8 @@ void pa_sink_input_set_volume_direct(pa_sink_input *i, const pa_cvolume *volume)
  * directly set the sink input reference ratio. This function simply sets
  * i->reference_ratio and logs a message if the value changes. */
 void pa_sink_input_set_reference_ratio(pa_sink_input *i, const pa_cvolume *ratio);
+
+void pa_sink_input_set_preferred_sink(pa_sink_input *i, pa_sink *s);
 
 #define pa_sink_input_assert_io_context(s) \
     pa_assert(pa_thread_mq_get() || !PA_SINK_INPUT_IS_LINKED((s)->state))

@@ -243,7 +243,7 @@ enum {
 
 pa_core* pa_core_new(pa_mainloop_api *m, bool shared, bool enable_memfd, size_t shm_size);
 
-void pa_core_set_configured_default_sink(pa_core *core, const char *sink);
+void pa_core_set_configured_default_sink(pa_core *core, const char *sink, bool from_user);
 void pa_core_set_configured_default_source(pa_core *core, const char *source);
 
 /* These should be called whenever something changes that may affect the
@@ -255,7 +255,7 @@ void pa_core_set_configured_default_source(pa_core *core, const char *source);
  * pa_core_update_default_source() internally, so it's sufficient to only call
  * pa_core_update_default_sink() when something happens that affects the sink
  * ordering. */
-void pa_core_update_default_sink(pa_core *core);
+void pa_core_update_default_sink(pa_core *core, bool from_user);
 void pa_core_update_default_source(pa_core *core);
 
 void pa_core_set_exit_idle_time(pa_core *core, int time);
@@ -277,5 +277,7 @@ static const size_t PA_SUSPEND_CAUSE_TO_STRING_BUF_SIZE =
 /* Converts the given suspend cause to a string. The string is written to the
  * provided buffer. The same buffer is the return value of this function. */
 const char *pa_suspend_cause_to_string(pa_suspend_cause_t cause, char buf[PA_SUSPEND_CAUSE_TO_STRING_BUF_SIZE]);
+
+void pa_core_move_streams_to_newly_available_preferred_sink(pa_core *c, pa_sink *s);
 
 #endif
