@@ -575,18 +575,25 @@ int pa_alsa_ucm_query_profiles(pa_alsa_ucm_config *ucm, int card_index) {
     char *card_name;
     const char **verb_list;
     int num_verbs, i, err = 0;
+    char name[16];
 
-    /* is UCM available for this card ? */
-    err = snd_card_get_name(card_index, &card_name);
-    if (err < 0) {
-        pa_log("Card can't get card_name from card_index %d", card_index);
-        goto name_fail;
-    }
-
+    /* support multiple card instances, address card directly by index */
+    snprintf(name, sizeof(name), "hw:%i", card_index);
+    card_name = name;
     err = snd_use_case_mgr_open(&ucm->ucm_mgr, card_name);
     if (err < 0) {
-        pa_log_info("UCM not available for card %s", card_name);
-        goto ucm_mgr_fail;
+	/* fallback longname: is UCM available for this card ? */
+	err = snd_card_get_name(card_index, &card_name);
+	if (err < 0) {
+	    pa_log("Card can't get card_name from card_index %d", card_index);
+	    goto name_fail;
+	}
+
+	err = snd_use_case_mgr_open(&ucm->ucm_mgr, card_name);
+	if (err < 0) {
+	    pa_log_info("UCM not available for card %s", card_name);
+	    goto ucm_mgr_fail;
+	}
     }
 
     pa_log_info("UCM available for card %s", card_name);
@@ -626,7 +633,8 @@ ucm_verb_fail:
     }
 
 ucm_mgr_fail:
-    free(card_name);
+    if (card_name != name)
+	free(card_name);
 
 name_fail:
     return err;
