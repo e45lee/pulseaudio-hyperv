@@ -97,6 +97,12 @@ struct pa_alsa_setting {
     unsigned priority;
 };
 
+/* ALSA mixer element identifier */
+struct pa_alsa_id {
+    char *name;
+    int index;
+};
+
 /* An option belongs to an element and refers to one enumeration item
  * of the element is an enumeration item, or a switch status if the
  * element is a switch item. */
@@ -123,7 +129,7 @@ struct pa_alsa_element {
     pa_alsa_path *path;
     PA_LLIST_FIELDS(pa_alsa_element);
 
-    char *alsa_name;
+    struct pa_alsa_id alsa_id;
     pa_alsa_direction_t direction;
 
     pa_alsa_switch_use_t switch_use;
@@ -315,9 +321,12 @@ struct pa_alsa_profile {
 };
 
 struct pa_alsa_decibel_fix {
+    char *key;
+
     pa_alsa_profile_set *profile_set;
 
     char *name; /* Alsa volume element name. */
+    int index;  /* Alsa volume element index. */
     long min_step;
     long max_step;
 
