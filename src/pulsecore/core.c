@@ -349,6 +349,10 @@ void pa_core_update_default_sink(pa_core *core) {
 
     pa_subscription_post(core, PA_SUBSCRIPTION_EVENT_SERVER | PA_SUBSCRIPTION_EVENT_CHANGE, PA_INVALID_INDEX);
     pa_hook_fire(&core->hooks[PA_CORE_HOOK_DEFAULT_SINK_CHANGED], core->default_sink);
+
+    /* try to move the streams from old_default_sink to the new default_sink conditionally */
+    if (old_default_sink)
+        pa_sink_move_streams_to_default_sink(core, old_default_sink, true);
 }
 
 /* a  < b  ->  return -1
@@ -517,6 +521,37 @@ void pa_core_rttime_restart(pa_core *c, pa_time_event *e, pa_usec_t usec) {
     pa_assert(c->mainloop);
 
     c->mainloop->time_restart(e, pa_timeval_rtstore(&tv, usec, true));
+}
+
+void pa_core_move_streams_to_newly_available_preferred_sink(pa_core *c, pa_sink *s) {
+    pa_sink_input *si;
+    uint32_t idx;
+
+    pa_assert(c);
+    pa_assert(s);
+
+    PA_IDXSET_FOREACH(si, c->sink_inputs, idx) {
+        if (si->sink == s)
+            continue;
+
+        if (!si->sink)
+            continue;
+
+        /* Skip this sink input if it is connecting a filter sink to
+         * the master */
+        if (si->origin_sink)
+            continue;
+
+        /* It might happen that a stream and a sink are set up at the
+           same time, in which case we want to make sure we don't
+           interfere with that */
+        if (!PA_SINK_INPUT_IS_LINKED(si->state))
+            continue;
+
+        if (pa_safe_streq(si->preferred_sink, s->name))
+            pa_sink_input_move_to(si, s, false);
+    }
+
 }
 
 /* Helper macro to reduce repetition in pa_suspend_cause_to_string().

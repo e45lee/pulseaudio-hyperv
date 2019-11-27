@@ -724,9 +724,14 @@ void pa_sink_put(pa_sink* s) {
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_NEW, s->index);
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SINK_PUT], s);
 
-    /* This function must be called after the PA_CORE_HOOK_SINK_PUT hook,
-     * because module-switch-on-connect needs to know the old default sink */
+    /* It's good to fire the SINK_PUT hook before updating the default sink,
+     * because module-switch-on-connect will set the new sink as the default
+     * sink, and if we were to call pa_core_update_default_sink() before that,
+     * the default sink might change twice, causing unnecessary stream moving. */
+
     pa_core_update_default_sink(s->core);
+
+    pa_core_move_streams_to_newly_available_preferred_sink(s->core, s);
 }
 
 /* Called from main context */
@@ -756,6 +761,9 @@ void pa_sink_unlink(pa_sink* s) {
     pa_idxset_remove_by_data(s->core->sinks, s, NULL);
 
     pa_core_update_default_sink(s->core);
+
+    if (linked)
+	pa_sink_move_streams_to_default_sink(s->core, s, false);
 
     if (s->card)
         pa_idxset_remove_by_data(s->card->sinks, s, NULL);
@@ -3930,4 +3938,48 @@ void pa_sink_set_reference_volume_direct(pa_sink *s, const pa_cvolume *volume) {
 
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK|PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
     pa_hook_fire(&s->core->hooks[PA_CORE_HOOK_SINK_VOLUME_CHANGED], s);
+}
+
+void pa_sink_move_streams_to_default_sink(pa_core *core, pa_sink *old_sink, bool default_sink_changed) {
+    pa_sink_input *i;
+    uint32_t idx;
+    bool old_sink_is_unavailable = false;
+
+    pa_assert(core);
+    pa_assert(old_sink);
+
+    if (core->state == PA_CORE_SHUTDOWN)
+        return;
+
+    if (core->default_sink == NULL || core->default_sink->unlink_requested)
+        return;
+
+    if (old_sink == core->default_sink)
+        return;
+
+    if (old_sink->active_port && old_sink->active_port->available == PA_AVAILABLE_NO)
+        old_sink_is_unavailable = true;
+
+    PA_IDXSET_FOREACH(i, old_sink->inputs, idx) {
+        if (!PA_SINK_INPUT_IS_LINKED(i->state))
+            continue;
+
+        if (!i->sink)
+            continue;
+
+        if (pa_safe_streq(old_sink->name, i->preferred_sink) && !old_sink_is_unavailable)
+            continue;
+
+        if (!pa_sink_input_may_move_to(i, core->default_sink))
+            continue;
+
+        if (default_sink_changed)
+            pa_log_info("The sink input %u \"%s\" is moving to %s due to change of the default sink.",
+                        i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_APPLICATION_NAME)), core->default_sink->name);
+        else
+            pa_log_info("The sink input %u \"%s\" is moving to %s due to unlink of a sink.",
+                        i->index, pa_strnull(pa_proplist_gets(i->proplist, PA_PROP_APPLICATION_NAME)), core->default_sink->name);
+
+        pa_sink_input_move_to(i, core->default_sink, false);
+    }
 }
