@@ -34,6 +34,7 @@
 typedef struct pa_alsa_fdlist pa_alsa_fdlist;
 typedef struct pa_alsa_mixer_pdata pa_alsa_mixer_pdata;
 typedef struct pa_alsa_setting pa_alsa_setting;
+typedef struct pa_alsa_mixer_id pa_alsa_mixer_id;
 typedef struct pa_alsa_option pa_alsa_option;
 typedef struct pa_alsa_element pa_alsa_element;
 typedef struct pa_alsa_jack pa_alsa_jack;
@@ -97,6 +98,12 @@ struct pa_alsa_setting {
     unsigned priority;
 };
 
+/* ALSA mixer element identifier */
+struct pa_alsa_mixer_id {
+    char *name;
+    int index;
+};
+
 /* An option belongs to an element and refers to one enumeration item
  * of the element is an enumeration item, or a switch status if the
  * element is a switch item. */
@@ -123,7 +130,7 @@ struct pa_alsa_element {
     pa_alsa_path *path;
     PA_LLIST_FIELDS(pa_alsa_element);
 
-    char *alsa_name;
+    struct pa_alsa_mixer_id alsa_id;
     pa_alsa_direction_t direction;
 
     pa_alsa_switch_use_t switch_use;
@@ -237,6 +244,7 @@ void pa_alsa_element_dump(pa_alsa_element *e);
 
 pa_alsa_path *pa_alsa_path_new(const char *paths_dir, const char *fname, pa_alsa_direction_t direction);
 pa_alsa_path *pa_alsa_path_synthesize(const char *element, pa_alsa_direction_t direction);
+pa_alsa_element *pa_alsa_element_get(pa_alsa_path *p, const char *section, bool prefixed);
 int pa_alsa_path_probe(pa_alsa_path *p, pa_alsa_mapping *mapping, snd_mixer_t *m, bool ignore_dB);
 void pa_alsa_path_dump(pa_alsa_path *p);
 int pa_alsa_path_get_volume(pa_alsa_path *p, snd_mixer_t *m, const pa_channel_map *cm, pa_cvolume *v);
@@ -315,9 +323,12 @@ struct pa_alsa_profile {
 };
 
 struct pa_alsa_decibel_fix {
+    char *key;
+
     pa_alsa_profile_set *profile_set;
 
     char *name; /* Alsa volume element name. */
+    int index;  /* Alsa volume element index. */
     long min_step;
     long max_step;
 

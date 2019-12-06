@@ -241,7 +241,7 @@ static int card_set_profile(pa_card *c, pa_card_profile *new_profile) {
 
     /* if UCM is available for this card then update the verb */
     if (u->use_ucm) {
-        if (pa_alsa_ucm_set_profile(&u->ucm, nd->profile ? nd->profile->name : NULL,
+        if (pa_alsa_ucm_set_profile(&u->ucm, c, nd->profile ? nd->profile->name : NULL,
                     od->profile ? od->profile->name : NULL) < 0) {
             ret = -1;
             goto finish;
@@ -294,7 +294,7 @@ static void init_profile(struct userdata *u) {
 
     if (d->profile && u->use_ucm) {
         /* Set initial verb */
-        if (pa_alsa_ucm_set_profile(ucm, d->profile->name, NULL) < 0) {
+        if (pa_alsa_ucm_set_profile(ucm, u->card, d->profile->name, NULL) < 0) {
             pa_log("Failed to set ucm profile %s", d->profile->name);
             return;
         }
@@ -536,6 +536,9 @@ static int hdmi_eld_changed(snd_mixer_elem_t *melem, unsigned int mask) {
     bool changed = false;
 
     if (mask == SND_CTL_EVENT_MASK_REMOVE)
+        return 0;
+
+    if (u->use_ucm)
         return 0;
 
     p = find_port_with_eld_device(u->card->ports, device);
@@ -900,7 +903,8 @@ int pa__init(pa_module *m) {
      * results in an infinite loop of "fill buffer, handle underrun". To work
      * around this issue, the suspend_when_unavailable flag is used to stop
      * playback when the HDMI cable is unplugged. */
-    if (pa_safe_streq(pa_proplist_gets(data.proplist, "alsa.driver_name"), "snd_hdmi_lpe_audio")) {
+    if (!u->use_ucm &&
+        pa_safe_streq(pa_proplist_gets(data.proplist, "alsa.driver_name"), "snd_hdmi_lpe_audio")) {
         pa_device_port *port;
         void *state;
 
