@@ -1235,7 +1235,6 @@ modlibexec_LTLIBRARIES += \
 		module-default-device-restore.la \
 		module-always-sink.la \
 		module-always-source.la \
-		module-rescue-streams.la \
 		module-intended-roles.la \
 		module-suspend-on-idle.la \
 		module-echo-cancel.la \
@@ -1993,12 +1992,6 @@ module_always_source_la_SOURCES = modules/module-always-source.c
 module_always_source_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_always_source_la_LIBADD = $(MODULE_LIBADD)
 module_always_source_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_always_source
-
-# Rescue streams module
-module_rescue_streams_la_SOURCES = modules/module-rescue-streams.c
-module_rescue_streams_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_rescue_streams_la_LIBADD = $(MODULE_LIBADD)
-module_rescue_streams_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_rescue_streams
 
 # Automatically move streams to devices that are intended for their roles
 module_intended_roles_la_SOURCES = modules/module-intended-roles.c
