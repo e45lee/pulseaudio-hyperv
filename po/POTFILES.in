@@ -46,7 +46,6 @@ src/modules/module-pipe-source.c
 src/modules/module-position-event-sounds.c
 src/modules/module-protocol-stub.c
 src/modules/module-remap-sink.c
-src/modules/module-rescue-streams.c
 src/modules/module-rygel-media-server.c
 src/modules/module-sine.c
 src/modules/module-solaris.c

@@ -41,7 +41,6 @@ all_modules = [
   [ 'module-position-event-sounds', 'module-position-event-sounds.c' ],
   [ 'module-remap-sink', 'module-remap-sink.c' ],
   [ 'module-remap-source', 'module-remap-source.c' ],
-  [ 'module-rescue-streams', 'module-rescue-streams.c' ],
   [ 'module-role-cork', ['module-role-cork.c', 'stream-interaction.c'], 'stream-interaction.h' ],
   [ 'module-role-ducking', ['module-role-ducking.c', 'stream-interaction.c'], 'stream-interaction.h' ],
   [ 'module-rtp-recv', 'rtp/module-rtp-recv.c', [], [], [], librtp ],

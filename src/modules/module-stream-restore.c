@@ -64,8 +64,6 @@ PA_MODULE_USAGE(
         "restore_device=<Save/restore sinks/sources?> "
         "restore_volume=<Save/restore volumes?> "
         "restore_muted=<Save/restore muted states?> "
-        "on_hotplug=<When new device becomes available, recheck streams?> "
-        "on_rescue=<When device becomes unavailable, recheck streams?> "
         "fallback_table=<filename>");
 
 #define SAVE_INTERVAL (10 * PA_USEC_PER_SEC)
@@ -80,8 +78,6 @@ static const char* const valid_modargs[] = {
     "restore_device",
     "restore_volume",
     "restore_muted",
-    "on_hotplug",
-    "on_rescue",
     "fallback_table",
     NULL
 };
@@ -95,8 +91,6 @@ struct userdata {
         *sink_input_fixate_hook_slot,
         *source_output_new_hook_slot,
         *source_output_fixate_hook_slot,
-        *source_put_hook_slot,
-        *source_unlink_hook_slot,
         *connection_unlink_hook_slot;
     pa_time_event *save_time_event;
     pa_database* database;
@@ -104,8 +98,6 @@ struct userdata {
     bool restore_device:1;
     bool restore_volume:1;
     bool restore_muted:1;
-    bool on_hotplug:1;
-    bool on_rescue:1;
 
     pa_native_protocol *protocol;
     pa_idxset *subscribed;
@@ -1369,16 +1361,22 @@ static void subscribe_callback(pa_core *c, pa_subscription_event_type_t t, uint3
             mute_updated = !created_new_entry && (!old->muted_valid || entry->muted != old->muted);
         }
 
-        if (source_output->save_source) {
+        if (source_output->preferred_source != NULL || !created_new_entry) {
+            pa_source *s = NULL;
+
             pa_xfree(entry->device);
-            entry->device = pa_xstrdup(source_output->source->name);
+            entry->device = pa_xstrdup(source_output->preferred_source);
             entry->device_valid = true;
 
-            device_updated = !created_new_entry && (!old->device_valid || !pa_streq(entry->device, old->device));
+            if (!entry->device)
+                entry->device_valid = false;
 
-            if (source_output->source->card) {
-                pa_xfree(entry->card);
-                entry->card = pa_xstrdup(source_output->source->card->name);
+            device_updated = !created_new_entry && !pa_safe_streq(entry->device, old->device);
+            pa_xfree(entry->card);
+            entry->card = NULL;
+            entry->card_valid = false;
+            if (entry->device_valid && (s = pa_namereg_get(c, entry->device, PA_NAMEREG_SOURCE)) && s->card) {
+                entry->card = pa_xstrdup(s->card->name);
                 entry->card_valid = true;
             }
         }
@@ -1637,110 +1635,6 @@ static pa_hook_result_t source_output_fixate_hook_callback(pa_core *c, pa_source
     return PA_HOOK_OK;
 }
 
-static pa_hook_result_t source_put_hook_callback(pa_core *c, pa_source *source, struct userdata *u) {
-    pa_source_output *so;
-    uint32_t idx;
-
-    pa_assert(c);
-    pa_assert(source);
-    pa_assert(u);
-    pa_assert(u->on_hotplug && u->restore_device);
-
-    PA_IDXSET_FOREACH(so, c->source_outputs, idx) {
-        char *name;
-        struct entry *e;
-
-        if (so->source == source)
-            continue;
-
-        if (so->save_source)
-            continue;
-
-        if (so->direct_on_input)
-            continue;
-
-        /* Skip this if it is already in the process of being moved anyway */
-        if (!so->source)
-            continue;
-
-        /* Skip this source output if it is connecting a filter source to
-         * the master */
-        if (so->destination_source)
-            continue;
-
-        /* It might happen that a stream and a source are set up at the
-           same time, in which case we want to make sure we don't
-           interfere with that */
-        if (!PA_SOURCE_OUTPUT_IS_LINKED(so->state))
-            continue;
-
-        if (!(name = pa_proplist_get_stream_group(so->proplist, "source-output", IDENTIFICATION_PROPERTY)))
-            continue;
-
-        if ((e = entry_read(u, name))) {
-            if (e->device_valid && pa_streq(e->device, source->name))
-                pa_source_output_move_to(so, source, true);
-
-            entry_free(e);
-        }
-
-        pa_xfree(name);
-    }
-
-    return PA_HOOK_OK;
-}
-
-static pa_hook_result_t source_unlink_hook_callback(pa_core *c, pa_source *source, struct userdata *u) {
-    pa_source_output *so;
-    uint32_t idx;
-
-    pa_assert(c);
-    pa_assert(source);
-    pa_assert(u);
-    pa_assert(u->on_rescue && u->restore_device);
-
-    /* There's no point in doing anything if the core is shut down anyway */
-    if (c->state == PA_CORE_SHUTDOWN)
-        return PA_HOOK_OK;
-
-    PA_IDXSET_FOREACH(so, source->outputs, idx) {
-        char *name;
-        struct entry *e;
-
-        if (so->direct_on_input)
-            continue;
-
-        if (!so->source)
-            continue;
-
-        /* Skip this source output if it is connecting a filter source to
-         * the master */
-        if (so->destination_source)
-            continue;
-
-        if (!(name = pa_proplist_get_stream_group(so->proplist, "source-output", IDENTIFICATION_PROPERTY)))
-            continue;
-
-        if ((e = entry_read(u, name))) {
-
-            if (e->device_valid) {
-                pa_source *d;
-
-                if ((d = pa_namereg_get(c, e->device, PA_NAMEREG_SOURCE)) &&
-                    d != source &&
-                    PA_SOURCE_IS_LINKED(d->state))
-                    pa_source_output_move_to(so, d, true);
-            }
-
-            entry_free(e);
-        }
-
-        pa_xfree(name);
-    }
-
-    return PA_HOOK_OK;
-}
-
 static int fill_db(struct userdata *u, const char *filename) {
     FILE *f;
     int n = 0;
@@ -1898,21 +1792,16 @@ static void entry_apply(struct userdata *u, const char *name, struct entry *e) {
 
         if (u->restore_device) {
             if (!e->device_valid) {
-                if (so->save_source) {
+                if (so->preferred_source != NULL) {
                     pa_log_info("Ensuring device is not saved for stream %s.", name);
                     /* If the device is not valid we should make sure the
-                       save flag is cleared as the user may have specifically
+                       preferred_source is cleared as the user may have specifically
                        removed the source element from the rule. */
-                    so->save_source = false;
-                    /* This is cheating a bit. The source output itself has not changed
-                       but the rules governing its routing have, so we fire this event
-                       such that other routing modules (e.g. module-device-manager)
-                       will pick up the change and reapply their routing */
-                    pa_subscription_post(so->core, PA_SUBSCRIPTION_EVENT_SOURCE_OUTPUT|PA_SUBSCRIPTION_EVENT_CHANGE, so->index);
+                    pa_source_output_set_preferred_source(so, NULL);
                 }
             } else if ((s = pa_namereg_get(u->core, e->device, PA_NAMEREG_SOURCE))) {
                 pa_log_info("Restoring device for stream %s.", name);
-                pa_source_output_move_to(so, s, true);
+                pa_source_output_set_preferred_source(so, s);
             }
         }
     }
@@ -2094,11 +1983,13 @@ static int extension_cb(pa_native_protocol *p, pa_module *m, pa_native_connectio
                 }
                 /* When users select an output device from gnome-control-center, the gnome-control-center will change all entries
                  * in the database to bind the sink of this output device, this is not correct since at this moment, the sink is
-                 * default_sink and we shouldn't bind a stream to default_sink via preferred_sink or database.
+                 * default_sink and we shouldn't bind a stream to default_sink via preferred_sink or database. This also applies
+                 * to source, default_source and preferred_source.
                  * After gnome-control-center fix the issue, let us remove this code */
                 client_name = pa_strnull(pa_proplist_gets(pa_native_connection_get_client(c)->proplist, PA_PROP_APPLICATION_PROCESS_BINARY));
                 if (pa_safe_streq(client_name, "gnome-control-center")) {
-                    if (entry->device_valid && m->core->default_sink && pa_safe_streq(device, m->core->default_sink->name)) {
+                    if (entry->device_valid && ((m->core->default_sink && pa_safe_streq(device, m->core->default_sink->name)) ||
+			(m->core->default_source && pa_safe_streq(device, m->core->default_source->name)))) {
                         entry_free(entry);
                         pa_pstream_send_tagstruct(pa_native_connection_get_pstream(c), reply);
                         return 0;
@@ -2325,7 +2216,8 @@ int pa__init(pa_module*m) {
     pa_sink_input *si;
     pa_source_output *so;
     uint32_t idx;
-    bool restore_device = true, restore_volume = true, restore_muted = true, on_hotplug = true, on_rescue = true;
+    bool restore_device = true, restore_volume = true, restore_muted = true;
+
 #ifdef HAVE_DBUS
     pa_datum key;
     bool done;
@@ -2340,10 +2232,8 @@ int pa__init(pa_module*m) {
 
     if (pa_modargs_get_value_boolean(ma, "restore_device", &restore_device) < 0 ||
         pa_modargs_get_value_boolean(ma, "restore_volume", &restore_volume) < 0 ||
-        pa_modargs_get_value_boolean(ma, "restore_muted", &restore_muted) < 0 ||
-        pa_modargs_get_value_boolean(ma, "on_hotplug", &on_hotplug) < 0 ||
-        pa_modargs_get_value_boolean(ma, "on_rescue", &on_rescue) < 0) {
-        pa_log("restore_device=, restore_volume=, restore_muted=, on_hotplug= and on_rescue= expect boolean arguments");
+        pa_modargs_get_value_boolean(ma, "restore_muted", &restore_muted) < 0) {
+        pa_log("restore_device=, restore_volume= and restore_muted= expect boolean arguments");
         goto fail;
     }
 
@@ -2356,8 +2246,6 @@ int pa__init(pa_module*m) {
     u->restore_device = restore_device;
     u->restore_volume = restore_volume;
     u->restore_muted = restore_muted;
-    u->on_hotplug = on_hotplug;
-    u->on_rescue = on_rescue;
     u->subscribed = pa_idxset_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
 
     u->protocol = pa_native_protocol_get(m->core);
@@ -2371,16 +2259,6 @@ int pa__init(pa_module*m) {
         /* A little bit earlier than module-intended-roles ... */
         pa_module_hook_connect(m, &m->core->hooks[PA_CORE_HOOK_SINK_INPUT_NEW], PA_HOOK_EARLY, (pa_hook_cb_t) sink_input_new_hook_callback, u);
         pa_module_hook_connect(m, &m->core->hooks[PA_CORE_HOOK_SOURCE_OUTPUT_NEW], PA_HOOK_EARLY, (pa_hook_cb_t) source_output_new_hook_callback, u);
-    }
-
-    if (restore_device && on_hotplug) {
-        /* A little bit earlier than module-intended-roles ... */
-        pa_module_hook_connect(m, &m->core->hooks[PA_CORE_HOOK_SOURCE_PUT], PA_HOOK_LATE, (pa_hook_cb_t) source_put_hook_callback, u);
-    }
-
-    if (restore_device && on_rescue) {
-        /* A little bit earlier than module-intended-roles, module-rescue-streams, ... */
-        pa_module_hook_connect(m, &m->core->hooks[PA_CORE_HOOK_SOURCE_UNLINK], PA_HOOK_LATE, (pa_hook_cb_t) source_unlink_hook_callback, u);
     }
 
     if (restore_volume || restore_muted) {
