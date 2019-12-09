@@ -147,6 +147,13 @@ License along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
     </option>
 
     <option>
+      <p><opt>enable-lfe-remixing=</opt> This is a way to set
+      <opt>remixing-produce-lfe</opt> and <opt>remixing-consume-lfe</opt>
+      to the same value at once. This option only exists for backward
+      compatibility and may be removed in a future version of PulseAudio.</p>
+    </option>
+
+    <option>
       <p><opt>remixing-produce-lfe=</opt> If enabled, and the sink input
       does not have the LFE channel, synthesize the output LFE channel
       as a (lowpass-filtered, if <opt>lfe-crossover-freq</opt> is not 0)
