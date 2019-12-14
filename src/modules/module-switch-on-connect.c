@@ -116,9 +116,6 @@ static pa_hook_result_t sink_put_hook_callback(pa_core *c, pa_sink *sink, void* 
 }
 
 static pa_hook_result_t source_put_hook_callback(pa_core *c, pa_source *source, void* userdata) {
-    pa_source_output *o;
-    uint32_t idx;
-    pa_source *old_default_source;
     const char *s;
     struct userdata *u = userdata;
 
@@ -172,28 +169,8 @@ static pa_hook_result_t source_put_hook_callback(pa_core *c, pa_source *source, 
             return PA_HOOK_OK;
         }
 
-    old_default_source = c->default_source;
-
     /* Actually do the switch to the new source */
     pa_core_set_configured_default_source(c, source->name);
-
-    /* Now move all old outputs over */
-    if (pa_idxset_size(old_default_source->outputs) <= 0) {
-        pa_log_debug("No source outputs to move away.");
-        return PA_HOOK_OK;
-    }
-
-    PA_IDXSET_FOREACH(o, old_default_source->outputs, idx) {
-        if (o->save_source || !PA_SOURCE_OUTPUT_IS_LINKED(o->state))
-            continue;
-
-        if (pa_source_output_move_to(o, source, false) < 0)
-            pa_log_info("Failed to move source output %u \"%s\" to %s.", o->index,
-                        pa_strnull(pa_proplist_gets(o->proplist, PA_PROP_APPLICATION_NAME)), source->name);
-        else
-            pa_log_info("Successfully moved source output %u \"%s\" to %s.", o->index,
-                        pa_strnull(pa_proplist_gets(o->proplist, PA_PROP_APPLICATION_NAME)), source->name);
-    }
 
     return PA_HOOK_OK;
 }
@@ -211,7 +188,6 @@ int pa__init(pa_module*m) {
 
     m->userdata = u = pa_xnew0(struct userdata, 1);
 
-    /* A little bit later than module-rescue-streams... */
     pa_module_hook_connect(m, &m->core->hooks[PA_CORE_HOOK_SINK_PUT], PA_HOOK_LATE+30, (pa_hook_cb_t) sink_put_hook_callback, u);
     pa_module_hook_connect(m, &m->core->hooks[PA_CORE_HOOK_SOURCE_PUT], PA_HOOK_LATE+20, (pa_hook_cb_t) source_put_hook_callback, u);
 
