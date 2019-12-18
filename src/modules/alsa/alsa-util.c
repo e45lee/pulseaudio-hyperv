@@ -1740,30 +1740,31 @@ snd_mixer_t *pa_alsa_open_mixer(int alsa_card_index, char **ctl_device) {
     return NULL;
 }
 
-snd_mixer_t *pa_alsa_open_mixer_for_pcm(snd_pcm_t *pcm, char **ctl_device) {
+snd_mixer_t *pa_alsa_open_mixer_by_name(const char *dev) {
     int err;
     snd_mixer_t *m;
-    const char *dev;
-    snd_pcm_info_t* info;
-    snd_pcm_info_alloca(&info);
 
-    pa_assert(pcm);
+    pa_assert(dev);
 
     if ((err = snd_mixer_open(&m, 0)) < 0) {
         pa_log("Error opening mixer: %s", pa_alsa_strerror(err));
         return NULL;
     }
 
-    /* First, try by name */
-    if ((dev = snd_pcm_name(pcm)))
-        if (prepare_mixer(m, dev) >= 0) {
-            if (ctl_device)
-                *ctl_device = pa_xstrdup(dev);
+    if (prepare_mixer(m, dev) >= 0)
+        return m;
 
-            return m;
-        }
+    snd_mixer_close(m);
+    return NULL;
+}
 
-    /* Then, try by card index */
+snd_mixer_t *pa_alsa_open_mixer_for_pcm(snd_pcm_t *pcm, char **ctl_device) {
+    snd_mixer_t *m;
+    snd_pcm_info_t* info;
+    snd_pcm_info_alloca(&info);
+
+    pa_assert(pcm);
+
     if (snd_pcm_info(pcm, info) >= 0) {
         char *md;
         int card_idx;
@@ -1771,23 +1772,20 @@ snd_mixer_t *pa_alsa_open_mixer_for_pcm(snd_pcm_t *pcm, char **ctl_device) {
         if ((card_idx = snd_pcm_info_get_card(info)) >= 0) {
 
             md = pa_sprintf_malloc("hw:%i", card_idx);
+            m = pa_alsa_open_mixer_by_name(md);
+            if (m) {
+                if (ctl_device)
+                    *ctl_device = md;
+                else
+                    pa_xfree(md);
 
-            if (!dev || !pa_streq(dev, md))
-                if (prepare_mixer(m, md) >= 0) {
-
-                    if (ctl_device)
-                        *ctl_device = md;
-                    else
-                        pa_xfree(md);
-
-                    return m;
-                }
+                return m;
+            }
 
             pa_xfree(md);
         }
     }
 
-    snd_mixer_close(m);
     return NULL;
 }
 
