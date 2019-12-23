@@ -146,6 +146,26 @@ static struct ucm_info dev_info[] = {
     {NULL, 0}
 };
 
+
+static char *ucm_verb_value(
+    snd_use_case_mgr_t *uc_mgr,
+    const char *verb_name,
+    const char *id) {
+
+    const char *value;
+    char *_id = pa_sprintf_malloc("=%s//%s", id, verb_name);
+    int err = snd_use_case_get(uc_mgr, _id, &value);
+    pa_xfree(_id);
+    if (err < 0)
+         return NULL;
+    pa_log_debug("Got %s for verb %s: %s", id, verb_name, value);
+    /* Use the cast here to allow free() call without casting for callers.
+     * The snd_use_case_get() returns mallocated string.
+     * See the Note: in use-case.h for snd_use_case_get().
+     */
+    return (char *)value;
+}
+
 static int ucm_device_exists(pa_idxset *idxset, pa_alsa_ucm_device *dev) {
     pa_alsa_ucm_device *d;
     uint32_t idx;
@@ -766,6 +786,8 @@ int pa_alsa_ucm_get_verb(snd_use_case_mgr_t *uc_mgr, const char *verb_name, cons
     pa_alsa_ucm_device *d;
     pa_alsa_ucm_modifier *mod;
     pa_alsa_ucm_verb *verb;
+    char *value;
+    unsigned ui;
     int err = 0;
 
     *p_verb = NULL;
@@ -779,6 +801,11 @@ int pa_alsa_ucm_get_verb(snd_use_case_mgr_t *uc_mgr, const char *verb_name, cons
 
     pa_proplist_sets(verb->proplist, PA_ALSA_PROP_UCM_NAME, pa_strnull(verb_name));
     pa_proplist_sets(verb->proplist, PA_ALSA_PROP_UCM_DESCRIPTION, pa_strna(verb_desc));
+
+    value = ucm_verb_value(uc_mgr, verb_name, "Priority");
+    if (value && !pa_atou(value, &ui))
+        verb->priority = ui > 10000 ? 10000 : ui;
+    free(value);
 
     err = ucm_get_devices(verb, uc_mgr);
     if (err < 0)
@@ -820,13 +847,43 @@ static int pa_alsa_ucm_device_cmp(const void *a, const void *b) {
     return strcmp(pa_proplist_gets(d1->proplist, PA_ALSA_PROP_UCM_NAME), pa_proplist_gets(d2->proplist, PA_ALSA_PROP_UCM_NAME));
 }
 
-static void probe_volumes(pa_hashmap *hash, bool is_sink, snd_pcm_t *pcm_handle, bool ignore_dB) {
+static void set_eld_devices(pa_hashmap *hash)
+{
+    pa_device_port *port;
+    pa_alsa_ucm_port_data *data;
+    pa_alsa_ucm_device *dev;
+    const char *eld_mixer_device_name;
+    void *state;
+    int idx, eld_device;
+
+    PA_HASHMAP_FOREACH(port, hash, state) {
+        data = PA_DEVICE_PORT_DATA(port);
+        eld_mixer_device_name = NULL;
+        eld_device = -1;
+        PA_DYNARRAY_FOREACH(dev, data->devices, idx) {
+            if (dev->eld_device >= 0 && dev->eld_mixer_device_name) {
+                if (eld_device >= 0 && eld_device != dev->eld_device) {
+                    pa_log_error("The ELD device is already set!");
+                } else if (eld_mixer_device_name && pa_streq(dev->eld_mixer_device_name, eld_mixer_device_name)) {
+                    pa_log_error("The ELD mixer device is already set (%s, %s)!", dev->eld_mixer_device_name, dev->eld_mixer_device_name);
+                } else {
+                    eld_mixer_device_name = dev->eld_mixer_device_name;
+                    eld_device = dev->eld_device;
+                }
+            }
+        }
+        data->eld_device = eld_device;
+        data->eld_mixer_device_name = pa_xstrdup(eld_mixer_device_name);
+    }
+}
+
+static void probe_volumes(pa_hashmap *hash, bool is_sink, snd_pcm_t *pcm_handle, pa_hashmap *mixers, bool ignore_dB) {
     pa_device_port *port;
     pa_alsa_path *path;
     pa_alsa_ucm_port_data *data;
     pa_alsa_ucm_device *dev;
-    snd_mixer_t *mixer_handle = NULL;
-    const char *profile, *mdev_opened = NULL, *mdev, *mdev2;
+    snd_mixer_t *mixer_handle;
+    const char *profile, *mdev, *mdev2;
     void *state, *state2;
     int idx;
 
@@ -843,16 +900,9 @@ static void probe_volumes(pa_hashmap *hash, bool is_sink, snd_pcm_t *pcm_handle,
             mdev = mdev2;
         }
 
-        if (!mdev_opened || !pa_streq(mdev_opened, mdev)) {
-            if (mixer_handle) {
-                snd_mixer_close(mixer_handle);
-                mdev_opened = NULL;
-            }
-            if (!(mixer_handle = pa_alsa_open_mixer_by_name(mdev))) {
-                pa_log_error("Failed to find a working mixer device (%s).", mdev);
-                goto fail;
-            }
-            mdev_opened = mdev;
+        if (!(mixer_handle = pa_alsa_open_mixer_by_name(mixers, mdev, true))) {
+            pa_log_error("Failed to find a working mixer device (%s).", mdev);
+            goto fail;
         }
 
         PA_HASHMAP_FOREACH_KV(profile, path, data->paths, state2) {
@@ -866,9 +916,6 @@ static void probe_volumes(pa_hashmap *hash, bool is_sink, snd_pcm_t *pcm_handle,
                 pa_log_debug("Set up h/w volume using '%s' for %s:%s", path->name, profile, port->name);
         }
     }
-
-    if (mixer_handle)
-        snd_mixer_close(mixer_handle);
 
     return;
 
@@ -1169,6 +1216,9 @@ void pa_alsa_ucm_add_ports_combination(
         ucm_add_ports_combination(p, context, is_sink, pdevices, 0, PA_IDXSET_INVALID, ports, cp, core);
         pa_xfree(pdevices);
     }
+
+    /* ELD devices */
+    set_eld_devices(ports);
 }
 
 void pa_alsa_ucm_add_ports(
@@ -1194,7 +1244,7 @@ void pa_alsa_ucm_add_ports(
     pa_alsa_ucm_add_ports_combination(*p, context, is_sink, card->ports, NULL, card->core);
 
     /* now set up volume paths if any */
-    probe_volumes(*p, is_sink, pcm_handle, ignore_dB);
+    probe_volumes(*p, is_sink, pcm_handle, context->ucm->mixers, ignore_dB);
 
     /* then set property PA_PROP_DEVICE_INTENDED_ROLES */
     merged_roles = pa_xstrdup(pa_proplist_gets(proplist, PA_PROP_DEVICE_INTENDED_ROLES));
@@ -1543,6 +1593,7 @@ static pa_alsa_jack* ucm_get_jack(pa_alsa_ucm_config *ucm, pa_alsa_ucm_device *d
     pa_alsa_jack *j;
     const char *device_name;
     const char *jack_control;
+    const char *mixer_device_name;
     char *name;
 
     pa_assert(ucm);
@@ -1585,7 +1636,14 @@ static pa_alsa_jack* ucm_get_jack(pa_alsa_ucm_config *ucm, pa_alsa_ucm_device *d
         if (pa_streq(j->name, name))
             goto finish;
 
-    j = pa_alsa_jack_new(NULL, name);
+    mixer_device_name = get_jack_mixer_device(device, true);
+    if (!mixer_device_name)
+        mixer_device_name = get_jack_mixer_device(device, false);
+    if (!mixer_device_name) {
+        pa_log("[%s] No mixer device name for JackControl \"%s\"", device_name, jack_control);
+        return NULL;
+    }
+    j = pa_alsa_jack_new(NULL, mixer_device_name, name);
     PA_LLIST_PREPEND(pa_alsa_jack, ucm->jacks, j);
 
 finish:
@@ -1606,7 +1664,7 @@ static int ucm_create_profile(
     pa_alsa_ucm_modifier *mod;
     int i = 0;
     const char *name, *sink, *source;
-    char *verb_cmp, *c;
+    unsigned int priority;
 
     pa_assert(ps);
 
@@ -1626,24 +1684,26 @@ static int ucm_create_profile(
     p->supported = true;
     pa_hashmap_put(ps->profiles, p->name, p);
 
-    /* TODO: get profile priority from ucm info or policy management */
-    c = verb_cmp = pa_xstrdup(verb_name);
-    while (*c) {
-        if (*c == '_') *c = ' ';
-        c++;
-    }
+    /* TODO: get profile priority from policy management */
+    priority = verb->priority;
 
-    for (i = 0; verb_info[i].id; i++) {
-        if (strcasecmp(verb_info[i].id, verb_cmp) == 0) {
-            p->priority = verb_info[i].priority;
-            break;
+    if (priority == 0) {
+        char *verb_cmp, *c;
+        c = verb_cmp = pa_xstrdup(verb_name);
+        while (*c) {
+            if (*c == '_') *c = ' ';
+            c++;
         }
+        for (i = 0; verb_info[i].id; i++) {
+            if (strcasecmp(verb_info[i].id, verb_cmp) == 0) {
+                priority = verb_info[i].priority;
+                break;
+            }
+        }
+        pa_xfree(verb_cmp);
     }
 
-    pa_xfree(verb_cmp);
-
-    if (verb_info[i].id == NULL)
-        p->priority = 1000;
+    p->priority = priority;
 
     PA_LLIST_FOREACH(dev, verb->devices) {
         pa_alsa_jack *jack;
@@ -1711,6 +1771,33 @@ static int ucm_create_profile(
     return 0;
 }
 
+static void mapping_init_eld(pa_alsa_mapping *m, snd_pcm_t *pcm)
+{
+    pa_alsa_ucm_mapping_context *context = &m->ucm_context;
+    pa_alsa_ucm_device *dev;
+    uint32_t idx;
+    char *mdev;
+    snd_pcm_info_t *info;
+    int pcm_card, pcm_device;
+
+    snd_pcm_info_alloca(&info);
+    if (snd_pcm_info(pcm, info) < 0)
+        return;
+
+    if ((pcm_card = snd_pcm_info_get_card(info)) < 0)
+        return;
+    if ((pcm_device = snd_pcm_info_get_device(info)) < 0)
+        return;
+
+    PA_IDXSET_FOREACH(dev, context->ucm_devices, idx) {
+       mdev = pa_sprintf_malloc("hw:%i", pcm_card);
+       if (mdev == NULL)
+           continue;
+       dev->eld_mixer_device_name = mdev;
+       dev->eld_device = pcm_device;
+    }
+}
+
 static snd_pcm_t* mapping_open_pcm(pa_alsa_ucm_config *ucm, pa_alsa_mapping *m, int mode) {
     snd_pcm_t* pcm;
     pa_sample_spec try_ss = ucm->core->default_sample_spec;
@@ -1732,8 +1819,11 @@ static snd_pcm_t* mapping_open_pcm(pa_alsa_ucm_config *ucm, pa_alsa_mapping *m, 
     pcm = pa_alsa_open_by_device_string(m->device_strings[0], NULL, &try_ss,
             &try_map, mode, &try_period_size, &try_buffer_size, 0, NULL, NULL, exact_channels);
 
-    if (pcm && !exact_channels)
-        m->channel_map = try_map;
+    if (pcm) {
+        if (!exact_channels)
+            m->channel_map = try_map;
+        mapping_init_eld(m, pcm);
+    }
 
     return pcm;
 }
@@ -1765,44 +1855,28 @@ static void profile_finalize_probing(pa_alsa_profile *p) {
     }
 }
 
-static void ucm_mapping_jack_probe(pa_alsa_mapping *m) {
-    snd_mixer_t *mixer_handle = NULL;
+static void ucm_mapping_jack_probe(pa_alsa_mapping *m, pa_hashmap *mixers) {
+    snd_mixer_t *mixer_handle;
     pa_alsa_ucm_mapping_context *context = &m->ucm_context;
     pa_alsa_ucm_device *dev;
-    bool is_sink = m->direction == PA_ALSA_DIRECTION_OUTPUT;
-    const char *mdev_opened = NULL, *mdev;
     uint32_t idx;
 
     PA_IDXSET_FOREACH(dev, context->ucm_devices, idx) {
         bool has_control;
 
-        if (!dev->jack)
+        if (!dev->jack || !dev->jack->mixer_device_name)
             continue;
 
-        mdev = get_jack_mixer_device(dev, is_sink);
-        if (mdev == NULL) {
-            pa_log_error("Unable to determine mixer device for jack %s", dev->jack->name);
+        mixer_handle = pa_alsa_open_mixer_by_name(mixers, dev->jack->mixer_device_name, true);
+        if (!mixer_handle) {
+            pa_log_error("Unable to determine open mixer device '%s' for jack %s", dev->jack->mixer_device_name, dev->jack->name);
             continue;
-        }
-
-        if (!mdev_opened || !pa_streq(mdev_opened, mdev)) {
-            if (mixer_handle) {
-                snd_mixer_close(mixer_handle);
-                mdev_opened = NULL;
-            }
-            mixer_handle = pa_alsa_open_mixer_by_name(mdev);
-            if (!mixer_handle)
-                continue;
-            mdev_opened = mdev;
         }
 
         has_control = pa_alsa_mixer_find_card(mixer_handle, dev->jack->alsa_name, 0) != NULL;
         pa_alsa_jack_set_has_control(dev->jack, has_control);
         pa_log_info("UCM jack %s has_control=%d", dev->jack->name, dev->jack->has_control);
     }
-
-    if (mixer_handle)
-        snd_mixer_close(mixer_handle);
 }
 
 static void ucm_probe_profile_set(pa_alsa_ucm_config *ucm, pa_alsa_profile_set *ps) {
@@ -1860,11 +1934,11 @@ static void ucm_probe_profile_set(pa_alsa_ucm_config *ucm, pa_alsa_profile_set *
 
         PA_IDXSET_FOREACH(m, p->output_mappings, idx)
             if (!PA_UCM_IS_MODIFIER_MAPPING(m))
-                ucm_mapping_jack_probe(m);
+                ucm_mapping_jack_probe(m, ucm->mixers);
 
         PA_IDXSET_FOREACH(m, p->input_mappings, idx)
             if (!PA_UCM_IS_MODIFIER_MAPPING(m))
-                ucm_mapping_jack_probe(m);
+                ucm_mapping_jack_probe(m, ucm->mixers);
 
         profile_finalize_probing(p);
     }
@@ -1929,6 +2003,8 @@ static void free_verb(pa_alsa_ucm_verb *verb) {
             pa_idxset_free(di->conflicting_devices, NULL);
         if (di->supported_devices)
             pa_idxset_free(di->supported_devices, NULL);
+
+        pa_xfree(di->eld_mixer_device_name);
 
         pa_xfree(di);
     }
@@ -2133,6 +2209,7 @@ static void ucm_port_data_init(pa_alsa_ucm_port_data *port, pa_alsa_ucm_config *
     port->ucm = ucm;
     port->core_port = core_port;
     port->devices = pa_dynarray_new(NULL);
+    port->eld_device = -1;
 
     for (i = 0; i < n_devices; i++) {
         pa_dynarray_append(port->devices, devices[i]);
@@ -2157,6 +2234,8 @@ static void ucm_port_data_free(pa_device_port *port) {
 
     if (ucm_port->paths)
         pa_hashmap_free(ucm_port->paths);
+
+    pa_xfree(ucm_port->eld_mixer_device_name);
 }
 
 static void ucm_port_update_available(pa_alsa_ucm_port_data *port) {

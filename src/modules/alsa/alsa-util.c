@@ -1726,83 +1726,119 @@ static int prepare_mixer(snd_mixer_t *mixer, const char *dev) {
     return 0;
 }
 
-snd_mixer_t *pa_alsa_open_mixer(int alsa_card_index, char **ctl_device) {
-    int err;
-    snd_mixer_t *m;
-    char *md;
-    snd_pcm_info_t* info;
-    snd_pcm_info_alloca(&info);
-
-    if ((err = snd_mixer_open(&m, 0)) < 0) {
-        pa_log("Error opening mixer: %s", pa_alsa_strerror(err));
-        return NULL;
-    }
-
-    /* Then, try by card index */
-    md = pa_sprintf_malloc("hw:%i", alsa_card_index);
-    if (prepare_mixer(m, md) >= 0) {
-
-        if (ctl_device)
-            *ctl_device = md;
-        else
-            pa_xfree(md);
-
-        return m;
-    }
-
+snd_mixer_t *pa_alsa_open_mixer(pa_hashmap *mixers, int alsa_card_index, bool probe) {
+    char *md = pa_sprintf_malloc("hw:%i", alsa_card_index);
+    snd_mixer_t *m = pa_alsa_open_mixer_by_name(mixers, md, probe);
     pa_xfree(md);
-
-    snd_mixer_close(m);
-    return NULL;
+    return m;
 }
 
-snd_mixer_t *pa_alsa_open_mixer_by_name(const char *dev) {
+snd_mixer_t *pa_alsa_open_mixer_by_name(pa_hashmap *mixers, const char *dev, bool probe) {
     int err;
     snd_mixer_t *m;
+    pa_alsa_mixer *pm;
+    char *dev2;
+    void *state;
 
+    pa_assert(mixers);
     pa_assert(dev);
 
+    pm = pa_hashmap_get(mixers, dev);
+
+    /* The quick card number/index lookup (hw:#)
+     * We already know the card number/index, thus use the mixer
+     * from the cache at first.
+     */
+    if (!pm && pa_strneq(dev, "hw:", 3)) {
+        const char *s = dev + 3;
+        int card_index;
+        while (*s && *s >= 0 && *s <= '9') s++;
+        if (*s == '\0' && pa_atoi(dev + 3, &card_index) >= 0) {
+            PA_HASHMAP_FOREACH_KV(dev2, pm, mixers, state) {
+                if (pm->card_index == card_index) {
+                    dev = dev2;
+                    pm = pa_hashmap_get(mixers, dev);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (pm) {
+        if (!probe)
+            pm->used_for_probe_only = false;
+        return pm->mixer_handle;
+    }
+
     if ((err = snd_mixer_open(&m, 0)) < 0) {
         pa_log("Error opening mixer: %s", pa_alsa_strerror(err));
         return NULL;
     }
 
-    if (prepare_mixer(m, dev) >= 0)
-        return m;
+    if (prepare_mixer(m, dev) >= 0) {
+        pm = pa_xnew0(pa_alsa_mixer, 1);
+        if (pm) {
+            snd_hctl_t *hctl;
+            pm->card_index = -1;
+            /* determine the ALSA card number (index) and store it to card_index */
+            err = snd_mixer_get_hctl(m, dev, &hctl);
+            if (err >= 0) {
+                snd_ctl_card_info_t *info;
+                snd_ctl_card_info_alloca(&info);
+                err = snd_ctl_card_info(snd_hctl_ctl(hctl), info);
+                if (err >= 0)
+                    pm->card_index = snd_ctl_card_info_get_card(info);
+            }
+            pm->used_for_probe_only = probe;
+            pm->mixer_handle = m;
+            pa_hashmap_put(mixers, pa_xstrdup(dev), pm);
+            return m;
+        }
+    }
 
     snd_mixer_close(m);
     return NULL;
 }
 
-snd_mixer_t *pa_alsa_open_mixer_for_pcm(snd_pcm_t *pcm, char **ctl_device) {
-    snd_mixer_t *m;
+snd_mixer_t *pa_alsa_open_mixer_for_pcm(pa_hashmap *mixers, snd_pcm_t *pcm, bool probe) {
     snd_pcm_info_t* info;
     snd_pcm_info_alloca(&info);
 
     pa_assert(pcm);
 
     if (snd_pcm_info(pcm, info) >= 0) {
-        char *md;
         int card_idx;
 
-        if ((card_idx = snd_pcm_info_get_card(info)) >= 0) {
-
-            md = pa_sprintf_malloc("hw:%i", card_idx);
-            m = pa_alsa_open_mixer_by_name(md);
-            if (m) {
-                if (ctl_device)
-                    *ctl_device = md;
-                else
-                    pa_xfree(md);
-
-                return m;
-            }
-
-            pa_xfree(md);
-        }
+        if ((card_idx = snd_pcm_info_get_card(info)) >= 0)
+            return pa_alsa_open_mixer(mixers, card_idx, probe);
     }
 
     return NULL;
+}
+
+void pa_alsa_mixer_set_fdlist(pa_hashmap *mixers, snd_mixer_t *mixer_handle, pa_mainloop_api *ml)
+{
+    pa_alsa_mixer *pm;
+    void *state;
+
+    PA_HASHMAP_FOREACH(pm, mixers, state)
+        if (pm->mixer_handle == mixer_handle) {
+            pm->used_for_probe_only = false;
+            if (!pm->fdl) {
+                pm->fdl = pa_alsa_fdlist_new();
+                if (pm->fdl)
+                    pa_alsa_fdlist_set_handle(pm->fdl, pm->mixer_handle, NULL, ml);
+            }
+        }
+}
+
+void pa_alsa_mixer_free(pa_alsa_mixer *mixer)
+{
+    if (mixer->fdl)
+        pa_alsa_fdlist_free(mixer->fdl);
+    if (mixer->mixer_handle)
+        snd_mixer_close(mixer->mixer_handle);
+    pa_xfree(mixer);
 }
 
 int pa_alsa_get_hdmi_eld(snd_hctl_elem_t *elem, pa_hdmi_eld *eld) {

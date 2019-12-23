@@ -207,6 +207,9 @@ struct pa_alsa_ucm_device {
     pa_alsa_jack *jack;
     pa_dynarray *hw_mute_jacks; /* pa_alsa_jack */
     pa_available_t available;
+
+    char *eld_mixer_device_name;
+    int eld_device;
 };
 
 void pa_alsa_ucm_device_update_available(pa_alsa_ucm_device *device);
@@ -238,6 +241,7 @@ struct pa_alsa_ucm_verb {
     PA_LLIST_FIELDS(pa_alsa_ucm_verb);
 
     pa_proplist *proplist;
+    unsigned priority;
 
     PA_LLIST_HEAD(pa_alsa_ucm_device, devices);
     PA_LLIST_HEAD(pa_alsa_ucm_modifier, modifiers);
@@ -248,6 +252,7 @@ struct pa_alsa_ucm_config {
     snd_use_case_mgr_t *ucm_mgr;
     pa_alsa_ucm_verb *active_verb;
 
+    pa_hashmap *mixers;
     PA_LLIST_HEAD(pa_alsa_ucm_verb, verbs);
     PA_LLIST_HEAD(pa_alsa_jack, jacks);
 };
@@ -272,6 +277,10 @@ struct pa_alsa_ucm_port_data {
     pa_hashmap *paths;
     /* Current path, set when activating profile */
     pa_alsa_path *path;
+
+    /* ELD info */
+    char *eld_mixer_device_name;
+    int eld_device; /* PCM device number */
 };
 
 struct pa_alsa_ucm_volume {
