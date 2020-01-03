@@ -1497,8 +1497,8 @@ fi
 
 AC_ARG_WITH(
         [module-dir],
-        AS_HELP_STRING([--with-module-dir],[Directory where to install the modules to (defaults to ${libdir}/pulse-${PA_MAJORMINOR}/modules]),
-        [modlibexecdir=$withval], [modlibexecdir="${libdir}/pulse-${PA_MAJORMINOR}/modules"])
+        AS_HELP_STRING([--with-module-dir],[Directory where to install the modules to (defaults to ${libdir}/pulseaudio/modules]),
+        [modlibexecdir=$withval], [modlibexecdir="${libdir}/pulseaudio/modules"])
 
 AC_SUBST(modlibexecdir)
 AX_DEFINE_DIR(PA_DLSEARCHPATH, modlibexecdir, [Modules dir])
