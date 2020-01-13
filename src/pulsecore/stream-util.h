@@ -49,4 +49,7 @@ int pa_stream_get_volume_channel_map(const pa_cvolume *volume, const pa_channel_
 size_t pa_convert_to_sink_length(pa_sink_input *i, size_t length);
 size_t pa_convert_to_sink_input_length(pa_sink_input *i, size_t length);
 
+size_t pa_convert_to_source_length(pa_source_output *i, size_t length);
+size_t pa_convert_to_source_output_length(pa_source_output *i, size_t length);
+
 #endif
