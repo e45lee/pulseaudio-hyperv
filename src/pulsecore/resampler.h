@@ -73,7 +73,11 @@ typedef enum pa_resample_flags {
     PA_RESAMPLER_CONSUME_LFE   = 0x0040U,
 } pa_resample_flags_t;
 
-#define PA_RESAMPLER_MAX_HISTORY 64
+/* Currently, the soxr reampler has the largest delay of all supported resamplers.
+ * The maximum value below has been obtained empirically and contains a safety
+ * margin of about 3ms. If the resampler configuration is changed or additional
+ * resamplers are added, the constant must be re-evaluated. */
+#define PA_RESAMPLER_MAX_DELAY_USEC 33000
 
 struct pa_resampler {
     pa_resample_method_t method;
