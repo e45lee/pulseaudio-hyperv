@@ -757,6 +757,7 @@ libpulsecommon_@PA_MAJORMINOR@_la_SOURCES = \
 		pulsecore/strlist.c pulsecore/strlist.h \
 		pulsecore/tagstruct.c pulsecore/tagstruct.h \
 		pulsecore/time-smoother.c pulsecore/time-smoother.h \
+		pulsecore/time-smoother_2.c pulsecore/time-smoother_2.h \
 		pulsecore/tokenizer.c pulsecore/tokenizer.h \
 		pulsecore/usergroup.c pulsecore/usergroup.h \
 		pulsecore/sndfile-util.c pulsecore/sndfile-util.h \
