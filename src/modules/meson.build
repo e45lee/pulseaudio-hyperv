@@ -148,7 +148,7 @@ endif
 
 if dbus_dep.found() and fftw_dep.found()
   all_modules += [
-    [ 'module-equalizer-sink', 'module-equalizer-sink.c', [], [], [dbus_dep, fftw_dep, libm_dep] ],
+    [ 'module-equalizer-sink', 'module-equalizer-sink.c', [], [], [dbus_dep, fftw_dep, libm_dep], libvirtual_sink ],
   ]
 endif
 
