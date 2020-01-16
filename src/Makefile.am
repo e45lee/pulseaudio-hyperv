@@ -2036,7 +2036,7 @@ module_echo_cancel_la_SOURCES = \
 		modules/echo-cancel/null.c \
 		modules/echo-cancel/echo-cancel.h
 module_echo_cancel_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_echo_cancel_la_LIBADD = $(MODULE_LIBADD)
+module_echo_cancel_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 module_echo_cancel_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_echo_cancel
 if HAVE_ADRIAN_EC
 module_echo_cancel_la_SOURCES += \
