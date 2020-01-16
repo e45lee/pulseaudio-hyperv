@@ -510,7 +510,7 @@ finish:
     pa_dbus_pending_free(p);
 }
 
-static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
+static pa_volume_t bluez5_transport_set_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
     static const char *volume_str = "Volume";
     static const char *mediatransport_str = BLUEZ_MEDIA_TRANSPORT_INTERFACE;
     struct set_volume_and_transport *call_data;
@@ -527,9 +527,9 @@ static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, p
     /* Propagate rounding and bound checks */
     volume = a2dp_gain_to_volume(gain);
 
-    pa_assert(device_supports_profile(t->device, PA_BLUETOOTH_PROFILE_A2DP_SINK));
-
-    if (t->sink_volume == volume)
+    if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE && t->source_volume == volume)
+        return volume;
+    else if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK && t->sink_volume == volume)
         return volume;
 
     pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, t->path, DBUS_INTERFACE_PROPERTIES, "Set"));
@@ -546,6 +546,18 @@ static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, p
     send_and_add_to_pending(t->device->discovery, m, set_volume_reply, call_data);
 
     return volume;
+}
+
+static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
+    pa_assert(t);
+    pa_assert(device_supports_profile(t->device, PA_BLUETOOTH_PROFILE_A2DP_SINK));
+    return bluez5_transport_set_volume(t, volume);
+}
+
+static pa_volume_t bluez5_transport_set_source_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
+    pa_assert(t);
+    pa_assert(device_supports_profile(t->device, PA_BLUETOOTH_PROFILE_A2DP_SOURCE));
+    return bluez5_transport_set_volume(t, volume);
 }
 
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d) {
@@ -1564,6 +1576,7 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
     t->acquire = bluez5_transport_acquire_cb;
     t->release = bluez5_transport_release_cb;
     t->set_sink_volume = bluez5_transport_set_sink_volume;
+    t->set_source_volume = bluez5_transport_set_source_volume;
     pa_bluetooth_transport_put(t);
 
     pa_log_debug("Transport %s available for profile %s", t->path, pa_bluetooth_profile_to_string(t->profile));

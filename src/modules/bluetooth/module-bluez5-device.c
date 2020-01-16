@@ -974,8 +974,8 @@ static void source_set_volume_cb(pa_source *s) {
 
     pa_cvolume_set(&s->real_volume, u->decoder_sample_spec.channels, volume);
 
-    /* Set soft volume when in headset role */
-    if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY)
+    /* Set soft volume when playing back this audio stream as speakers in the hsp headset or a2dp sink role */
+    if (pa_bluetooth_profile_should_attenuate_volume(u->profile))
         pa_cvolume_set(&s->soft_volume, u->decoder_sample_spec.channels, volume);
 }
 
@@ -1032,6 +1032,11 @@ static int add_source(struct userdata *u) {
     if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT || u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY) {
         pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
         u->source->n_volume_steps = 16;
+    } else if (u->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE) {
+        if (u->transport->set_source_volume) {
+            pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
+            u->source->n_volume_steps = A2DP_MAX_GAIN + 1;
+        }
     }
     return 0;
 }
