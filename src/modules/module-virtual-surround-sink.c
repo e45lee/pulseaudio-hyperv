@@ -459,6 +459,8 @@ static bool sink_input_may_move_to_cb(pa_sink_input *i, pa_sink *dest) {
 /* Called from main context */
 static void sink_input_moving_cb(pa_sink_input *i, pa_sink *dest) {
     struct userdata *u;
+    uint32_t idx;
+    pa_sink_input *input;
 
     pa_sink_input_assert_ref(i);
     pa_assert_se(u = i->userdata);
@@ -468,6 +470,22 @@ static void sink_input_moving_cb(pa_sink_input *i, pa_sink *dest) {
         pa_sink_update_flags(u->sink, PA_SINK_LATENCY|PA_SINK_DYNAMIC_LATENCY, dest->flags);
     } else
         pa_sink_set_asyncmsgq(u->sink, NULL);
+
+    /* Propagate asyncmsq change to attached virtual sinks */
+    PA_IDXSET_FOREACH(input, u->sink->inputs, idx) {
+        if (input->origin_sink && input->moving)
+            input->moving(input, u->sink);
+    }
+
+    /* Propagate asyncmsq change to virtual sources attached to the monitor */
+    if (u->sink->monitor_source) {
+        pa_source_output *output;
+
+        PA_IDXSET_FOREACH(output, u->sink->monitor_source->outputs, idx) {
+            if (output->destination_source && output->moving)
+                output->moving(output, u->sink->monitor_source);
+        }
+    }
 
     if (u->auto_desc && dest) {
         const char *z;
