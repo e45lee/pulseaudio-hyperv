@@ -23,15 +23,15 @@
 #include <config.h>
 #endif
 
+#include <modules/virtual-sink-common.h>
+
 #include <pulse/gccmacro.h>
 #include <pulse/xmalloc.h>
 
 #include <pulsecore/i18n.h>
 #include <pulsecore/namereg.h>
-#include <pulsecore/sink.h>
 #include <pulsecore/module.h>
 #include <pulsecore/core-util.h>
-#include <pulsecore/modargs.h>
 #include <pulsecore/log.h>
 #include <pulsecore/rtpoll.h>
 #include <pulsecore/sample-util.h>
@@ -69,12 +69,8 @@ struct userdata {
     /* FIXME: Uncomment this and take "autoloaded" as a modarg if this is a filter */
     /* bool autoloaded; */
 
-    pa_sink *sink;
-    pa_sink_input *sink_input;
+    pa_vsink *vsink;
 
-    pa_memblockq *memblockq;
-
-    bool auto_desc;
     unsigned channels;
     unsigned hrir_channels;
 
@@ -89,7 +85,6 @@ struct userdata {
     float *input_buffer;
     int input_buffer_offset;
 
-    bool autoloaded;
 };
 
 static const char* const valid_modargs[] = {
@@ -109,176 +104,17 @@ static const char* const valid_modargs[] = {
 };
 
 /* Called from I/O thread context */
-static int sink_process_msg_cb(pa_msgobject *o, int code, void *data, int64_t offset, pa_memchunk *chunk) {
-    struct userdata *u = PA_SINK(o)->userdata;
-
-    switch (code) {
-
-        case PA_SINK_MESSAGE_GET_LATENCY:
-
-            /* The sink is _put() before the sink input is, so let's
-             * make sure we don't access it in that time. Also, the
-             * sink input is first shut down, the sink second. */
-            if (!PA_SINK_IS_LINKED(u->sink->thread_info.state) ||
-                !PA_SINK_INPUT_IS_LINKED(u->sink_input->thread_info.state)) {
-                *((int64_t*) data) = 0;
-                return 0;
-            }
-
-            *((int64_t*) data) =
-
-                /* Get the latency of the master sink */
-                pa_sink_get_latency_within_thread(u->sink_input->sink, true) +
-
-                /* Add the latency internal to our sink input on top */
-                pa_bytes_to_usec(pa_memblockq_get_length(u->sink_input->thread_info.render_memblockq), &u->sink_input->sink->sample_spec);
-
-            return 0;
-    }
-
-    return pa_sink_process_msg(o, code, data, offset, chunk);
-}
-
-/* Called from main context */
-static int sink_set_state_in_main_thread_cb(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t suspend_cause) {
+static void filter_process_chunk(float *src, float *dst, unsigned in_count, unsigned out_count, void *userdata) {
     struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->state))
-        return 0;
-
-    pa_sink_input_cork(u->sink_input, state == PA_SINK_SUSPENDED);
-    return 0;
-}
-
-/* Called from the IO thread. */
-static int sink_set_state_in_io_thread_cb(pa_sink *s, pa_sink_state_t new_state, pa_suspend_cause_t new_suspend_cause) {
-    struct userdata *u;
-
-    pa_assert(s);
-    pa_assert_se(u = s->userdata);
-
-    /* When set to running or idle for the first time, request a rewind
-     * of the master sink to make sure we are heard immediately */
-    if (PA_SINK_IS_OPENED(new_state) && s->thread_info.state == PA_SINK_INIT) {
-        pa_log_debug("Requesting rewind due to state change.");
-        pa_sink_input_request_rewind(u->sink_input, 0, false, true, true);
-    }
-
-    return 0;
-}
-
-/* Called from I/O thread context */
-static void sink_request_rewind_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->thread_info.state))
-        return;
-
-    /* Just hand this one over to the master sink */
-    pa_sink_input_request_rewind(u->sink_input,
-                                 s->thread_info.rewind_nbytes +
-                                 pa_memblockq_get_length(u->memblockq), true, false, false);
-}
-
-/* Called from I/O thread context */
-static void sink_update_requested_latency_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->thread_info.state))
-        return;
-
-    /* Just hand this one over to the master sink */
-    pa_sink_input_set_requested_latency_within_thread(
-            u->sink_input,
-            pa_sink_get_requested_latency_within_thread(s));
-}
-
-/* Called from main context */
-static void sink_set_volume_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(s->state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->state))
-        return;
-
-    pa_sink_input_set_volume(u->sink_input, &s->real_volume, s->save_volume, true);
-}
-
-/* Called from main context */
-static void sink_set_mute_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(s->state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->state))
-        return;
-
-    pa_sink_input_set_mute(u->sink_input, s->muted, s->save_muted);
-}
-
-/* Called from I/O thread context */
-static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes, pa_memchunk *chunk) {
-    struct userdata *u;
-    float *src, *dst;
-    unsigned n;
-    pa_memchunk tchunk;
 
     unsigned j, k, l;
     float sum_right, sum_left;
     float current_sample;
 
-    pa_sink_input_assert_ref(i);
-    pa_assert(chunk);
-    pa_assert_se(u = i->userdata);
+    pa_assert_se(u = userdata);
+    pa_assert(in_count == out_count);
 
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        return -1;
-
-    /* Hmm, process any rewind request that might be queued up */
-    pa_sink_process_rewind(u->sink, 0);
-
-    while (pa_memblockq_peek(u->memblockq, &tchunk) < 0) {
-        pa_memchunk nchunk;
-
-        pa_sink_render(u->sink, nbytes * u->sink_fs / u->fs, &nchunk);
-        pa_memblockq_push(u->memblockq, &nchunk);
-        pa_memblock_unref(nchunk.memblock);
-    }
-
-    tchunk.length = PA_MIN(nbytes * u->sink_fs / u->fs, tchunk.length);
-    pa_assert(tchunk.length > 0);
-
-    n = (unsigned) (tchunk.length / u->sink_fs);
-
-    pa_assert(n > 0);
-
-    chunk->index = 0;
-    chunk->length = n * u->fs;
-    chunk->memblock = pa_memblock_new(i->sink->core->mempool, chunk->length);
-
-    pa_memblockq_drop(u->memblockq, n * u->sink_fs);
-
-    src = pa_memblock_acquire_chunk(&tchunk);
-    dst = pa_memblock_acquire(chunk->memblock);
-
-    for (l = 0; l < n; l++) {
+    for (l = 0; l < in_count; l++) {
         memcpy(((char*) u->input_buffer) + u->input_buffer_offset * u->sink_fs, ((char *) src) + l * u->sink_fs, u->sink_fs);
 
         sum_right = 0;
@@ -301,206 +137,17 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes, pa_memchunk *chunk
         if (u->input_buffer_offset < 0)
             u->input_buffer_offset += u->hrir_samples;
     }
-
-    pa_memblock_release(tchunk.memblock);
-    pa_memblock_release(chunk->memblock);
-
-    pa_memblock_unref(tchunk.memblock);
-
-    return 0;
 }
 
 /* Called from I/O thread context */
-static void sink_input_process_rewind_cb(pa_sink_input *i, size_t nbytes) {
-    struct userdata *u;
-    size_t amount = 0;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    /* If the sink is not yet linked, there is nothing to rewind */
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        return;
-
-    if (u->sink->thread_info.rewind_nbytes > 0) {
-        size_t max_rewrite;
-
-        max_rewrite = nbytes * u->sink_fs / u->fs + pa_memblockq_get_length(u->memblockq);
-        amount = PA_MIN(u->sink->thread_info.rewind_nbytes * u->sink_fs / u->fs, max_rewrite);
-        u->sink->thread_info.rewind_nbytes = 0;
-
-        if (amount > 0) {
-            pa_memblockq_seek(u->memblockq, - (int64_t) amount, PA_SEEK_RELATIVE, true);
-
-            /* Reset the input buffer */
-            memset(u->input_buffer, 0, u->hrir_samples * u->sink_fs);
-            u->input_buffer_offset = 0;
-        }
-    }
-
-    pa_sink_process_rewind(u->sink, amount);
-    pa_memblockq_rewind(u->memblockq, nbytes * u->sink_fs / u->fs);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_max_rewind_cb(pa_sink_input *i, size_t nbytes) {
+static void reset_filter(pa_sink *s, size_t amount) {
     struct userdata *u;
 
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
+    pa_assert_se(u = s->userdata);
 
-    /* FIXME: Too small max_rewind:
-     * https://bugs.freedesktop.org/show_bug.cgi?id=53709 */
-    pa_memblockq_set_maxrewind(u->memblockq, nbytes * u->sink_fs / u->fs);
-    pa_sink_set_max_rewind_within_thread(u->sink, nbytes * u->sink_fs / u->fs);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_max_request_cb(pa_sink_input *i, size_t nbytes) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_max_request_within_thread(u->sink, nbytes * u->sink_fs / u->fs);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_sink_latency_range_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_latency_range_within_thread(u->sink, i->sink->thread_info.min_latency, i->sink->thread_info.max_latency);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_sink_fixed_latency_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_fixed_latency_within_thread(u->sink, i->sink->thread_info.fixed_latency);
-}
-
-/* Called from I/O thread context */
-static void sink_input_detach_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    if (PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        pa_sink_detach_within_thread(u->sink);
-
-    pa_sink_set_rtpoll(u->sink, NULL);
-}
-
-/* Called from I/O thread context */
-static void sink_input_attach_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_rtpoll(u->sink, i->sink->thread_info.rtpoll);
-    pa_sink_set_latency_range_within_thread(u->sink, i->sink->thread_info.min_latency, i->sink->thread_info.max_latency);
-
-    pa_sink_set_fixed_latency_within_thread(u->sink, i->sink->thread_info.fixed_latency);
-
-    pa_sink_set_max_request_within_thread(u->sink, pa_sink_input_get_max_request(i) * u->sink_fs / u->fs);
-
-    /* FIXME: Too small max_rewind:
-     * https://bugs.freedesktop.org/show_bug.cgi?id=53709 */
-    pa_sink_set_max_rewind_within_thread(u->sink, pa_sink_input_get_max_rewind(i) * u->sink_fs / u->fs);
-
-    if (PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        pa_sink_attach_within_thread(u->sink);
-}
-
-/* Called from main context */
-static void sink_input_kill_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    /* The order here matters! We first kill the sink so that streams
-     * can properly be moved away while the sink input is still connected
-     * to the master. */
-    pa_sink_input_cork(u->sink_input, true);
-    pa_sink_unlink(u->sink);
-    pa_sink_input_unlink(u->sink_input);
-
-    pa_sink_input_unref(u->sink_input);
-    u->sink_input = NULL;
-
-    pa_sink_unref(u->sink);
-    u->sink = NULL;
-
-    pa_module_unload_request(u->module, true);
-}
-
-/* Called from main context */
-static bool sink_input_may_move_to_cb(pa_sink_input *i, pa_sink *dest) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    if (u->autoloaded)
-        return false;
-
-    return u->sink != dest;
-}
-
-/* Called from main context */
-static void sink_input_moving_cb(pa_sink_input *i, pa_sink *dest) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    if (dest) {
-        pa_sink_set_asyncmsgq(u->sink, dest->asyncmsgq);
-        pa_sink_update_flags(u->sink, PA_SINK_LATENCY|PA_SINK_DYNAMIC_LATENCY, dest->flags);
-    } else
-        pa_sink_set_asyncmsgq(u->sink, NULL);
-
-    if (u->auto_desc && dest) {
-        const char *z;
-        pa_proplist *pl;
-
-        pl = pa_proplist_new();
-        z = pa_proplist_gets(dest->proplist, PA_PROP_DEVICE_DESCRIPTION);
-        pa_proplist_setf(pl, PA_PROP_DEVICE_DESCRIPTION, "Virtual Surround Sink %s on %s",
-                         pa_proplist_gets(u->sink->proplist, "device.vsurroundsink.name"), z ? z : dest->name);
-
-        pa_sink_update_proplist(u->sink, PA_UPDATE_REPLACE, pl);
-        pa_proplist_free(pl);
-    }
-}
-
-/* Called from main context */
-static void sink_input_volume_changed_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_volume_changed(u->sink, &i->volume);
-}
-
-/* Called from main context */
-static void sink_input_mute_changed_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_mute_changed(u->sink, i->muted);
+    /* Reset the input buffer */
+    memset(u->input_buffer, 0, u->hrir_samples * u->sink_fs);
+    u->input_buffer_offset = 0;
 }
 
 static pa_channel_position_t mirror_channel(pa_channel_position_t channel) {
@@ -592,11 +239,7 @@ int pa__init(pa_module*m) {
     pa_modargs *ma;
     const char *master_name;
     pa_sink *master = NULL;
-    pa_sink_input_new_data sink_input_data;
-    pa_sink_new_data sink_data;
     bool use_volume_sharing = true;
-    bool force_flat_volume = false;
-    pa_memchunk silence;
 
     const char *hrir_file;
     unsigned i, j, found_channel_left, found_channel_right;
@@ -674,16 +317,6 @@ int pa__init(pa_module*m) {
         goto fail;
     }
 
-    if (pa_modargs_get_value_boolean(ma, "force_flat_volume", &force_flat_volume) < 0) {
-        pa_log("force_flat_volume= expects a boolean argument");
-        goto fail;
-    }
-
-    if (use_volume_sharing && force_flat_volume) {
-        pa_log("Flat volume can't be forced when using volume sharing.");
-        goto fail;
-    }
-
     /* sample spec / map of sink input */
     pa_channel_map_init_stereo(&sink_input_map);
     sink_input_ss.channels = 2;
@@ -693,104 +326,16 @@ int pa__init(pa_module*m) {
     u->sink_fs = pa_frame_size(&ss);
     u->fs = pa_frame_size(&sink_input_ss);
 
-    /* Create sink */
-    pa_sink_new_data_init(&sink_data);
-    sink_data.driver = __FILE__;
-    sink_data.module = m;
-    if (!(sink_data.name = pa_xstrdup(pa_modargs_get_value(ma, "sink_name", NULL))))
-        sink_data.name = pa_sprintf_malloc("%s.vsurroundsink", master->name);
-    pa_sink_new_data_set_sample_spec(&sink_data, &ss);
-    pa_sink_new_data_set_channel_map(&sink_data, &map);
-    pa_proplist_sets(sink_data.proplist, PA_PROP_DEVICE_MASTER_DEVICE, master->name);
-    pa_proplist_sets(sink_data.proplist, PA_PROP_DEVICE_CLASS, "filter");
-    pa_proplist_sets(sink_data.proplist, "device.vsurroundsink.name", sink_data.name);
-
-    if (pa_modargs_get_proplist(ma, "sink_properties", sink_data.proplist, PA_UPDATE_REPLACE) < 0) {
-        pa_log("Invalid properties");
-        pa_sink_new_data_done(&sink_data);
-        goto fail;
-    }
-
-    u->autoloaded = DEFAULT_AUTOLOADED;
-    if (pa_modargs_get_value_boolean(ma, "autoloaded", &u->autoloaded) < 0) {
-        pa_log("Failed to parse autoloaded value");
-        goto fail;
-    }
-
-    if ((u->auto_desc = !pa_proplist_contains(sink_data.proplist, PA_PROP_DEVICE_DESCRIPTION))) {
-        const char *z;
-
-        z = pa_proplist_gets(master->proplist, PA_PROP_DEVICE_DESCRIPTION);
-        pa_proplist_setf(sink_data.proplist, PA_PROP_DEVICE_DESCRIPTION, "Virtual Surround Sink %s on %s", sink_data.name, z ? z : master->name);
-    }
-
-    u->sink = pa_sink_new(m->core, &sink_data, (master->flags & (PA_SINK_LATENCY|PA_SINK_DYNAMIC_LATENCY))
-                                               | (use_volume_sharing ? PA_SINK_SHARE_VOLUME_WITH_MASTER : 0));
-    pa_sink_new_data_done(&sink_data);
-
-    if (!u->sink) {
-        pa_log("Failed to create sink.");
-        goto fail;
-    }
-
-    u->sink->parent.process_msg = sink_process_msg_cb;
-    u->sink->set_state_in_main_thread = sink_set_state_in_main_thread_cb;
-    u->sink->set_state_in_io_thread = sink_set_state_in_io_thread_cb;
-    u->sink->update_requested_latency = sink_update_requested_latency_cb;
-    u->sink->request_rewind = sink_request_rewind_cb;
-    pa_sink_set_set_mute_callback(u->sink, sink_set_mute_cb);
-    if (!use_volume_sharing) {
-        pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
-        pa_sink_enable_decibel_volume(u->sink, true);
-    }
-    /* Normally this flag would be enabled automatically be we can force it. */
-    if (force_flat_volume)
-        u->sink->flags |= PA_SINK_FLAT_VOLUME;
-    u->sink->userdata = u;
-
-    pa_sink_set_asyncmsgq(u->sink, master->asyncmsgq);
-
-    /* Create sink input */
-    pa_sink_input_new_data_init(&sink_input_data);
-    sink_input_data.driver = __FILE__;
-    sink_input_data.module = m;
-    pa_sink_input_new_data_set_sink(&sink_input_data, master, false, true);
-    sink_input_data.origin_sink = u->sink;
-    pa_proplist_setf(sink_input_data.proplist, PA_PROP_MEDIA_NAME, "Virtual Surround Sink Stream from %s", pa_proplist_gets(u->sink->proplist, PA_PROP_DEVICE_DESCRIPTION));
-    pa_proplist_sets(sink_input_data.proplist, PA_PROP_MEDIA_ROLE, "filter");
-    pa_sink_input_new_data_set_sample_spec(&sink_input_data, &sink_input_ss);
-    pa_sink_input_new_data_set_channel_map(&sink_input_data, &sink_input_map);
-    sink_input_data.flags |= PA_SINK_INPUT_START_CORKED;
-
-    pa_sink_input_new(&u->sink_input, m->core, &sink_input_data);
-    pa_sink_input_new_data_done(&sink_input_data);
-
-    if (!u->sink_input)
+    /* Create virtual sink */
+    if (!(u->vsink = pa_virtual_sink_create(master, "vsurroundsink", "Virtual Surround Sink", &ss, &map,
+                                 &sink_input_ss, &sink_input_map, m, u, ma, use_volume_sharing, true, 0)))
         goto fail;
 
-    u->sink_input->pop = sink_input_pop_cb;
-    u->sink_input->process_rewind = sink_input_process_rewind_cb;
-    u->sink_input->update_max_rewind = sink_input_update_max_rewind_cb;
-    u->sink_input->update_max_request = sink_input_update_max_request_cb;
-    u->sink_input->update_sink_latency_range = sink_input_update_sink_latency_range_cb;
-    u->sink_input->update_sink_fixed_latency = sink_input_update_sink_fixed_latency_cb;
-    u->sink_input->kill = sink_input_kill_cb;
-    u->sink_input->attach = sink_input_attach_cb;
-    u->sink_input->detach = sink_input_detach_cb;
-    u->sink_input->may_move_to = sink_input_may_move_to_cb;
-    u->sink_input->moving = sink_input_moving_cb;
-    u->sink_input->volume_changed = use_volume_sharing ? NULL : sink_input_volume_changed_cb;
-    u->sink_input->mute_changed = sink_input_mute_changed_cb;
-    u->sink_input->userdata = u;
-
-    u->sink->input_to_master = u->sink_input;
-
-    pa_sink_input_get_silence(u->sink_input, &silence);
-    u->memblockq = pa_memblockq_new("module-virtual-surround-sink memblockq", 0, MEMBLOCKQ_MAXLENGTH, 0, &ss, 1, 1, 0, &silence);
-    pa_memblock_unref(silence.memblock);
+    u->vsink->process_chunk = filter_process_chunk;
+    u->vsink->rewind_filter = reset_filter;
 
     /* resample hrir */
-    resampler = pa_resampler_new(u->sink->core->mempool, &hrir_temp_ss, &hrir_map, &hrir_ss, &hrir_map, u->sink->core->lfe_crossover_freq,
+    resampler = pa_resampler_new(u->vsink->sink->core->mempool, &hrir_temp_ss, &hrir_map, &hrir_ss, &hrir_map, u->vsink->sink->core->lfe_crossover_freq,
                                  PA_RESAMPLER_SRC_SINC_BEST_QUALITY, PA_RESAMPLER_NO_REMAP);
 
     u->hrir_samples = hrir_temp_chunk.length / pa_frame_size(&hrir_temp_ss) * hrir_ss.rate / hrir_temp_ss.rate;
@@ -875,12 +420,8 @@ int pa__init(pa_module*m) {
     u->input_buffer = pa_xmalloc0(u->hrir_samples * u->sink_fs);
     u->input_buffer_offset = 0;
 
-    /* The order here is important. The input must be put first,
-     * otherwise streams might attach to the sink before the sink
-     * input is attached to the master. */
-    pa_sink_input_put(u->sink_input);
-    pa_sink_put(u->sink);
-    pa_sink_input_cork(u->sink_input, false);
+    if (pa_virtual_sink_activate(u->vsink) < 0)
+        goto fail;
 
     pa_modargs_free(ma);
     return 0;
@@ -906,7 +447,7 @@ int pa__get_n_used(pa_module *m) {
     pa_assert(m);
     pa_assert_se(u = m->userdata);
 
-    return pa_sink_linked_by(u->sink);
+    return pa_sink_linked_by(u->vsink->sink);
 }
 
 void pa__done(pa_module*m) {
@@ -917,25 +458,8 @@ void pa__done(pa_module*m) {
     if (!(u = m->userdata))
         return;
 
-    /* See comments in sink_input_kill_cb() above regarding
-     * destruction order! */
-
-    if (u->sink_input)
-        pa_sink_input_cork(u->sink_input, true);
-
-    if (u->sink)
-        pa_sink_unlink(u->sink);
-
-    if (u->sink_input) {
-        pa_sink_input_unlink(u->sink_input);
-        pa_sink_input_unref(u->sink_input);
-    }
-
-    if (u->sink)
-        pa_sink_unref(u->sink);
-
-    if (u->memblockq)
-        pa_memblockq_free(u->memblockq);
+    if (u->vsink)
+        pa_virtual_sink_destroy(u->vsink);
 
     if (u->hrir_data)
         pa_xfree(u->hrir_data);

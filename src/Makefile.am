@@ -1782,7 +1782,7 @@ module_virtual_source_la_LIBADD = $(MODULE_LIBADD)
 module_virtual_surround_sink_la_SOURCES = modules/module-virtual-surround-sink.c
 module_virtual_surround_sink_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_virtual_surround_sink
 module_virtual_surround_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_virtual_surround_sink_la_LIBADD = $(MODULE_LIBADD)
+module_virtual_surround_sink_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 
 # X11
 

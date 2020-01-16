@@ -70,7 +70,7 @@ all_modules = [
   [ 'module-tunnel-source-new', 'module-tunnel-source-new.c' ],
   [ 'module-virtual-sink', 'module-virtual-sink.c', [], [], [], libvirtual_sink ],
   [ 'module-virtual-source', 'module-virtual-source.c' ],
-  [ 'module-virtual-surround-sink', 'module-virtual-surround-sink.c' ],
+  [ 'module-virtual-surround-sink', 'module-virtual-surround-sink.c', [], [], [], libvirtual_sink ],
   [ 'module-volume-restore', 'module-volume-restore.c' ],
 #  [ 'module-waveout', 'module-waveout.c' ],
 ]
