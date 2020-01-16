@@ -56,6 +56,82 @@ typedef void(*pa_sink_cb_t)(pa_sink *s);
 
 typedef int (*pa_sink_get_mute_cb_t)(pa_sink *s, bool *mute);
 
+/* Virtual sink structure */
+typedef struct pa_vsink {
+    pa_msgobject parent;                      /* Message object */
+    pa_sink *sink;                            /* A pointer to the virtual sink */
+    pa_sink_input *input_to_master;           /* Sink input to the master sink */
+    pa_memblockq *memblockq;                  /* Memblockq of the virtual sink, may be NULL */
+    size_t drop_bytes;                        /* Number of bytes to drop during sink_input_pop()
+                                               * in sink input sample speci. Used during rewind
+                                               * of fixed block size filters */
+
+    bool auto_desc;                           /* Automatically adapt description on move */
+    const char *desc_head;                    /* Leading part of description string used for the
+                                               * sink and sink input when auto_desc is true */
+    const char *sink_type;                    /* Name for the type of sink, used as suffix for
+                                               * the sink name if the name is derived from the
+                                               * master sink. */
+    bool autoloaded;                          /* True if the sink was not loaded manually */
+    size_t max_chunk_size;                    /* Maximum chunk size in bytes that the filter will
+                                               * accept, set to pa_mempool_block_size_max() by default */
+    size_t fixed_block_size;                  /* Block size in frames for fixed block size filters,
+                                               * 0 if block size is controlled by pulseaudio. */
+    size_t fixed_input_block_size;            /* Input block size in frames. If not 0, input data for
+                                               * process_chunk() will always have the same size.
+                                               * If not enough new data is available, the remaining
+                                               * samples will be filled with history. */
+    size_t overlap_frames;                    /* Some filters require old input samples in addtion to
+                                               * the current data. The variable contains the number of
+                                               * previous frames that will be passed to process_chunk().
+                                               * The actual number of history frames may be variable if
+                                               * the filter defines the get_current_overlap() function.
+                                               * In this case, overlap_frames contains the maximum
+                                               * number of history frames. */
+    size_t max_request_frames_min;            /* Minimum value for max_request in frames, 0 if unused */
+    pa_usec_t max_latency;                    /* Maximum latency allowed for the sink, 0 if unused */
+    int max_rewind;                           /* Maximum number of frames that the sink can rewind.
+                                               * 0 means unlimited, -1 disables rewinding */
+
+    /* Callback to rewind the filter when pulseaudio requests it. Called from
+     * I/O thread context. May be NULL */
+    void (*rewind_filter)(pa_sink *s, size_t amount);
+
+    /* Callback to process a chunk of data by the filter. Called from I/O thread
+     * context. May be NULL */
+    void (*process_chunk)(float *src, float *dst, unsigned in_count, unsigned out_count, void *userdata);
+
+    /* Callback to communicate the max_rewind value to the filter. Called from
+     * I/O thread context whenever the max_rewind value changes. May be NULL */
+    void (*set_filter_max_rewind)(pa_sink_input *i, size_t amount);
+
+    /* Callback to retrieve additional latency caused by the filter. Called from
+     * I/O thread context. May be NULL */
+    pa_usec_t (*get_extra_latency)(pa_sink *s);
+
+    /* If defined, this function is called from the sink-input pop() callback
+     * to retrieve the current number of history frames to include in the next
+     * chunk. Called from I/O thread. */
+    size_t (*get_current_overlap)(pa_sink_input *i);
+
+    /* If set and dest is valid, this function is called in the moving() callback
+     * to change the description of sink and sink_input. Called from main context.
+     * May be NULL */
+    void (*set_description)(pa_sink_input *i, pa_sink *dest);
+
+    /* If set, this function will be called after update_filter_parameters() to
+     * inform the filter of the block sizes that will be used. These may differ
+     * from the sizes set in update_filter_parameters() if the function tries to
+     * set an invalid combination of block sizes. Called from I/O thread. */
+    void (*update_block_sizes)(size_t fixed_block_size, size_t fixed_input_block_size, size_t overlap_frames, void *userdata);
+
+    /* If set, this function is called in I/O thread context when an update of the
+     * filter parameters is requested. May be NULL. The function should replace
+     * the currently used parameter structure by the new structure in parameters
+     * and free the old structure. It may also modify the block sizes. */
+    void (*update_filter_parameters)(void *parameters, void *userdata);
+} pa_vsink;
+
 struct pa_sink {
     pa_msgobject parent;
 
@@ -88,6 +164,7 @@ struct pa_sink {
     pa_idxset *inputs;
     unsigned n_corked;
     pa_source *monitor_source;
+    pa_vsink *vsink;                        /* non-NULL only for filter sinks */
     pa_sink_input *input_to_master;         /* non-NULL only for filter sinks */
 
     pa_volume_t base_volume; /* shall be constant */

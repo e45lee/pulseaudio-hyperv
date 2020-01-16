@@ -277,6 +277,7 @@ pa_sink* pa_sink_new(
     s->inputs = pa_idxset_new(NULL, NULL);
     s->n_corked = 0;
     s->input_to_master = NULL;
+    s->vsink = NULL;
 
     s->reference_volume = s->real_volume = data->volume;
     pa_cvolume_reset(&s->soft_volume, s->sample_spec.channels);
@@ -1672,11 +1673,19 @@ bool pa_sink_has_filter_attached(pa_sink *s) {
 pa_sink *pa_sink_get_master(pa_sink *s) {
     pa_sink_assert_ref(s);
 
+    /* During consolidation, we have to support s->input_to_master and
+     * s->vsink->input_to_master. The first will disappear after all
+     * virtual sinks use the new code. */
     while (s && (s->flags & PA_SINK_SHARE_VOLUME_WITH_MASTER)) {
-        if (PA_UNLIKELY(!s->input_to_master))
+        if (PA_UNLIKELY(s->vsink && !s->vsink->input_to_master))
+            return NULL;
+        if (PA_UNLIKELY(!s->vsink && !s->input_to_master))
             return NULL;
 
-        s = s->input_to_master->sink;
+        if (s->input_to_master)
+            s = s->input_to_master->sink;
+        else
+            s = s->vsink->input_to_master->sink;
     }
 
     return s;
@@ -1686,7 +1695,7 @@ pa_sink *pa_sink_get_master(pa_sink *s) {
 bool pa_sink_is_filter(pa_sink *s) {
     pa_sink_assert_ref(s);
 
-    return (s->input_to_master != NULL);
+    return ((s->vsink != NULL) || (s->input_to_master != NULL));
 }
 
 /* Called from main context */
