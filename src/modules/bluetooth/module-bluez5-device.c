@@ -1126,6 +1126,7 @@ static int sink_set_state_in_io_thread_cb(pa_sink *s, pa_sink_state_t new_state,
 /* Run from main thread */
 static void sink_set_volume_cb(pa_sink *s) {
     pa_volume_t volume;
+    pa_cvolume v;
     struct userdata *u;
 
     pa_assert(s);
@@ -1144,10 +1145,13 @@ static void sink_set_volume_cb(pa_sink *s) {
      * in this case we notify the AG that the microphone gain has changed */
     volume = u->transport->set_sink_volume(u->transport, pa_cvolume_max(&s->real_volume));
 
-    pa_cvolume_set(&s->real_volume, u->encoder_sample_spec.channels, volume);
+    // pa_cvolume_set(&s->real_volume, u->encoder_sample_spec.channels, volume);
+    // TODO: Which is better, above or below?
+    pa_cvolume_set(&v, u->encoder_sample_spec.channels, volume);
+    pa_sink_volume_changed(u->sink, &v);
 
-    /* Set soft volume when in headset role */
-    if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY)
+    /* Set soft volume when in headset role as microphone */
+    if (pa_bluetooth_profile_should_attenuate_volume(u->profile))
         pa_cvolume_set(&s->soft_volume, u->encoder_sample_spec.channels, volume);
 }
 
@@ -1205,6 +1209,11 @@ static int add_sink(struct userdata *u) {
     if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT || u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY) {
         pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
         u->sink->n_volume_steps = 16;
+    } else if (u->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK) {
+        if (u->transport->set_sink_volume) {
+            pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
+            u->sink->n_volume_steps = A2DP_MAX_GAIN + 1;
+        }
     }
     return 0;
 }
