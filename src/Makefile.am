@@ -1716,7 +1716,7 @@ module_filter_heuristics_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_filter
 
 module_remap_sink_la_SOURCES = modules/module-remap-sink.c
 module_remap_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_remap_sink_la_LIBADD = $(MODULE_LIBADD)
+module_remap_sink_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 module_remap_sink_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_remap_sink
 
 module_remap_source_la_SOURCES = modules/module-remap-source.c

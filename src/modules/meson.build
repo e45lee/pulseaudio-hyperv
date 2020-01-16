@@ -48,7 +48,7 @@ all_modules = [
   [ 'module-null-sink', 'module-null-sink.c' ],
   [ 'module-null-source', 'module-null-source.c' ],
   [ 'module-position-event-sounds', 'module-position-event-sounds.c' ],
-  [ 'module-remap-sink', 'module-remap-sink.c' ],
+  [ 'module-remap-sink', 'module-remap-sink.c', [], [], [], libvirtual_sink ],
   [ 'module-remap-source', 'module-remap-source.c' ],
   [ 'module-rescue-streams', 'module-rescue-streams.c' ],
   [ 'module-role-cork', ['module-role-cork.c', 'stream-interaction.c'], 'stream-interaction.h' ],
