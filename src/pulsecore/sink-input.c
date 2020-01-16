@@ -1760,19 +1760,10 @@ bool pa_sink_input_may_move(pa_sink_input *i) {
 static bool find_filter_sink_input(pa_sink_input *target, pa_sink *s) {
     unsigned PA_UNUSED i = 0;
 
-    /* During consolidation, we have to support s->input_to_master and
-     * s->vsink->input_to_master. The first will disappear after all
-     * virtual sinks use the new code. */
-    while (s && (s->input_to_master || (s->vsink && s->vsink->input_to_master))) {
-        if (s->vsink) {
-            if (s->vsink->input_to_master == target)
-                return true;
-            s = s->vsink->input_to_master->sink;
-        } else {
-            if (s->input_to_master == target)
-                return true;
-            s = s->input_to_master->sink;
-        }
+    while (s && (s->vsink && s->vsink->input_to_master)) {
+        if (s->vsink->input_to_master == target)
+            return true;
+        s = s->vsink->input_to_master->sink;
         pa_assert(i++ < 100);
     }
     return false;
@@ -1784,11 +1775,8 @@ static bool is_filter_sink_moving(pa_sink_input *i) {
     if (!sink)
         return false;
 
-    while (sink->input_to_master || (sink->vsink && sink->vsink->input_to_master)) {
-        if (sink->vsink)
-            sink = sink->vsink->input_to_master->sink;
-        else
-            sink = sink->input_to_master->sink;
+    while (sink->vsink && sink->vsink->input_to_master) {
+        sink = sink->vsink->input_to_master->sink;
 
         if (!sink)
             return true;
