@@ -1727,7 +1727,7 @@ module_remap_source_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_remap_sourc
 module_ladspa_sink_la_SOURCES = modules/module-ladspa-sink.c modules/ladspa.h
 module_ladspa_sink_la_CFLAGS = -DLADSPA_PATH="$(libdir)/ladspa:/usr/local/lib/ladspa:/usr/lib/ladspa:/usr/local/lib64/ladspa:/usr/lib64/ladspa" $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_ladspa_sink
 module_ladspa_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_ladspa_sink_la_LIBADD = $(MODULE_LIBADD) $(LIBLTDL)
+module_ladspa_sink_la_LIBADD = $(MODULE_LIBADD) $(LIBLTDL) libvirtual_sink.la
 
 if HAVE_DBUS
 module_ladspa_sink_la_CFLAGS += $(DBUS_CFLAGS)
