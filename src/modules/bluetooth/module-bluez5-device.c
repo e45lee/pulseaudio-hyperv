@@ -104,6 +104,7 @@ struct userdata {
     pa_bluetooth_transport *transport;
     bool transport_acquired;
     bool stream_setup_done;
+    bool a2dp_source_absolute_volume, a2dp_sink_absolute_volume;
 
     pa_card *card;
     pa_sink *sink;
@@ -1032,11 +1033,6 @@ static int add_source(struct userdata *u) {
     if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT || u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY) {
         pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
         u->source->n_volume_steps = 16;
-    } else if (u->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE) {
-        if (u->transport->set_source_volume) {
-            pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
-            u->source->n_volume_steps = A2DP_MAX_GAIN + 1;
-        }
     }
     return 0;
 }
@@ -1214,11 +1210,6 @@ static int add_sink(struct userdata *u) {
     if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT || u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY) {
         pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
         u->sink->n_volume_steps = 16;
-    } else if (u->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK) {
-        if (u->transport->set_sink_volume) {
-            pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
-            u->sink->n_volume_steps = A2DP_MAX_GAIN + 1;
-        }
     }
     return 0;
 }
@@ -2158,6 +2149,25 @@ static pa_hook_result_t transport_state_changed_cb(pa_bluetooth_discovery *y, pa
     return PA_HOOK_OK;
 }
 
+static void sink_set_a2dp_remote_controlled(pa_sink *s) {
+    struct userdata *u;
+
+    pa_assert(s);
+    pa_assert(s->core);
+
+    u = s->userdata;
+    pa_assert(u);
+    pa_assert(u->sink == s);
+    pa_assert(u->transport);
+    pa_assert(u->transport->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK);
+
+    pa_sink_set_set_volume_callback(s, sink_set_volume_cb);
+    s->n_volume_steps = A2DP_MAX_GAIN + 1;
+
+    /* Reset local attenuation */
+    pa_sink_enter_passthrough(s);
+}
+
 static pa_hook_result_t transport_sink_volume_changed_cb(pa_bluetooth_discovery *y, pa_bluetooth_transport *t, struct userdata *u) {
     pa_volume_t volume;
     pa_cvolume v;
@@ -2170,6 +2180,19 @@ static pa_hook_result_t transport_sink_volume_changed_cb(pa_bluetooth_discovery 
 
     volume = t->sink_volume;
 
+    if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK) {
+        if (!u->sink) {
+            pa_log_warn("Received a2dp gain change without connected sink");
+            return PA_HOOK_OK;
+        }
+
+        /* The first time this callback fires: peer supports Absolute Volume */
+        if (!u->a2dp_sink_absolute_volume) {
+            sink_set_a2dp_remote_controlled(u->sink);
+            u->a2dp_sink_absolute_volume = true;
+        }
+    }
+
     pa_cvolume_set(&v, u->encoder_sample_spec.channels, volume);
     if (pa_bluetooth_profile_should_attenuate_volume(t->profile))
         pa_sink_set_volume(u->sink, &v, true, true);
@@ -2177,6 +2200,22 @@ static pa_hook_result_t transport_sink_volume_changed_cb(pa_bluetooth_discovery 
         pa_sink_volume_changed(u->sink, &v);
 
     return PA_HOOK_OK;
+}
+
+static void source_set_a2dp_remote_controlled(pa_source *s) {
+    struct userdata *u;
+
+    pa_assert(s);
+    pa_assert(s->core);
+
+    u = s->userdata;
+    pa_assert(u);
+    pa_assert(u->source == s);
+    pa_assert(u->transport);
+    pa_assert(u->transport->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE);
+
+    pa_source_set_set_volume_callback(s, source_set_volume_cb);
+    s->n_volume_steps = A2DP_MAX_GAIN + 1;
 }
 
 static pa_hook_result_t transport_source_volume_changed_cb(pa_bluetooth_discovery *y, pa_bluetooth_transport *t, struct userdata *u) {
@@ -2190,6 +2229,19 @@ static pa_hook_result_t transport_source_volume_changed_cb(pa_bluetooth_discover
       return PA_HOOK_OK;
 
     volume = t->source_volume;
+
+    if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE) {
+        if (!u->source) {
+            pa_log_warn("Received a2dp gain change without connected source");
+            return PA_HOOK_OK;
+        }
+
+        /* The first time this callback fires: peer supports Absolute Volume */
+        if (!u->a2dp_source_absolute_volume) {
+            source_set_a2dp_remote_controlled(u->source);
+            u->a2dp_source_absolute_volume = true;
+        }
+    }
 
     pa_cvolume_set(&v, u->decoder_sample_spec.channels, volume);
 

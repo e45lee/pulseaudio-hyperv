@@ -560,6 +560,53 @@ static pa_volume_t bluez5_transport_set_source_volume(pa_bluetooth_transport *t,
     return bluez5_transport_set_volume(t, volume);
 }
 
+static int16_t bluez5_transport_get_volume(pa_bluetooth_transport *t) {
+    static const char *volume_str = "Volume";
+    static const char *mediatransport_str = BLUEZ_MEDIA_TRANSPORT_INTERFACE;
+    DBusMessage *m, *r;
+    DBusMessageIter iter, variant;
+    DBusError err;
+    uint16_t gain;
+
+    pa_assert(t);
+    pa_assert(t->device);
+    pa_assert(t->device->discovery);
+
+    pa_assert(device_supports_profile(t->device, PA_BLUETOOTH_PROFILE_A2DP_SINK) || device_supports_profile(t->device, PA_BLUETOOTH_PROFILE_A2DP_SOURCE));
+
+    dbus_error_init(&err);
+
+    pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, t->path, DBUS_INTERFACE_PROPERTIES, "Get"));
+    pa_assert_se(dbus_message_append_args(m,
+        DBUS_TYPE_STRING, &mediatransport_str,
+        DBUS_TYPE_STRING, &volume_str,
+        DBUS_TYPE_INVALID));
+
+    r = dbus_connection_send_with_reply_and_block(pa_dbus_connection_get(t->device->discovery->connection), m, -1, &err);
+    dbus_message_unref(m);
+    if (r)
+        dbus_message_unref(r);
+
+    if (dbus_error_is_set(&err)) {
+        pa_log_info("Volume property not found, A2DP Absolute Volume not supported");
+        dbus_error_free(&err);
+        return -1;
+    }
+
+    dbus_message_iter_init(r, &iter);
+    pa_assert(dbus_message_iter_get_arg_type(&iter) == DBUS_TYPE_VARIANT);
+    dbus_message_iter_recurse(&iter, &variant);
+    pa_assert(dbus_message_iter_get_arg_type(&variant) == DBUS_TYPE_UINT16);
+    dbus_message_iter_get_basic(&variant, &gain);
+
+    if (gain > A2DP_MAX_GAIN)
+        gain = A2DP_MAX_GAIN;
+
+    pa_log_debug("A2DP Absolute Volume = %d", gain);
+
+    return (int16_t)gain;
+}
+
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d) {
     unsigned i;
 
@@ -1459,6 +1506,7 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
     pa_bluetooth_profile_t p = PA_BLUETOOTH_PROFILE_OFF;
     DBusMessageIter args, props;
     DBusMessage *r;
+    int16_t gain;
 
     if (!dbus_message_iter_init(m, &args) || !pa_streq(dbus_message_get_signature(m), "oa{sv}")) {
         pa_log_error("Invalid signature for method SetConfiguration()");
@@ -1577,9 +1625,16 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
     t->release = bluez5_transport_release_cb;
     t->set_sink_volume = bluez5_transport_set_sink_volume;
     t->set_source_volume = bluez5_transport_set_source_volume;
+
     pa_bluetooth_transport_put(t);
 
     pa_log_debug("Transport %s available for profile %s", t->path, pa_bluetooth_profile_to_string(t->profile));
+
+    /* A2DP Absolute Volume control (AVRCP 1.4) is optional */
+    gain = bluez5_transport_get_volume(t);
+    if (gain >= 0)
+        /* Request bluez5-device to set up callbacks */
+        pa_bluetooth_transport_remote_volume_changed(t, gain);
 
     return NULL;
 
