@@ -80,7 +80,7 @@
 
 static pa_volume_t a2dp_gain_to_volume(uint16_t gain) {
     /* Round to closest by adding half the denominator */
-    pa_volume_t volume = (pa_volume_t)((gain * PA_VOLUME_NORM + A2DP_MAX_GAIN / 2) / A2DP_MAX_GAIN);
+    pa_volume_t volume = A2DP_GAIN_TO_VOLUME(gain);
 
     if (volume > PA_VOLUME_NORM)
         volume = PA_VOLUME_NORM;
@@ -90,7 +90,7 @@ static pa_volume_t a2dp_gain_to_volume(uint16_t gain) {
 
 static uint16_t volume_to_a2dp_gain(pa_volume_t volume) {
     /* Round to closest by adding half the denominator */
-    uint64_t gain = (volume * A2DP_MAX_GAIN + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM;
+    uint64_t gain = VOLUME_TO_A2DP_GAIN(volume);
 
     if (gain > A2DP_MAX_GAIN)
         gain = A2DP_MAX_GAIN;
@@ -524,6 +524,7 @@ static pa_volume_t bluez5_transport_set_volume(pa_bluetooth_transport *t, pa_vol
     pa_assert(t->device->discovery);
 
     gain = volume_to_a2dp_gain(volume);
+
     /* Propagate rounding and bound checks */
     volume = a2dp_gain_to_volume(gain);
 
