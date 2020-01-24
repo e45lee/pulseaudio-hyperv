@@ -81,11 +81,18 @@ struct userdata {
     float *revspace, *outspace[2], **inspace;
 };
 
+#define BLOCK_SIZE (u->hrir_samples)
+#define OVERLAP (u->fftlen - u->hrir_samples)
+
 static const char* const valid_modargs[] = {
     "sink_name",
     "sink_properties",
     "sink_master",
     "master",
+    "format",
+    "rate",
+    "channels",
+    "channel_map",
     "autoloaded",
     "hrir",
     "hrir_left",
@@ -386,15 +393,16 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes_input, pa_memchunk 
         pa_memblock_unref(nchunk.memblock);
     }
 
-    pa_memblockq_rewind(u->memblockq_sink, 0);
-    pa_memblockq_peek_fixed_size(u->memblockq_sink, sink_bytes(u, u->fftlen), &tchunk);
+    pa_memblockq_rewind(u->memblockq_sink, sink_bytes(u, OVERLAP));
+    pa_memblockq_peek_fixed_size(u->memblockq_sink, sink_bytes(u, OVERLAP + BLOCK_SIZE), &tchunk);
 
     pa_memblockq_drop(u->memblockq_sink, tchunk.length);
 
-    /* Now tchunk contains u->fftlen samples, of which u->hrir_samples worth will ultimately be emitted */
+    /* Now tchunk contains both OVERLAP samples of historical data and BLOCK_SIZE samples of new data
+     * This should total to u->fftlen */
 
     chunk->index = 0;
-    chunk->length = sink_input_bytes(u->hrir_samples);
+    chunk->length = sink_input_bytes(BLOCK_SIZE);
     chunk->memblock = pa_memblock_new(i->sink->core->mempool, chunk->length);
 
     src = pa_memblock_acquire_chunk(&tchunk);
@@ -409,10 +417,10 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes_input, pa_memchunk 
     pa_memblock_unref(tchunk.memblock);
   
     fftlen_if = 1.0f / (float)u->fftlen;
-    revspace = u->revspace;
+    revspace = u->revspace + OVERLAP;
   
-    pa_memzero(u->outspace[0], chunk->length);
-    pa_memzero(u->outspace[1], chunk->length);
+    pa_memzero(u->outspace[0], u->hrir_samples * 4);
+    pa_memzero(u->outspace[1], u->hrir_samples * 4);
 
     for (c = 0; c < u->inputs; c++) {
         fftwf_complex *f_in = u->f_in;
@@ -433,14 +441,14 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes_input, pa_memchunk 
 
             fftwf_execute(u->p_bw);
 
-            for (s = 0, fftlen = u->fftlen; s < fftlen; ++s)
+            for (s = 0, fftlen = u->hrir_samples; s < fftlen; ++s)
                 outspace[s] += revspace[s] * fftlen_if;
         }
     }
 
     dst = pa_memblock_acquire_chunk(chunk);
 
-    for (s = 0; s < u->hrir_samples; s++) {
+    for (s = 0, fftlen = u->hrir_samples; s < fftlen; s++) {
         float output;
         float *outspace = u->outspace[0];
 
@@ -493,7 +501,7 @@ static void sink_input_process_rewind_cb(pa_sink_input *i, size_t nbytes_input) 
 
     pa_sink_process_rewind(u->sink, amount);
 
-    nbytes_sink_rounded = PA_ROUND_UP(nbytes_sink, sink_bytes(u, u->fftlen));
+    nbytes_sink_rounded = PA_ROUND_UP(nbytes_sink, sink_bytes(u, BLOCK_SIZE));
     u->drop = sink_samples(u, nbytes_sink_rounded - nbytes_sink);
     pa_log_debug("Have to render and then drop %lu samples due to fixed block size", (unsigned long)(u->drop));
     pa_memblockq_rewind(u->memblockq_sink, nbytes_sink_rounded);
@@ -508,7 +516,7 @@ static void sink_input_update_max_rewind_cb(pa_sink_input *i, size_t nbytes_inpu
     pa_assert_se(u = i->userdata);
 
     nbytes_sink = sink_bytes(u, sink_input_samples(nbytes_input));
-    nbytes_memblockq = sink_bytes(u, sink_input_samples(nbytes_input) + u->fftlen);
+    nbytes_memblockq = sink_bytes(u, sink_input_samples(nbytes_input) + OVERLAP + BLOCK_SIZE);
 
     /* FIXME: Too small max_rewind:
      * https://bugs.freedesktop.org/show_bug.cgi?id=53709 */
@@ -529,7 +537,7 @@ static void sink_input_update_max_request_cb(pa_sink_input *i, size_t nbytes_inp
     /* (6) IF YOU NEED A FIXED BLOCK SIZE ROUND nbytes UP TO MULTIPLES
      * OF IT HERE. THE PA_ROUND_UP MACRO IS USEFUL FOR THAT. */
 
-    nbytes_sink = PA_ROUND_UP(nbytes_sink, sink_bytes(u, u->fftlen));
+    nbytes_sink = PA_ROUND_UP(nbytes_sink, sink_bytes(u, BLOCK_SIZE));
     pa_sink_set_max_request_within_thread(u->sink, nbytes_sink);
 }
 
@@ -589,7 +597,7 @@ static void sink_input_attach_cb(pa_sink_input *i) {
      * pa_sink_input_get_max_request(i) UP TO MULTIPLES OF IT
      * HERE. SEE (6) */
     max_request = sink_bytes(u, sink_input_samples(pa_sink_input_get_max_request(i)));
-    max_request = PA_ROUND_UP(max_request, sink_bytes(u, u->fftlen));
+    max_request = PA_ROUND_UP(max_request, sink_bytes(u, BLOCK_SIZE));
     pa_sink_set_max_request_within_thread(u->sink, max_request);
 
     /* FIXME: Too small max_rewind:
@@ -673,6 +681,9 @@ int pa__init(pa_module*m) {
     pa_memchunk silence;
     const char* z;
     unsigned i, j, ear, found_channel_left, found_channel_right;
+
+    pa_sample_spec ss;
+    pa_channel_map map;
   
     float *hrir_data=NULL, *hrir_right_data=NULL;
     float *hrir_temp_data;
@@ -756,10 +767,21 @@ int pa__init(pa_module*m) {
             goto fail;
         }
     }
-                            
+
     ss_input.format = PA_SAMPLE_FLOAT32NE;
     ss_input.rate = master->sample_spec.rate;
     ss_input.channels = hrir_left_temp_ss.channels;
+
+    ss = ss_input;
+    map = hrir_map;
+    if (pa_modargs_get_sample_spec_and_channel_map(ma, &ss, &map, PA_CHANNEL_MAP_DEFAULT) < 0) {
+        pa_log("Invalid sample format specification or channel map");
+        goto fail;
+    }
+
+    ss.format = PA_SAMPLE_FLOAT32NE;
+    ss_input.rate = ss.rate;
+    ss_input.channels = ss.channels;
 
     ss_output = ss_input;
     ss_output.channels = 2;
@@ -777,7 +799,7 @@ int pa__init(pa_module*m) {
     if (!(sink_data.name = pa_xstrdup(pa_modargs_get_value(ma, "sink_name", NULL))))
         sink_data.name = pa_sprintf_malloc("%s.vshp", master->name);
     pa_sink_new_data_set_sample_spec(&sink_data, &ss_input);
-    pa_sink_new_data_set_channel_map(&sink_data, &hrir_map);
+    pa_sink_new_data_set_channel_map(&sink_data, &map);
 
     z = pa_proplist_gets(master->proplist, PA_PROP_DEVICE_DESCRIPTION);
     pa_proplist_setf(sink_data.proplist, PA_PROP_DEVICE_DESCRIPTION, "Virtual Surround for Headphones on %s", z ? z : master->name);
@@ -862,7 +884,7 @@ int pa__init(pa_module*m) {
     hrir_copied_length = 0;
   
     u->hrir_samples = hrir_samples;
-    u->hrir_samples_half = hrir_samples / 2; /* Okay to round down */
+    u->hrir_samples_half = hrir_samples / 2; /* Rounding down is okay */
     u->inputs = hrir_channels;
 
     /* add silence to the hrir until we get enough samples out of the resampler */
@@ -907,15 +929,15 @@ int pa__init(pa_module*m) {
                 pa_silence_memblock(hrir_right_temp_chunk.memblock, &hrir_right_temp_ss);
             }
 
-            if (hrir_left_temp_chunk_resampled.memblock) {
+            if (hrir_right_temp_chunk_resampled.memblock) {
                 /* Copy hrir data */
                 hrir_temp_data = (float *) pa_memblock_acquire(hrir_right_temp_chunk_resampled.memblock);
 
                 if (hrir_total_length - hrir_copied_length >= hrir_right_temp_chunk_resampled.length) {
-                    memcpy(hrir_data + hrir_copied_length, hrir_temp_data, hrir_right_temp_chunk_resampled.length);
+                    memcpy(hrir_right_data + hrir_copied_length, hrir_temp_data, hrir_right_temp_chunk_resampled.length);
                     hrir_copied_length += hrir_right_temp_chunk_resampled.length;
                 } else {
-                    memcpy(hrir_data + hrir_copied_length, hrir_temp_data, hrir_total_length - hrir_copied_length);
+                    memcpy(hrir_right_data + hrir_copied_length, hrir_temp_data, hrir_total_length - hrir_copied_length);
                     hrir_copied_length = hrir_total_length;
                 }
 
@@ -939,28 +961,28 @@ int pa__init(pa_module*m) {
     /* create mapping between hrir and input */
     mapping_left = (unsigned *) pa_xnew0(unsigned, hrir_channels);
     mapping_right = (unsigned *) pa_xnew0(unsigned, hrir_channels);
-    for (i = 0; i < hrir_map.channels; i++) {
+    for (i = 0; i < map.channels; i++) {
         found_channel_left = 0;
         found_channel_right = 0;
 
         for (j = 0; j < hrir_map.channels; j++) {
-            if (hrir_map.map[j] == hrir_map.map[i]) {
+            if (hrir_map.map[j] == map.map[i]) {
                 mapping_left[i] = j;
                 found_channel_left = 1;
             }
 
-            if (hrir_map.map[j] == mirror_channel(hrir_map.map[i])) {
+            if (hrir_map.map[j] == mirror_channel(map.map[i])) {
                 mapping_right[i] = j;
                 found_channel_right = 1;
             }
         }
 
         if (!found_channel_left) {
-            pa_log("Cannot find mapping for channel %s", pa_channel_position_to_string(hrir_map.map[i]));
+            pa_log("Cannot find mapping for channel %s", pa_channel_position_to_string(map.map[i]));
             goto fail;
         }
         if (!found_channel_right) {
-            pa_log("Cannot find mapping for channel %s", pa_channel_position_to_string(mirror_channel(hrir_map.map[i])));
+            pa_log("Cannot find mapping for channel %s", pa_channel_position_to_string(mirror_channel(map.map[i])));
             goto fail;
         }
     }
@@ -984,8 +1006,8 @@ int pa__init(pa_module*m) {
   
     u->revspace = (float*) alloc(sizeof(float), fftlen);
   
-    u->outspace[0] = (float*) alloc(sizeof(float), fftlen);
-    u->outspace[1] = (float*) alloc(sizeof(float), fftlen);
+    u->outspace[0] = (float*) alloc(sizeof(float), hrir_samples);
+    u->outspace[1] = (float*) alloc(sizeof(float), hrir_samples);
   
     u->inspace = (float**) alloc(sizeof(float*), hrir_channels);
     for (i = 0; i < hrir_channels; i++)
@@ -1044,11 +1066,11 @@ int pa__init(pa_module*m) {
     pa_xfree(mapping_left);
     pa_xfree(mapping_right);
 
-    u->memblockq_sink = pa_memblockq_new("module-virtual-surround-sink memblockq (input)", 0, MEMBLOCKQ_MAXLENGTH, sink_bytes(u, u->fftlen), &ss_input, 0, 0, sink_bytes(u, u->fftlen + u->hrir_samples), &silence);
+    u->memblockq_sink = pa_memblockq_new("module-virtual-surround-sink memblockq (input)", 0, MEMBLOCKQ_MAXLENGTH, sink_bytes(u, BLOCK_SIZE), &ss_input, 0, 0, sink_bytes(u, BLOCK_SIZE + OVERLAP), &silence);
     pa_memblock_unref(silence.memblock);
 
     /* (9) INITIALIZE ANYTHING ELSE YOU NEED HERE */
-    pa_memblockq_seek(u->memblockq_sink, 0, PA_SEEK_RELATIVE, false);
+    pa_memblockq_seek(u->memblockq_sink, sink_bytes(u, OVERLAP), PA_SEEK_RELATIVE, false);
     pa_memblockq_flush_read(u->memblockq_sink);
 
     pa_sink_put(u->sink);
