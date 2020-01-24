@@ -73,7 +73,7 @@ struct userdata {
     pa_memblockq *memblockq_sink;
   
     size_t fftlen;
-    size_t hrir_samples, hrir_samples_half;
+    size_t hrir_samples;
     size_t inputs;
   
     fftwf_plan *p_fw, p_bw;
@@ -884,7 +884,6 @@ int pa__init(pa_module*m) {
     hrir_copied_length = 0;
   
     u->hrir_samples = hrir_samples;
-    u->hrir_samples_half = hrir_samples / 2; /* Rounding down is okay */
     u->inputs = hrir_channels;
 
     /* add silence to the hrir until we get enough samples out of the resampler */
