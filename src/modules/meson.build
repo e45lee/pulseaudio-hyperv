@@ -139,7 +139,7 @@ endif
 if fftw_dep.found()
   all_modules += [
     [ 'module-virtual-surround-sink', 'module-virtual-surround-sink.c', [], [], [fftw_dep, libm_dep] ],
-  }
+  ]
 endif
 
 if dbus_dep.found() and fftw_dep.found()
