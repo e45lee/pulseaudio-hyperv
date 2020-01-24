@@ -1520,7 +1520,6 @@ if HAVE_FFTW
 modlibexec_LTLIBRARIES += \
 		module-virtual-surround-sink.la
 endif
-endif
 
 if HAVE_DBUS
 if HAVE_FFTW
