@@ -61,7 +61,6 @@ all_modules = [
   [ 'module-tunnel-source-new', 'module-tunnel-source-new.c' ],
   [ 'module-virtual-sink', 'module-virtual-sink.c' ],
   [ 'module-virtual-source', 'module-virtual-source.c' ],
-  [ 'module-virtual-surround-sink', 'module-virtual-surround-sink.c' ],
   [ 'module-volume-restore', 'module-volume-restore.c' ],
 #  [ 'module-waveout', 'module-waveout.c' ],
 ]
@@ -135,6 +134,12 @@ if dbus_dep.found()
       [], [], [dbus_dep] ],
     [ 'module-rygel-media-server', 'module-rygel-media-server.c', [], [], [dbus_dep], libprotocol_http ],
   ]
+endif
+
+if fftw_dep.found()
+  all_modules += [
+    [ 'module-virtual-surround-sink', 'module-virtual-surround-sink.c', [], [], [fftw_dep, libm_dep] ],
+  }
 endif
 
 if dbus_dep.found() and fftw_dep.found()
