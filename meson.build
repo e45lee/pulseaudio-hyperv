@@ -59,6 +59,10 @@ assert(prefix.startswith('/'), 'Prefix is not absolute: "@0@"'.format(prefix))
 bindir = join_paths(prefix, get_option('bindir'))
 includedir = join_paths(prefix, get_option('includedir'))
 libdir = join_paths(prefix, get_option('libdir'))
+cmakedir = get_option('cmakedir')
+if cmakedir == ''
+    cmakedir = join_paths(libdir, 'cmake', 'PulseAudio')
+endif
 libexecdir = join_paths(prefix, get_option('libexecdir'))
 mandir = join_paths(prefix, get_option('mandir'))
 datadir = join_paths(prefix, get_option('datadir'))
@@ -67,8 +71,10 @@ localstatedir = join_paths(prefix, get_option('localstatedir'))
 sysconfdir = join_paths(prefix, get_option('sysconfdir'))
 privlibdir = join_paths(libdir, 'pulseaudio')
 alsadatadir = join_paths(datadir, 'pulseaudio', 'alsa-mixer')
-
-pkgconfigdir = join_paths(libdir, 'pkgconfig')
+pkgconfigdir = get_option('pkgconfig')
+if pkgconfigdir == ''
+    pkgconfigdir = join_paths(libdir, 'pkgconfig')
+endif
 pulselibexecdir = join_paths(libexecdir, 'pulse')
 pulsesysconfdir = join_paths(sysconfdir, 'pulse')
 
@@ -741,8 +747,6 @@ endforeach
 
 m4 = find_program('m4', required: true)
 
-cmakedir = join_paths(libdir, 'cmake', 'PulseAudio')
-
 cmake_template_file = configure_file(
   input : 'PulseAudioConfig.cmake.in',
   output : 'PulseAudioConfig.cmake.tmp',
@@ -778,6 +782,8 @@ summary = [
   'prefix:                        @0@'.format(prefix),
   'bindir:                        @0@'.format(bindir),
   'libdir:                        @0@'.format(libdir),
+  'pkgconfigdir:                  @0@'.format(pkgconfigdir),
+  'cmakedir:                      @0@'.format(cmakedir),
   'libexecdir:                    @0@'.format(libexecdir),
   'mandir:                        @0@'.format(mandir),
   'datadir:                       @0@'.format(datadir),

@@ -80,7 +80,6 @@ dist_vapi_DATA = \
 		vala/libpulse-mainloop-glib.deps vala/libpulse-mainloop-glib.vapi \
 		vala/libpulse-simple.deps vala/libpulse-simple.vapi
 
-pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libpulse.pc libpulse-simple.pc
 
 if HAVE_GLIB20
@@ -88,7 +87,6 @@ pkgconfig_DATA += \
 	 libpulse-mainloop-glib.pc
 endif
 
-cmakedir = $(libdir)/cmake/PulseAudio
 cmake_DATA = PulseAudioConfig.cmake PulseAudioConfigVersion.cmake
 
 bashcompletiondir=@bashcompletiondir@

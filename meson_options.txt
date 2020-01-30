@@ -60,6 +60,12 @@ option('bashcompletiondir',
 option('zshcompletiondir',
        type : 'string',
        description : 'Directory for zsh completion scripts ["no" disables]')
+option('cmakedir',
+       type : 'string',
+       description : 'Directory for CMakeTemplates')
+option('pkgconfig',
+       type : 'string',
+       description : 'Directory for Pkgconfig Files')
 
 # Optional features
 
