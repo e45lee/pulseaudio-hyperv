@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PulseAudio master\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-03-04 12:06+0700\n"
+"POT-Creation-Date: 2015-10-06 16:57+0200\n"
 "PO-Revision-Date: 2018-03-04 15:20+0700\n"
 "Last-Translator: Andika Triwidada <atriwidada@gnome.org>\n"
 "Language-Team: Indonesia <id@li.org>\n"
@@ -19,8 +19,8 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 "X-Generator: Poedit 1.8.11\n"
 
-#: ../src/daemon/cmdline.c:113
-#, c-format
+#: ../src/daemon/cmdline.c:111
+#, fuzzy, c-format
 msgid ""
 "%s [options]\n"
 "\n"
@@ -78,7 +78,6 @@ msgid ""
 "      --no-cpu-limit[=BOOL]             Do not install CPU load limiter on\n"
 "                                        platforms that support it.\n"
 "      --disable-shm[=BOOL]              Disable shared memory support.\n"
-"      --enable-memfd[=BOOL]             Enable memfd shared memory support.\n"
 "\n"
 "STARTUP SCRIPT:\n"
 "  -L, --load=\"MODULE ARGUMENTS\"         Load the specified plugin module "
@@ -169,15 +168,15 @@ msgstr ""
 "\n"
 "  -n                                    Jangan muat berkas skrip baku\n"
 
-#: ../src/daemon/cmdline.c:246
+#: ../src/daemon/cmdline.c:243
 msgid "--daemonize expects boolean argument"
 msgstr "--daemonize mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:254
+#: ../src/daemon/cmdline.c:251
 msgid "--fail expects boolean argument"
 msgstr "--fail  mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:265
+#: ../src/daemon/cmdline.c:262
 msgid ""
 "--log-level expects log level argument (either numeric in range 0..4 or one "
 "of debug, info, notice, warn, error)."
@@ -185,27 +184,27 @@ msgstr ""
 "--log-level mengharapkan argumen aras log (bisa berupa angka 0..4 atau salah "
 "satu dari debug, info, notice, warn, error)."
 
-#: ../src/daemon/cmdline.c:277
+#: ../src/daemon/cmdline.c:274
 msgid "--high-priority expects boolean argument"
 msgstr "--high-priority mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:285
+#: ../src/daemon/cmdline.c:282
 msgid "--realtime expects boolean argument"
 msgstr "--realtime mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:293
+#: ../src/daemon/cmdline.c:290
 msgid "--disallow-module-loading expects boolean argument"
 msgstr "--disallow-module-loading mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:301
+#: ../src/daemon/cmdline.c:298
 msgid "--disallow-exit expects boolean argument"
 msgstr "--disallow-exit mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:309
+#: ../src/daemon/cmdline.c:306
 msgid "--use-pid-file expects boolean argument"
 msgstr "--use-pid-file mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:328
+#: ../src/daemon/cmdline.c:325
 msgid ""
 "Invalid log target: use either 'syslog', 'journal','stderr' or 'auto' or a "
 "valid file name 'file:<path>', 'newfile:<path>'."
@@ -213,7 +212,7 @@ msgstr ""
 "Target log tidak valid: gunakan 'syslog', 'journal','stderr', atau 'auto' "
 "atau suatu nama berkas yang valid 'file:<path>', 'newfile:<path>'."
 
-#: ../src/daemon/cmdline.c:330
+#: ../src/daemon/cmdline.c:327
 msgid ""
 "Invalid log target: use either 'syslog', 'stderr' or 'auto' or a valid file "
 "name 'file:<path>', 'newfile:<path>'."
@@ -221,101 +220,97 @@ msgstr ""
 "Target log tak valid: gunakan 'syslog', 'stderr', atau 'auto', atau suatu "
 "nama berkas yang valid  'file:<path>', 'newfile:<path>'."
 
-#: ../src/daemon/cmdline.c:338
+#: ../src/daemon/cmdline.c:335
 msgid "--log-time expects boolean argument"
 msgstr "--log-time mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:346
+#: ../src/daemon/cmdline.c:343
 msgid "--log-meta expects boolean argument"
 msgstr "--log-meta mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:366
+#: ../src/daemon/cmdline.c:363
 #, c-format
 msgid "Invalid resample method '%s'."
 msgstr "Metode cuplik ulang tak valid '%s'."
 
-#: ../src/daemon/cmdline.c:373
+#: ../src/daemon/cmdline.c:370
 msgid "--system expects boolean argument"
 msgstr "--system mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:381
+#: ../src/daemon/cmdline.c:378
 msgid "--no-cpu-limit expects boolean argument"
 msgstr "--no-cpu-limit mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:389
+#: ../src/daemon/cmdline.c:386
 msgid "--disable-shm expects boolean argument"
 msgstr "--disable-shm mengharapkan argumen bool"
 
-#: ../src/daemon/cmdline.c:397
-msgid "--enable-memfd expects boolean argument"
-msgstr "--enable-memfd mengharapkan argumen boolean"
-
-#: ../src/daemon/daemon-conf.c:262
+#: ../src/daemon/daemon-conf.c:258
 #, c-format
 msgid "[%s:%u] Invalid log target '%s'."
 msgstr "[%s:%u] Tujuan log tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:277
+#: ../src/daemon/daemon-conf.c:273
 #, c-format
 msgid "[%s:%u] Invalid log level '%s'."
 msgstr "[%s:%u] Aras log tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:292
+#: ../src/daemon/daemon-conf.c:288
 #, c-format
 msgid "[%s:%u] Invalid resample method '%s'."
 msgstr "[%s:%u] Metoda cuplikan ulang tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:314
+#: ../src/daemon/daemon-conf.c:310
 #, c-format
 msgid "[%s:%u] Invalid rlimit '%s'."
 msgstr "[%s:%u] rlimit tak valid'%s'."
 
-#: ../src/daemon/daemon-conf.c:334
+#: ../src/daemon/daemon-conf.c:330
 #, c-format
 msgid "[%s:%u] Invalid sample format '%s'."
 msgstr "[%s:%u] Bentuk cuplikan tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:351 ../src/daemon/daemon-conf.c:368
+#: ../src/daemon/daemon-conf.c:347 ../src/daemon/daemon-conf.c:364
 #, c-format
 msgid "[%s:%u] Invalid sample rate '%s'."
 msgstr "[%s:%u] Laju cuplikan tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:391
+#: ../src/daemon/daemon-conf.c:387
 #, c-format
 msgid "[%s:%u] Invalid sample channels '%s'."
 msgstr "[%s:%u] Kanal cuplikan tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:408
+#: ../src/daemon/daemon-conf.c:404
 #, c-format
 msgid "[%s:%u] Invalid channel map '%s'."
 msgstr "[%s:%u] Peta kanal tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:425
+#: ../src/daemon/daemon-conf.c:421
 #, c-format
 msgid "[%s:%u] Invalid number of fragments '%s'."
 msgstr "[%s:%u] Cacah fragmen tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:442
+#: ../src/daemon/daemon-conf.c:438
 #, c-format
 msgid "[%s:%u] Invalid fragment size '%s'."
 msgstr "[%s:%u] Ukuran fragmen tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:459
+#: ../src/daemon/daemon-conf.c:455
 #, c-format
 msgid "[%s:%u] Invalid nice level '%s'."
 msgstr "[%s:%u] Aras nice tak valid '%s'."
 
-#: ../src/daemon/daemon-conf.c:502
+#: ../src/daemon/daemon-conf.c:498
 #, c-format
 msgid "[%s:%u] Invalid server type '%s'."
 msgstr "[%s:%u] Tipe server '%s' tak valid."
 
-#: ../src/daemon/daemon-conf.c:620
+#: ../src/daemon/daemon-conf.c:611
 #, c-format
 msgid "Failed to open configuration file: %s"
 msgstr "Gagal membaca berkas konfigurasi: %s"
 
-#: ../src/daemon/daemon-conf.c:636
+#: ../src/daemon/daemon-conf.c:627
 msgid ""
 "The specified default channel map has a different number of channels than "
 "the specified default number of channels."
@@ -323,7 +318,7 @@ msgstr ""
 "Peta kanal baku yang dinyatakan memiliki cacah kanal yang berbeda dengan "
 "cacah kanal baku yang dinyatakan."
 
-#: ../src/daemon/daemon-conf.c:723
+#: ../src/daemon/daemon-conf.c:714
 #, c-format
 msgid "### Read from configuration file: %s ###\n"
 msgstr "### Membaca dari berkas konfigurasi: %s ###\n"
@@ -390,55 +385,55 @@ msgstr "Gagal mengalokasikan pemuat dl baru."
 msgid "Failed to add bind-now-loader."
 msgstr "Gagal menambah bind-now-loader."
 
-#: ../src/daemon/main.c:162
+#: ../src/daemon/main.c:160
 #, c-format
 msgid "Failed to find user '%s'."
 msgstr "Gagal mencari pengguna '%s'."
 
-#: ../src/daemon/main.c:167
+#: ../src/daemon/main.c:165
 #, c-format
 msgid "Failed to find group '%s'."
 msgstr "Gagal mencari grup '%s'."
 
-#: ../src/daemon/main.c:176
+#: ../src/daemon/main.c:174
 #, c-format
 msgid "GID of user '%s' and of group '%s' don't match."
 msgstr "GID dari pengguna '%s' dan dari grup '%s' tak cocok."
 
-#: ../src/daemon/main.c:181
+#: ../src/daemon/main.c:179
 #, c-format
 msgid "Home directory of user '%s' is not '%s', ignoring."
 msgstr "Direktori rumah dari pengguna '%s' bukan '%s', mengabaikan."
 
-#: ../src/daemon/main.c:184 ../src/daemon/main.c:189
+#: ../src/daemon/main.c:182 ../src/daemon/main.c:187
 #, c-format
 msgid "Failed to create '%s': %s"
 msgstr "Gagal membuat '%s': %s"
 
-#: ../src/daemon/main.c:196
+#: ../src/daemon/main.c:194
 #, c-format
 msgid "Failed to change group list: %s"
 msgstr "Gagal mengubah daftar grup: %s"
 
-#: ../src/daemon/main.c:212
+#: ../src/daemon/main.c:210
 #, c-format
 msgid "Failed to change GID: %s"
 msgstr "Gagal mengubah GID: %s"
 
-#: ../src/daemon/main.c:228
+#: ../src/daemon/main.c:226
 #, c-format
 msgid "Failed to change UID: %s"
 msgstr "Gagal mengubah UID: %s"
 
-#: ../src/daemon/main.c:257
+#: ../src/daemon/main.c:255
 msgid "System wide mode unsupported on this platform."
 msgstr "Mode seluruh-sistem tak didukung pada platform ini."
 
-#: ../src/daemon/main.c:486
+#: ../src/daemon/main.c:484
 msgid "Failed to parse command line."
 msgstr "Gagal mengurai baris perintah."
 
-#: ../src/daemon/main.c:525
+#: ../src/daemon/main.c:523
 msgid ""
 "System mode refused for non-root user. Only starting the D-Bus server lookup "
 "service."
@@ -446,12 +441,12 @@ msgstr ""
 "Mode sistem ditolak bagi pengguna non root. Hanya memulai layanan pencarian "
 "server D-Bus."
 
-#: ../src/daemon/main.c:624
+#: ../src/daemon/main.c:622
 #, c-format
 msgid "Failed to kill daemon: %s"
 msgstr "Gagal membunuh daemon: %s"
 
-#: ../src/daemon/main.c:653
+#: ../src/daemon/main.c:651
 msgid ""
 "This program is not intended to be run as root (unless --system is "
 "specified)."
@@ -459,20 +454,20 @@ msgstr ""
 "Program ini tidak diinginkan dijalankan sebagai root (kecuali dinyatakan --"
 "system)."
 
-#: ../src/daemon/main.c:656
+#: ../src/daemon/main.c:654
 msgid "Root privileges required."
 msgstr "Dibutuhkan hak root."
 
-#: ../src/daemon/main.c:663
+#: ../src/daemon/main.c:661
 msgid "--start not supported for system instances."
 msgstr "--start tak didukung bagi instansi sistem."
 
-#: ../src/daemon/main.c:703
+#: ../src/daemon/main.c:701
 #, c-format
 msgid "User-configured server at %s, refusing to start/autospawn."
 msgstr "Server gubahan pengguna pada %s, menolak mulai/spawn sendiri."
 
-#: ../src/daemon/main.c:709
+#: ../src/daemon/main.c:707
 #, c-format
 msgid ""
 "User-configured server at %s, which appears to be local. Probing deeper."
@@ -480,59 +475,66 @@ msgstr ""
 "Server yang dikonfigurasi pengguna pada %s, yang nampaknya lokal. Menggali "
 "lebih dalam."
 
-#: ../src/daemon/main.c:714
-msgid "Running in system mode, but --disallow-exit not set."
+#: ../src/daemon/main.c:712
+#, fuzzy
+msgid "Running in system mode, but --disallow-exit not set!"
 msgstr "Berjalan dalam mode sistem, tapi --disallow-exit tidak ditata."
 
-#: ../src/daemon/main.c:717
-msgid "Running in system mode, but --disallow-module-loading not set."
+#: ../src/daemon/main.c:715
+#, fuzzy
+msgid "Running in system mode, but --disallow-module-loading not set!"
 msgstr ""
 "Berjalan dalam mode sistem, tapi --disallow-module-loading tidak ditata."
 
-#: ../src/daemon/main.c:720
-msgid "Running in system mode, forcibly disabling SHM mode."
+#: ../src/daemon/main.c:718
+#, fuzzy
+msgid "Running in system mode, forcibly disabling SHM mode!"
 msgstr "Berjalan dalam mode sistem, mematikan paksa mode SHM."
 
-#: ../src/daemon/main.c:725
-msgid "Running in system mode, forcibly disabling exit idle time."
+#: ../src/daemon/main.c:723
+#, fuzzy
+msgid "Running in system mode, forcibly disabling exit idle time!"
 msgstr "Berjalan dalam mode sistem, mematikan paksa keluar waktu menganggur."
 
-#: ../src/daemon/main.c:758
+#: ../src/daemon/main.c:756
 msgid "Failed to acquire stdio."
 msgstr "Gagal memperoleh stdio."
 
-#: ../src/daemon/main.c:764 ../src/daemon/main.c:835
+#: ../src/daemon/main.c:762 ../src/daemon/main.c:833
 #, c-format
 msgid "pipe() failed: %s"
 msgstr "pipe() gagal: %s"
 
-#: ../src/daemon/main.c:769 ../src/daemon/main.c:840
+#: ../src/daemon/main.c:767 ../src/daemon/main.c:838
 #, c-format
 msgid "fork() failed: %s"
 msgstr "fork() gagal: %s"
 
-#: ../src/daemon/main.c:784 ../src/daemon/main.c:855 ../src/utils/pacat.c:562
+#: ../src/daemon/main.c:782 ../src/daemon/main.c:853 ../src/utils/pacat.c:567
 #, c-format
 msgid "read() failed: %s"
 msgstr "read() gagal: %s"
 
-#: ../src/daemon/main.c:790
+#: ../src/daemon/main.c:788
 msgid "Daemon startup failed."
 msgstr "Gagal memulai daemon."
 
-#: ../src/daemon/main.c:823
+#: ../src/daemon/main.c:821
 #, c-format
 msgid "setsid() failed: %s"
 msgstr "setsid() gagal: %s"
 
-#: ../src/daemon/main.c:950
+#: ../src/daemon/main.c:948
 msgid "Failed to get machine ID"
 msgstr "Gagal memperoleh ID mesin"
 
-#: ../src/daemon/main.c:976
+#: ../src/daemon/main.c:974
+#, fuzzy
 msgid ""
-"OK, so you are running PA in system mode. Please make sure that you actually "
-"do want to do that.\n"
+"OK, so you are running PA in system mode. Please note that you most likely "
+"shouldn't be doing that.\n"
+"If you do it nonetheless then it's your own fault if things don't work as "
+"expected.\n"
 "Please read http://www.freedesktop.org/wiki/Software/PulseAudio/"
 "Documentation/User/WhatIsWrongWithSystemWide/ for an explanation why system "
 "mode is usually a bad idea."
@@ -543,19 +545,19 @@ msgstr ""
 "Documentation/User/WhatIsWrongWithSystemWide/ bagi penjelasan mengapa mode "
 "sistem biasanya adalah ide buruk."
 
-#: ../src/daemon/main.c:992
+#: ../src/daemon/main.c:991
 msgid "pa_pid_file_create() failed."
 msgstr "pa_pid_file_create() gagal."
 
-#: ../src/daemon/main.c:1024
+#: ../src/daemon/main.c:1021
 msgid "pa_core_new() failed."
 msgstr "pa_core_new() gagal."
 
-#: ../src/daemon/main.c:1094
+#: ../src/daemon/main.c:1088
 msgid "Failed to initialize daemon."
 msgstr "Gagal menginisialisasi daemon."
 
-#: ../src/daemon/main.c:1099
+#: ../src/daemon/main.c:1093
 msgid "Daemon startup without any loaded modules, refusing to work."
 msgstr "Daemon dimulai tanpa modul apapun yang dimuat, menolak bekerja."
 
@@ -567,308 +569,264 @@ msgstr "Sistem Suara PulseAudio"
 msgid "Start the PulseAudio Sound System"
 msgstr "Memulai Sistem Suara PulseAudio"
 
-#: ../src/modules/alsa/alsa-mixer.c:2443
+#: ../src/modules/alsa/alsa-mixer.c:2291
 msgid "Input"
 msgstr "Masukan"
 
-#: ../src/modules/alsa/alsa-mixer.c:2444
+#: ../src/modules/alsa/alsa-mixer.c:2292
 msgid "Docking Station Input"
 msgstr "Masukan Docking Station"
 
-#: ../src/modules/alsa/alsa-mixer.c:2445
+#: ../src/modules/alsa/alsa-mixer.c:2293
 msgid "Docking Station Microphone"
 msgstr "Mikrofon Docking Station"
 
-#: ../src/modules/alsa/alsa-mixer.c:2446
+#: ../src/modules/alsa/alsa-mixer.c:2294
 #, fuzzy
 msgid "Docking Station Line In"
 msgstr "Jalur Masuk Docking Station"
 
-#: ../src/modules/alsa/alsa-mixer.c:2447 ../src/modules/alsa/alsa-mixer.c:2532
+#: ../src/modules/alsa/alsa-mixer.c:2295 ../src/modules/alsa/alsa-mixer.c:2380
 #, fuzzy
 msgid "Line In"
 msgstr "Jalur Masuk"
 
-#: ../src/modules/alsa/alsa-mixer.c:2448 ../src/modules/alsa/alsa-mixer.c:2526
-#: ../src/modules/bluetooth/module-bluez5-device.c:1781
+#: ../src/modules/alsa/alsa-mixer.c:2296 ../src/modules/alsa/alsa-mixer.c:2374
+#: ../src/modules/bluetooth/module-bluez4-device.c:2102
+#: ../src/modules/bluetooth/module-bluez5-device.c:1710
 msgid "Microphone"
 msgstr "Mikrofon"
 
-#: ../src/modules/alsa/alsa-mixer.c:2449 ../src/modules/alsa/alsa-mixer.c:2527
+#: ../src/modules/alsa/alsa-mixer.c:2297 ../src/modules/alsa/alsa-mixer.c:2375
 msgid "Front Microphone"
 msgstr "Mikrofon Depan"
 
-#: ../src/modules/alsa/alsa-mixer.c:2450 ../src/modules/alsa/alsa-mixer.c:2528
+#: ../src/modules/alsa/alsa-mixer.c:2298 ../src/modules/alsa/alsa-mixer.c:2376
 msgid "Rear Microphone"
 msgstr "Mikrofon Belakang"
 
-#: ../src/modules/alsa/alsa-mixer.c:2451
+#: ../src/modules/alsa/alsa-mixer.c:2299
 msgid "External Microphone"
 msgstr "Mikrofon Eksternal"
 
-#: ../src/modules/alsa/alsa-mixer.c:2452 ../src/modules/alsa/alsa-mixer.c:2530
+#: ../src/modules/alsa/alsa-mixer.c:2300 ../src/modules/alsa/alsa-mixer.c:2378
 msgid "Internal Microphone"
 msgstr "Mikrofon Internal"
 
-#: ../src/modules/alsa/alsa-mixer.c:2453 ../src/modules/alsa/alsa-mixer.c:2533
+#: ../src/modules/alsa/alsa-mixer.c:2301 ../src/modules/alsa/alsa-mixer.c:2381
 msgid "Radio"
 msgstr "Radio"
 
-#: ../src/modules/alsa/alsa-mixer.c:2454 ../src/modules/alsa/alsa-mixer.c:2534
+#: ../src/modules/alsa/alsa-mixer.c:2302 ../src/modules/alsa/alsa-mixer.c:2382
 msgid "Video"
 msgstr "Video"
 
-#: ../src/modules/alsa/alsa-mixer.c:2455
+#: ../src/modules/alsa/alsa-mixer.c:2303
 msgid "Automatic Gain Control"
 msgstr "Kendali Penguatan Otomatis (AGC)"
 
-#: ../src/modules/alsa/alsa-mixer.c:2456
+#: ../src/modules/alsa/alsa-mixer.c:2304
 msgid "No Automatic Gain Control"
 msgstr "Tanpa Kendali Penguatan Otomatis (AGC)"
 
-#: ../src/modules/alsa/alsa-mixer.c:2457
+#: ../src/modules/alsa/alsa-mixer.c:2305
 msgid "Boost"
 msgstr "Boost"
 
-#: ../src/modules/alsa/alsa-mixer.c:2458
+#: ../src/modules/alsa/alsa-mixer.c:2306
 msgid "No Boost"
 msgstr "Tanpa Boost"
 
-#: ../src/modules/alsa/alsa-mixer.c:2459
+#: ../src/modules/alsa/alsa-mixer.c:2307
 msgid "Amplifier"
 msgstr "Penguat"
 
-#: ../src/modules/alsa/alsa-mixer.c:2460
+#: ../src/modules/alsa/alsa-mixer.c:2308
 msgid "No Amplifier"
 msgstr "Tanpa Penguat"
 
-#: ../src/modules/alsa/alsa-mixer.c:2461
+#: ../src/modules/alsa/alsa-mixer.c:2309
 msgid "Bass Boost"
 msgstr "Boost Bass"
 
-#: ../src/modules/alsa/alsa-mixer.c:2462
+#: ../src/modules/alsa/alsa-mixer.c:2310
 msgid "No Bass Boost"
 msgstr "Tanpa Boost Bass"
 
-#: ../src/modules/alsa/alsa-mixer.c:2463
-#: ../src/modules/bluetooth/module-bluez5-device.c:1788
+#: ../src/modules/alsa/alsa-mixer.c:2311
+#: ../src/modules/bluetooth/module-bluez4-device.c:2107
+#: ../src/modules/bluetooth/module-bluez5-device.c:1717
 msgid "Speaker"
 msgstr "Speaker"
 
-#: ../src/modules/alsa/alsa-mixer.c:2464 ../src/modules/alsa/alsa-mixer.c:2536
+#: ../src/modules/alsa/alsa-mixer.c:2312 ../src/modules/alsa/alsa-mixer.c:2384
 msgid "Headphones"
 msgstr "Headphone"
 
-#: ../src/modules/alsa/alsa-mixer.c:2525
+#: ../src/modules/alsa/alsa-mixer.c:2373
 msgid "Analog Input"
 msgstr "Masukan Analog"
 
-#: ../src/modules/alsa/alsa-mixer.c:2529
+#: ../src/modules/alsa/alsa-mixer.c:2377
 #, fuzzy
 msgid "Dock Microphone"
 msgstr "Mikrofon Dok"
 
-#: ../src/modules/alsa/alsa-mixer.c:2531
+#: ../src/modules/alsa/alsa-mixer.c:2379
 msgid "Headset Microphone"
 msgstr "Mikrofon Headset"
 
-#: ../src/modules/alsa/alsa-mixer.c:2535
+#: ../src/modules/alsa/alsa-mixer.c:2383
 msgid "Analog Output"
 msgstr "Keluaran Analog"
 
-#: ../src/modules/alsa/alsa-mixer.c:2537
-msgid "Headphones Mono Output"
-msgstr "Keluaran Mono Headphone"
-
-#: ../src/modules/alsa/alsa-mixer.c:2538
+#: ../src/modules/alsa/alsa-mixer.c:2385
 msgid "LFE on Separate Mono Output"
 msgstr "LFE pada Keluaran Mono Terpisah"
 
-#: ../src/modules/alsa/alsa-mixer.c:2539
+#: ../src/modules/alsa/alsa-mixer.c:2386
 #, fuzzy
 msgid "Line Out"
 msgstr "Jalur Keluar"
 
-#: ../src/modules/alsa/alsa-mixer.c:2540
+#: ../src/modules/alsa/alsa-mixer.c:2387
 msgid "Analog Mono Output"
 msgstr "Keluaran Mono Analog"
 
-#: ../src/modules/alsa/alsa-mixer.c:2541
+#: ../src/modules/alsa/alsa-mixer.c:2388
 msgid "Speakers"
 msgstr "Speaker"
 
-#: ../src/modules/alsa/alsa-mixer.c:2542
+#: ../src/modules/alsa/alsa-mixer.c:2389
 msgid "HDMI / DisplayPort"
 msgstr "HDMI / DisplayPort"
 
-#: ../src/modules/alsa/alsa-mixer.c:2543
+#: ../src/modules/alsa/alsa-mixer.c:2390
 msgid "Digital Output (S/PDIF)"
 msgstr "Keluaran Digital (S/PDIF)"
 
-#: ../src/modules/alsa/alsa-mixer.c:2544
+#: ../src/modules/alsa/alsa-mixer.c:2391
 msgid "Digital Input (S/PDIF)"
 msgstr "Masukan Digital (S/PDIF)"
 
-#: ../src/modules/alsa/alsa-mixer.c:2545
+#: ../src/modules/alsa/alsa-mixer.c:2392
 msgid "Digital Passthrough (S/PDIF)"
 msgstr "Passthrough Digital (S/PDIF)"
 
-#: ../src/modules/alsa/alsa-mixer.c:2546
-msgid "Multichannel Input"
-msgstr "Masukan Multikanal"
-
-#: ../src/modules/alsa/alsa-mixer.c:2547
-msgid "Multichannel Output"
-msgstr "Keluaran Multikanal"
-
-#: ../src/modules/alsa/alsa-mixer.c:4059
+#: ../src/modules/alsa/alsa-mixer.c:3898
 msgid "Analog Mono"
 msgstr "Analog Mono"
 
-#. Note: Not translated to "Analog Stereo Input", because the source
-#. * name gets "Input" appended to it automatically, so adding "Input"
-#. * here would lead to the source name to become "Analog Stereo Input
-#. * Input". The same logic applies to analog-stereo-output,
-#. * multichannel-input and multichannel-output.
-#: ../src/modules/alsa/alsa-mixer.c:4060 ../src/modules/alsa/alsa-mixer.c:4067
-#: ../src/modules/alsa/alsa-mixer.c:4068
+#: ../src/modules/alsa/alsa-mixer.c:3899
 msgid "Analog Stereo"
 msgstr "Analog Stereo"
 
-#: ../src/modules/alsa/alsa-mixer.c:4061 ../src/pulse/channelmap.c:775
-msgid "Stereo"
-msgstr "Stereo"
-
-#: ../src/modules/alsa/alsa-mixer.c:4069 ../src/modules/alsa/alsa-mixer.c:4070
+#: ../src/modules/alsa/alsa-mixer.c:3900
 msgid "Multichannel"
 msgstr "Multikanal"
 
-#: ../src/modules/alsa/alsa-mixer.c:4071
+#: ../src/modules/alsa/alsa-mixer.c:3901
 msgid "Analog Surround 2.1"
 msgstr "Analog Surround 2.1"
 
-#: ../src/modules/alsa/alsa-mixer.c:4072
+#: ../src/modules/alsa/alsa-mixer.c:3902
 msgid "Analog Surround 3.0"
 msgstr "Analog Surround 3.0"
 
-#: ../src/modules/alsa/alsa-mixer.c:4073
+#: ../src/modules/alsa/alsa-mixer.c:3903
 msgid "Analog Surround 3.1"
 msgstr "Analog Surround 3.1"
 
-#: ../src/modules/alsa/alsa-mixer.c:4074
+#: ../src/modules/alsa/alsa-mixer.c:3904
 msgid "Analog Surround 4.0"
 msgstr "Analog Surround 4.0"
 
-#: ../src/modules/alsa/alsa-mixer.c:4075
+#: ../src/modules/alsa/alsa-mixer.c:3905
 msgid "Analog Surround 4.1"
 msgstr "Analog Surround 4.1"
 
-#: ../src/modules/alsa/alsa-mixer.c:4076
+#: ../src/modules/alsa/alsa-mixer.c:3906
 msgid "Analog Surround 5.0"
 msgstr "Analog Surround 5.0"
 
-#: ../src/modules/alsa/alsa-mixer.c:4077
+#: ../src/modules/alsa/alsa-mixer.c:3907
 msgid "Analog Surround 5.1"
 msgstr "Analog Surround 5.1"
 
-#: ../src/modules/alsa/alsa-mixer.c:4078
+#: ../src/modules/alsa/alsa-mixer.c:3908
 msgid "Analog Surround 6.0"
 msgstr "Analog Surround 6.0"
 
-#: ../src/modules/alsa/alsa-mixer.c:4079
+#: ../src/modules/alsa/alsa-mixer.c:3909
 msgid "Analog Surround 6.1"
 msgstr "Analog Surround 6.1"
 
-#: ../src/modules/alsa/alsa-mixer.c:4080
+#: ../src/modules/alsa/alsa-mixer.c:3910
 msgid "Analog Surround 7.0"
 msgstr "Analog Surround 7.0"
 
-#: ../src/modules/alsa/alsa-mixer.c:4081
+#: ../src/modules/alsa/alsa-mixer.c:3911
 msgid "Analog Surround 7.1"
 msgstr "Analog Surround 7.1"
 
-#: ../src/modules/alsa/alsa-mixer.c:4082
+#: ../src/modules/alsa/alsa-mixer.c:3912
 msgid "Digital Stereo (IEC958)"
 msgstr "Digital Stereo (IEC958)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4083
+#: ../src/modules/alsa/alsa-mixer.c:3913
 msgid "Digital Passthrough  (IEC958)"
 msgstr "Passthrough Digital (IEC958)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4084
+#: ../src/modules/alsa/alsa-mixer.c:3914
 msgid "Digital Surround 4.0 (IEC958/AC3)"
 msgstr "Digital Surround 4.0 (IEC958/AC3)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4085
+#: ../src/modules/alsa/alsa-mixer.c:3915
 msgid "Digital Surround 5.1 (IEC958/AC3)"
 msgstr "Digital Surround 5.1 (IEC958/AC3)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4086
+#: ../src/modules/alsa/alsa-mixer.c:3916
 msgid "Digital Surround 5.1 (IEC958/DTS)"
 msgstr "Surround 5.1 Digital (IEC958/DTS)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4087
+#: ../src/modules/alsa/alsa-mixer.c:3917
 msgid "Digital Stereo (HDMI)"
 msgstr "Digital Stereo (HDMI)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4088
+#: ../src/modules/alsa/alsa-mixer.c:3918
 msgid "Digital Surround 5.1 (HDMI)"
 msgstr "Surround 5.1 Digital (HDMI)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4221
+#: ../src/modules/alsa/alsa-mixer.c:4049
 msgid "Analog Mono Duplex"
 msgstr "Analog Mono Duplex"
 
-#: ../src/modules/alsa/alsa-mixer.c:4222
+#: ../src/modules/alsa/alsa-mixer.c:4050
 msgid "Analog Stereo Duplex"
 msgstr "Analog Stereo Duplex"
 
-#: ../src/modules/alsa/alsa-mixer.c:4223
+#: ../src/modules/alsa/alsa-mixer.c:4051
 msgid "Digital Stereo Duplex (IEC958)"
 msgstr "Digital Stereo Duplex (IEC958)"
 
-#: ../src/modules/alsa/alsa-mixer.c:4224
-msgid "Multichannel Duplex"
-msgstr "Dupleks Multikanal"
-
-#: ../src/modules/alsa/alsa-mixer.c:4225
-msgid "Stereo Duplex"
-msgstr "Dupleks Stereo"
-
-#: ../src/modules/alsa/alsa-mixer.c:4226
-#: ../src/modules/alsa/module-alsa-card.c:185
-#: ../src/modules/bluetooth/module-bluez5-device.c:2036
+#: ../src/modules/alsa/alsa-mixer.c:4052
+#: ../src/modules/alsa/module-alsa-card.c:190
+#: ../src/modules/bluetooth/module-bluez4-device.c:2298
+#: ../src/modules/bluetooth/module-bluez5-device.c:1941
 msgid "Off"
 msgstr "Mati"
 
-#: ../src/modules/alsa/alsa-mixer.c:4325
+#: ../src/modules/alsa/alsa-mixer.c:4151
 #, c-format
 msgid "%s Output"
 msgstr "Keluaran %s"
 
-#: ../src/modules/alsa/alsa-mixer.c:4333
+#: ../src/modules/alsa/alsa-mixer.c:4159
 #, c-format
 msgid "%s Input"
 msgstr "Masukan %s"
 
-#: ../src/modules/alsa/alsa-sink.c:572
-#, c-format
-msgid ""
-"ALSA woke us up to write new data to the device, but there was actually "
-"nothing to write.\n"
-"Most likely this is a bug in the ALSA driver '%s'. Please report this issue "
-"to the ALSA developers.\n"
-"We were woken up with POLLOUT set -- however a subsequent snd_pcm_avail() "
-"returned 0 or another value < min_avail."
-msgstr ""
-"ALSA membangunkan kita untuk menulis data baru ke peranti, tapi sebenarnya "
-"tak ada sesuatu untuk ditulis!\n"
-"Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan "
-"masalah ini ke para pengembang ALSA.\n"
-"Kami dibangunkan dengan POLLOUT diset -- namun snd_pcm_avail() setelahnya "
-"mengembalikan 0 atau nilai lain < min_avail."
-
-#: ../src/modules/alsa/alsa-sink.c:756
+#: ../src/modules/alsa/alsa-sink.c:570 ../src/modules/alsa/alsa-sink.c:747
 #, c-format
 msgid ""
 "ALSA woke us up to write new data to the device, but there was actually "
@@ -885,24 +843,7 @@ msgstr ""
 "Kami dibangunkan dengan POLLOUT diset -- namun snd_pcm_avail() setelahnya "
 "mengembalikan 0 atau nilai lain < min_avail."
 
-#: ../src/modules/alsa/alsa-source.c:529
-#, c-format
-msgid ""
-"ALSA woke us up to read new data from the device, but there was actually "
-"nothing to read.\n"
-"Most likely this is a bug in the ALSA driver '%s'. Please report this issue "
-"to the ALSA developers.\n"
-"We were woken up with POLLIN set -- however a subsequent snd_pcm_avail() "
-"returned 0 or another value < min_avail."
-msgstr ""
-"ALSA membangunkan kita untuk membaca data baru dari peranti, tapi sebenarnya "
-"tak ada sesuatu untuk dibaca!\n"
-"Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan "
-"masalah ini ke para pengembang ALSA.\n"
-"Kami dibangunkan dengan POLLIN diset -- namun snd_pcm_avail() setelahnya "
-"mengembalikan 0 atau nilai lain < min_avail."
-
-#: ../src/modules/alsa/alsa-source.c:680
+#: ../src/modules/alsa/alsa-source.c:529 ../src/modules/alsa/alsa-source.c:680
 #, c-format
 msgid ""
 "ALSA woke us up to read new data from the device, but there was actually "
@@ -919,7 +860,7 @@ msgstr ""
 "Kami dibangunkan dengan POLLIN diset -- namun snd_pcm_avail() setelahnya "
 "mengembalikan 0 atau nilai lain < min_avail."
 
-#: ../src/modules/alsa/alsa-util.c:1168 ../src/modules/alsa/alsa-util.c:1243
+#: ../src/modules/alsa/alsa-util.c:1134 ../src/modules/alsa/alsa-util.c:1209
 #, c-format
 msgid ""
 "snd_pcm_avail() returned a value that is exceptionally large: %lu bytes (%lu "
@@ -932,7 +873,7 @@ msgstr ""
 "Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan hal "
 "ini ke para pengembang ALSA."
 
-#: ../src/modules/alsa/alsa-util.c:1218
+#: ../src/modules/alsa/alsa-util.c:1184
 #, c-format
 msgid ""
 "snd_pcm_delay() returned a value that is exceptionally large: %li bytes (%s"
@@ -945,7 +886,7 @@ msgstr ""
 "Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan hal "
 "ini ke para pengembang ALSA."
 
-#: ../src/modules/alsa/alsa-util.c:1259
+#: ../src/modules/alsa/alsa-util.c:1225
 #, c-format
 msgid ""
 "snd_pcm_avail_delay() returned strange values: delay %lu is less than avail "
@@ -958,7 +899,7 @@ msgstr ""
 "Paling mungkin ini adalah kutu dalam penggerak ALSA '%s'. Harap laporkan "
 "kasus ini ke para pengembang ALSA."
 
-#: ../src/modules/alsa/alsa-util.c:1302
+#: ../src/modules/alsa/alsa-util.c:1268
 #, c-format
 msgid ""
 "snd_pcm_mmap_begin() returned a value that is exceptionally large: %lu bytes "
@@ -971,68 +912,96 @@ msgstr ""
 "Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan hal "
 "ini ke para pengembang ALSA."
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1771
+#: ../src/modules/bluetooth/module-bluez4-device.c:2092
+#: ../src/modules/bluetooth/module-bluez5-device.c:1700
 msgid "Headset"
 msgstr "Headset"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1776
+#: ../src/modules/bluetooth/module-bluez4-device.c:2097
+#: ../src/modules/bluetooth/module-bluez5-device.c:1705
 msgid "Handsfree"
 msgstr "Handsfree"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1794
+#: ../src/modules/bluetooth/module-bluez4-device.c:2112
+#: ../src/modules/bluetooth/module-bluez5-device.c:1723
 msgid "Headphone"
 msgstr "Headphone"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1799
+#: ../src/modules/bluetooth/module-bluez4-device.c:2117
+#: ../src/modules/bluetooth/module-bluez5-device.c:1728
 msgid "Portable"
 msgstr "Portabel"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1804
+#: ../src/modules/bluetooth/module-bluez4-device.c:2122
+#: ../src/modules/bluetooth/module-bluez5-device.c:1733
 msgid "Car"
 msgstr "Mobil"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1809
+#: ../src/modules/bluetooth/module-bluez4-device.c:2127
+#: ../src/modules/bluetooth/module-bluez5-device.c:1738
 msgid "HiFi"
 msgstr "HiFi"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1814
+#: ../src/modules/bluetooth/module-bluez4-device.c:2132
+#: ../src/modules/bluetooth/module-bluez5-device.c:1743
 msgid "Phone"
 msgstr "Telepon"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1766
-#: ../src/modules/bluetooth/module-bluez5-device.c:1782
-#: ../src/modules/bluetooth/module-bluez5-device.c:1820
+#: ../src/modules/bluetooth/module-bluez4-device.c:2140
+#: ../src/modules/bluetooth/module-bluez5-device.c:1695
+#: ../src/modules/bluetooth/module-bluez5-device.c:1711
+#: ../src/modules/bluetooth/module-bluez5-device.c:1749
 msgid "Bluetooth Output"
 msgstr "Keluaran Bluetooth"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1765
-#: ../src/modules/bluetooth/module-bluez5-device.c:1787
-#: ../src/modules/bluetooth/module-bluez5-device.c:1793
-#: ../src/modules/bluetooth/module-bluez5-device.c:1819
+#: ../src/modules/bluetooth/module-bluez4-device.c:2143
+#: ../src/modules/bluetooth/module-bluez5-device.c:1694
+#: ../src/modules/bluetooth/module-bluez5-device.c:1716
+#: ../src/modules/bluetooth/module-bluez5-device.c:1722
+#: ../src/modules/bluetooth/module-bluez5-device.c:1748
 msgid "Bluetooth Input"
 msgstr "Masukan Bluetooth"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1861
+#: ../src/modules/bluetooth/module-bluez4-device.c:2179
+#, fuzzy
+msgid "High Fidelity Playback (A2DP)"
+msgstr "High Fidelity Playback (Muara A2DP)"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2190
+#, fuzzy
+msgid "High Fidelity Capture (A2DP)"
+msgstr "High Fidelity Capture (Sumber A2DP)"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2201
+msgid "Telephony Duplex (HSP/HFP)"
+msgstr "Dupleks Teleponi (HSP/HFP)"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2213
+#, fuzzy
+msgid "Handsfree Gateway"
+msgstr "Handsfree"
+
+#: ../src/modules/bluetooth/module-bluez5-device.c:1786
 #, fuzzy
 msgid "High Fidelity Playback (A2DP Sink)"
 msgstr "High Fidelity Playback (Muara A2DP)"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1873
+#: ../src/modules/bluetooth/module-bluez5-device.c:1797
 #, fuzzy
 msgid "High Fidelity Capture (A2DP Source)"
 msgstr "High Fidelity Capture (Sumber A2DP)"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1885
+#: ../src/modules/bluetooth/module-bluez5-device.c:1808
 #, fuzzy
 msgid "Headset Head Unit (HSP/HFP)"
 msgstr "Headset Head Unit (HSP/HFP)"
 
-#: ../src/modules/bluetooth/module-bluez5-device.c:1898
+#: ../src/modules/bluetooth/module-bluez5-device.c:1820
 #, fuzzy
 msgid "Headset Audio Gateway (HSP/HFP)"
 msgstr "Headset Audio Gateway (HSP/HFP)"
 
-#: ../src/modules/echo-cancel/module-echo-cancel.c:59
+#: ../src/modules/echo-cancel/module-echo-cancel.c:61
 #, fuzzy
 msgid ""
 "source_name=<name for the source> source_properties=<properties for the "
@@ -1043,8 +1012,7 @@ msgid ""
 "rate> channels=<number of channels> channel_map=<channel map> "
 "aec_method=<implementation to use> aec_args=<parameters for the AEC engine> "
 "save_aec=<save AEC data in /tmp> autoloaded=<set if this module is being "
-"loaded automatically> use_volume_sharing=<yes or no> use_master_format=<yes "
-"or no> "
+"loaded automatically> use_volume_sharing=<yes or no> "
 msgstr ""
 "source_name=<name for the source> source_properties=<properties for the "
 "source> source_master=<name of source to filter> sink_name=<name for the "
@@ -1058,29 +1026,24 @@ msgstr ""
 "or no> "
 
 #. add on profile
-#: ../src/modules/macosx/module-coreaudio-device.c:824
+#: ../src/modules/macosx/module-coreaudio-device.c:754
 msgid "On"
 msgstr "Nyala"
 
-#: ../src/modules/module-allow-passthrough.c:71
+#: ../src/modules/module-always-sink.c:36
+msgid "Always keeps at least one sink loaded even if it's a null one"
+msgstr "Selalu jaga paling tidak satu muara bermuatan bahkan jika berupa null"
+
 #: ../src/modules/module-always-sink.c:80
 msgid "Dummy Output"
 msgstr "Keluaran Dummy"
 
-#: ../src/modules/module-always-sink.c:34
-msgid "Always keeps at least one sink loaded even if it's a null one"
-msgstr "Selalu jaga paling tidak satu muara bermuatan bahkan jika berupa null"
-
-#: ../src/modules/module-always-source.c:35
-msgid "Always keeps at least one source loaded even if it's a null one"
-msgstr "Selalu jaga paling tidak satu muara bermuatan bahkan jika berupa null"
-
-#: ../src/modules/module-equalizer-sink.c:68
+#: ../src/modules/module-equalizer-sink.c:70
 #, fuzzy
 msgid "General Purpose Equalizer"
 msgstr "Equalizer Tujuan Umum"
 
-#: ../src/modules/module-equalizer-sink.c:72
+#: ../src/modules/module-equalizer-sink.c:74
 msgid ""
 "sink_name=<name of the sink> sink_properties=<properties for the sink> "
 "sink_master=<sink to connect to> format=<sample format> rate=<sample rate> "
@@ -1092,32 +1055,24 @@ msgstr ""
 "channels=<cacah kanal> channel_map=<peta kanal> autoloaded=<tata bila modul "
 "ini dimuat secara otomatis> use_volume_sharing=<yes atau no> "
 
-#: ../src/modules/module-equalizer-sink.c:1089
-#: ../src/modules/module-equalizer-sink.c:1212
-#, c-format
-msgid "FFT based equalizer on %s"
-msgstr "Ekualiser berbasis FFT pada %s"
-
-#: ../src/modules/module-filter-apply.c:47
+#: ../src/modules/module-filter-apply.c:46
 msgid "autoclean=<automatically unload unused filters?>"
 msgstr "autoclean=<secara otomatis bongkar penyaring yang tak dipakai?>"
 
-#: ../src/modules/module-ladspa-sink.c:50
+#: ../src/modules/module-ladspa-sink.c:51
 msgid "Virtual LADSPA sink"
 msgstr "Muara virtual LADSPA"
 
-#: ../src/modules/module-ladspa-sink.c:54
+#: ../src/modules/module-ladspa-sink.c:55
 #, fuzzy
 msgid ""
 "sink_name=<name for the sink> sink_properties=<properties for the sink> "
-"sink_input_properties=<properties for the sink input> master=<name of sink "
-"to filter> sink_master=<name of sink to filter> format=<sample format> "
-"rate=<sample rate> channels=<number of channels> channel_map=<input channel "
-"map> plugin=<ladspa plugin name> label=<ladspa plugin label> control=<comma "
-"separated list of input control values> input_ladspaport_map=<comma "
-"separated list of input LADSPA port names> output_ladspaport_map=<comma "
-"separated list of output LADSPA port names> autoloaded=<set if this module "
-"is being loaded automatically> "
+"master=<name of sink to filter> format=<sample format> rate=<sample rate> "
+"channels=<number of channels> channel_map=<input channel map> plugin=<ladspa "
+"plugin name> label=<ladspa plugin label> control=<comma separated list of "
+"input control values> input_ladspaport_map=<comma separated list of input "
+"LADSPA port names> output_ladspaport_map=<comma separated list of output "
+"LADSPA port names> "
 msgstr ""
 "sink_name=<nama bagi muara> sink_properties=<properti bagi muara> "
 "sink_input_properties=<properti bagi masukan muara> master=<nama muara untuk "
@@ -1129,56 +1084,58 @@ msgstr ""
 "output_ladspaport_map=<comma separated list of output LADSPA port names> "
 "autoloaded=<set if this module is being loaded automatically> "
 
-#: ../src/modules/module-null-sink.c:45
+#: ../src/modules/module-null-sink.c:47
 msgid "Clocked NULL sink"
 msgstr "Muara NULL dengan clock"
 
-#: ../src/modules/module-null-sink.c:282
+#: ../src/modules/module-null-sink.c:278
 msgid "Null Output"
 msgstr "Keluaran Null"
 
-#: ../src/modules/module-rygel-media-server.c:506
-#: ../src/modules/module-rygel-media-server.c:544
-#: ../src/modules/module-rygel-media-server.c:903
+#: ../src/modules/module-rygel-media-server.c:508
+#: ../src/modules/module-rygel-media-server.c:546
+#: ../src/modules/module-rygel-media-server.c:905
 msgid "Output Devices"
 msgstr "Perangkat Keluaran"
 
-#: ../src/modules/module-rygel-media-server.c:507
-#: ../src/modules/module-rygel-media-server.c:545
-#: ../src/modules/module-rygel-media-server.c:904
+#: ../src/modules/module-rygel-media-server.c:509
+#: ../src/modules/module-rygel-media-server.c:547
+#: ../src/modules/module-rygel-media-server.c:906
 msgid "Input Devices"
 msgstr "Perangkat Masukan"
 
-#: ../src/modules/module-rygel-media-server.c:1061
+#: ../src/modules/module-rygel-media-server.c:1063
 msgid "Audio on @HOSTNAME@"
 msgstr "Audio pada @HOSTNAME@"
 
-#. TODO: old tunnel put here the remote sink_name into stream name e.g. 'Null Output for lynxis@lazus'
-#. TODO: old tunnel put here the remote source_name into stream name e.g. 'Null Output for lynxis@lazus'
+#. TODO: old tunnel put here the remote sink_name into stream name e.g. 'Null
+#. Output for lynxis@lazus'
+#. TODO: old tunnel put here the remote source_name into stream name e.g.
+#. 'Null Output for lynxis@lazus'
 #: ../src/modules/module-tunnel-sink-new.c:307
 #: ../src/modules/module-tunnel-source-new.c:305
 #, c-format
 msgid "Tunnel for %s@%s"
 msgstr "Tunnel untuk %s@%s"
 
-#: ../src/modules/module-tunnel-sink-new.c:530
-#: ../src/modules/module-tunnel-source-new.c:526
+#: ../src/modules/module-tunnel-sink-new.c:517
+#: ../src/modules/module-tunnel-source-new.c:516
 #, c-format
 msgid "Tunnel to %s/%s"
 msgstr "Tunnel ke %s/%s"
 
-#: ../src/modules/module-virtual-surround-sink.c:45
+#: ../src/modules/module-virtual-surround-sink.c:47
 msgid "Virtual surround sink"
 msgstr "Muara virtual surround"
 
-#: ../src/modules/module-virtual-surround-sink.c:49
+#: ../src/modules/module-virtual-surround-sink.c:51
+#, fuzzy
 msgid ""
 "sink_name=<name for the sink> sink_properties=<properties for the sink> "
-"master=<name of sink to filter> sink_master=<name of sink to filter> "
-"format=<sample format> rate=<sample rate> channels=<number of channels> "
-"channel_map=<channel map> use_volume_sharing=<yes or no> "
-"force_flat_volume=<yes or no> hrir=/path/to/left_hrir.wav autoloaded=<set if "
-"this module is being loaded automatically> "
+"master=<name of sink to filter> format=<sample format> rate=<sample rate> "
+"channels=<number of channels> channel_map=<channel map> "
+"use_volume_sharing=<yes or no> force_flat_volume=<yes or no> hrir=/path/to/"
+"left_hrir.wav "
 msgstr ""
 "sink_name=<nama bagi muara> sink_properties=<properti bagi muara> "
 "master=<nama muara untuk disaring> format=<format cuplikan> rate=<laju "
@@ -1186,19 +1143,11 @@ msgstr ""
 "plugin ladspa> label=<label plugin ladspa> control=<daftar nilai kendali "
 "masukan yang dipisahkan dengan koma>"
 
-#: ../src/modules/raop/module-raop-discover.c:295
-msgid "Unknown device model"
-msgstr "Model peranti tak dikenal"
-
-#: ../src/modules/raop/raop-sink.c:498
-msgid "RAOP standard profile"
-msgstr "Profil standar RAOP"
-
 #: ../src/modules/reserve-wrap.c:149
 msgid "PulseAudio Sound Server"
 msgstr "Server Suara PulseAudio"
 
-#: ../src/pulse/channelmap.c:103 ../src/pulse/channelmap.c:771
+#: ../src/pulse/channelmap.c:103 ../src/pulse/channelmap.c:758
 msgid "Mono"
 msgstr "Mono"
 
@@ -1403,30 +1352,34 @@ msgid "Top Rear Right"
 msgstr "Puncak Belakang Kanan"
 
 #: ../src/pulse/channelmap.c:479 ../src/pulse/format.c:121
-#: ../src/pulse/sample.c:177 ../src/pulse/volume.c:306
-#: ../src/pulse/volume.c:332 ../src/pulse/volume.c:352
-#: ../src/pulse/volume.c:384 ../src/pulse/volume.c:424
-#: ../src/pulse/volume.c:443
+#: ../src/pulse/sample.c:175 ../src/pulse/volume.c:294
+#: ../src/pulse/volume.c:320 ../src/pulse/volume.c:340
+#: ../src/pulse/volume.c:372 ../src/pulse/volume.c:412
+#: ../src/pulse/volume.c:431
 msgid "(invalid)"
 msgstr "(tak valid)"
 
-#: ../src/pulse/channelmap.c:780
+#: ../src/pulse/channelmap.c:762
+msgid "Stereo"
+msgstr "Stereo"
+
+#: ../src/pulse/channelmap.c:767
 msgid "Surround 4.0"
 msgstr "Surround 4.0"
 
-#: ../src/pulse/channelmap.c:786
+#: ../src/pulse/channelmap.c:773
 msgid "Surround 4.1"
 msgstr "Surround 4.1"
 
-#: ../src/pulse/channelmap.c:792
+#: ../src/pulse/channelmap.c:779
 msgid "Surround 5.0"
 msgstr "Surround 5.0"
 
-#: ../src/pulse/channelmap.c:798
+#: ../src/pulse/channelmap.c:785
 msgid "Surround 5.1"
 msgstr "Surround 5.1"
 
-#: ../src/pulse/channelmap.c:805
+#: ../src/pulse/channelmap.c:792
 msgid "Surround 7.1"
 msgstr "Surround 7.1"
 
@@ -1442,17 +1395,17 @@ msgstr "xcb_connection_has_error() mengembalikan true"
 msgid "Failed to parse cookie data"
 msgstr "Gagal mengurai data cookie"
 
-#: ../src/pulse/context.c:702
+#: ../src/pulse/context.c:656
 #, c-format
 msgid "fork(): %s"
 msgstr "fork(): %s"
 
-#: ../src/pulse/context.c:757
+#: ../src/pulse/context.c:711
 #, c-format
 msgid "waitpid(): %s"
 msgstr "waitpid(): %s"
 
-#: ../src/pulse/context.c:1463
+#: ../src/pulse/context.c:1412
 #, c-format
 msgid "Received message for unknown extension '%s'"
 msgstr "Menerima pesan bagi pengaya tak dikenal '%s'"
@@ -1474,7 +1427,7 @@ msgstr "dua arah"
 msgid "invalid"
 msgstr "tidak valid"
 
-#: ../src/pulsecore/core-util.c:1859
+#: ../src/pulsecore/core-util.c:1820
 #, c-format
 msgid ""
 "XDG_RUNTIME_DIR (%s) is not owned by us (uid %d), but by uid %d! (This could "
@@ -1486,11 +1439,11 @@ msgstr ""
 "bukan root sebagai pengguna root, melalui protokol native. Jangan lakukan "
 "itu.)"
 
-#: ../src/pulsecore/core-util.h:97
+#: ../src/pulsecore/core-util.h:93
 msgid "yes"
 msgstr "ya"
 
-#: ../src/pulsecore/core-util.h:97
+#: ../src/pulsecore/core-util.h:93
 msgid "no"
 msgstr "tidak"
 
@@ -1498,12 +1451,12 @@ msgstr "tidak"
 msgid "Cannot access autospawn lock."
 msgstr "Tak bisa akses kunci spawn sendiri."
 
-#: ../src/pulsecore/log.c:165
+#: ../src/pulsecore/log.c:153
 #, c-format
 msgid "Failed to open target file '%s'."
 msgstr "Gagal membuka berkas target '%s'."
 
-#: ../src/pulsecore/log.c:188
+#: ../src/pulsecore/log.c:176
 #, c-format
 msgid ""
 "Tried to open target file '%s', '%s.1', '%s.2' ... '%s.%d', but all failed."
@@ -1511,15 +1464,15 @@ msgstr ""
 "Mencoba membuka berkas target '%s', '%s.1', '%s.2' ... '%s.%d', tapi semua "
 "gagal."
 
-#: ../src/pulsecore/log.c:651
+#: ../src/pulsecore/log.c:631
 msgid "Invalid log target."
 msgstr "Target log tidak valid."
 
-#: ../src/pulsecore/sink.c:3526
+#: ../src/pulsecore/sink.c:3427
 msgid "Built-in Audio"
 msgstr "Audio Bawaan"
 
-#: ../src/pulsecore/sink.c:3531
+#: ../src/pulsecore/sink.c:3432
 msgid "Modem"
 msgstr "Modem"
 
@@ -1631,213 +1584,248 @@ msgstr "Galat masukan/keluaran"
 msgid "Device or resource busy"
 msgstr "Perangkat atau sumber daya sibuk"
 
-#: ../src/pulse/sample.c:179
+#: ../src/pulse/sample.c:177
 #, c-format
 msgid "%s %uch %uHz"
 msgstr "%s %uch %uHz"
 
-#: ../src/pulse/sample.c:191
+#: ../src/pulse/sample.c:189
 #, c-format
 msgid "%0.1f GiB"
 msgstr "%0.1f GiB"
 
-#: ../src/pulse/sample.c:193
+#: ../src/pulse/sample.c:191
 #, c-format
 msgid "%0.1f MiB"
 msgstr "%0.1f MiB"
 
-#: ../src/pulse/sample.c:195
+#: ../src/pulse/sample.c:193
 #, c-format
 msgid "%0.1f KiB"
 msgstr "%0.1f KiB"
 
-#: ../src/pulse/sample.c:197
+#: ../src/pulse/sample.c:195
 #, c-format
 msgid "%u B"
 msgstr "%u B"
 
-#: ../src/utils/pacat.c:134
+#: ../src/tests/resampler-test.c:255
+#, c-format
+msgid ""
+"%s [options]\n"
+"\n"
+"-h, --help                            Show this help\n"
+"-v, --verbose                         Print debug messages\n"
+"      --from-rate=SAMPLERATE          From sample rate in Hz (defaults to "
+"44100)\n"
+"      --from-format=SAMPLEFORMAT      From sample type (defaults to s16le)\n"
+"      --from-channels=CHANNELS        From number of channels (defaults to "
+"1)\n"
+"      --to-rate=SAMPLERATE            To sample rate in Hz (defaults to "
+"44100)\n"
+"      --to-format=SAMPLEFORMAT        To sample type (defaults to s16le)\n"
+"      --to-channels=CHANNELS          To number of channels (defaults to 1)\n"
+"      --resample-method=METHOD        Resample method (defaults to auto)\n"
+"      --seconds=SECONDS               From stream duration (defaults to 60)\n"
+"\n"
+"If the formats are not specified, the test performs all formats "
+"combinations,\n"
+"back and forth.\n"
+"\n"
+"Sample type must be one of s16le, s16be, u8, float32le, float32be, ulaw, "
+"alaw,\n"
+"s24le, s24be, s24-32le, s24-32be, s32le, s32be (defaults to s16ne)\n"
+"\n"
+"See --dump-resample-methods for possible values of resample methods.\n"
+msgstr ""
+
+#: ../src/tests/resampler-test.c:354
+#, fuzzy, c-format
+msgid "%s %s\n"
+msgstr "Cara pakai: %s\n"
+
+#: ../src/utils/pacat.c:116
 #, c-format
 msgid "Failed to drain stream: %s"
 msgstr "Gagal menguras stream: %s"
 
-#: ../src/utils/pacat.c:139
+#: ../src/utils/pacat.c:121
 msgid "Playback stream drained."
 msgstr "Stream main ulang terkuras."
 
-#: ../src/utils/pacat.c:150
+#: ../src/utils/pacat.c:132
 msgid "Draining connection to server."
 msgstr "Menguras sambungan ke server."
 
-#: ../src/utils/pacat.c:163
+#: ../src/utils/pacat.c:145
 #, c-format
 msgid "pa_stream_drain(): %s"
 msgstr "pa_stream_drain(): %s"
 
-#: ../src/utils/pacat.c:194 ../src/utils/pacat.c:543
-#, c-format
-msgid "pa_stream_begin_write() failed: %s"
-msgstr "pa_stream_begin_write() gagal: %s"
-
-#: ../src/utils/pacat.c:244 ../src/utils/pacat.c:274
-#, c-format
-msgid "pa_stream_peek() failed: %s"
-msgstr "pa_stream_peek() gagal: %s"
-
-#: ../src/utils/pacat.c:324
-msgid "Stream successfully created."
-msgstr "Stream sukses dibuat."
-
-#: ../src/utils/pacat.c:327
-#, c-format
-msgid "pa_stream_get_buffer_attr() failed: %s"
-msgstr "pa_stream_get_buffer_attr() gagal: %s"
-
-#: ../src/utils/pacat.c:331
-#, c-format
-msgid "Buffer metrics: maxlength=%u, tlength=%u, prebuf=%u, minreq=%u"
-msgstr "Metrik penyangga: maxlength=%u, tlength=%u, prebuf=%u, minreq=%u"
-
-#: ../src/utils/pacat.c:334
-#, c-format
-msgid "Buffer metrics: maxlength=%u, fragsize=%u"
-msgstr "Metrik penyangga: maxlength=%u, fragsize=%u"
-
-#: ../src/utils/pacat.c:338
-#, c-format
-msgid "Using sample spec '%s', channel map '%s'."
-msgstr "Memakai spek cuplikan '%s', peta kanal '%s'."
-
-#: ../src/utils/pacat.c:342
-#, c-format
-msgid "Connected to device %s (index: %u, suspended: %s)."
-msgstr "Tersambung ke perangkat %s (indeks: %u, disuspensi: %s)."
-
-#: ../src/utils/pacat.c:352
-#, c-format
-msgid "Stream error: %s"
-msgstr "Galat stream: %s"
-
-#: ../src/utils/pacat.c:362
-#, c-format
-msgid "Stream device suspended.%s"
-msgstr "Perangkat stream disuspensi.%s"
-
-#: ../src/utils/pacat.c:364
-#, c-format
-msgid "Stream device resumed.%s"
-msgstr "Perangkat stream dilanjutkan.%s"
-
-#: ../src/utils/pacat.c:372
-#, c-format
-msgid "Stream underrun.%s"
-msgstr "Stream underrun.%s"
-
-#: ../src/utils/pacat.c:379
-#, c-format
-msgid "Stream overrun.%s"
-msgstr "Stream tertimpa.%s"
-
-#: ../src/utils/pacat.c:386
-#, c-format
-msgid "Stream started.%s"
-msgstr "Stream dimulai.%s"
-
-#: ../src/utils/pacat.c:393
-#, c-format
-msgid "Stream moved to device %s (%u, %ssuspended).%s"
-msgstr "Stream dipindah ke perangkat %s (%u, %sdisuspensi).%s"
-
-#: ../src/utils/pacat.c:393
-msgid "not "
-msgstr "tidak"
-
-#: ../src/utils/pacat.c:400
-#, c-format
-msgid "Stream buffer attributes changed.%s"
-msgstr "Atribut penyangga stream diubah.%s"
-
-#: ../src/utils/pacat.c:415
-msgid "Cork request stack is empty: corking stream"
-msgstr "Tumpukan permintaan cork kosong: meng-cork stream"
-
-#: ../src/utils/pacat.c:421
-msgid "Cork request stack is empty: uncorking stream"
-msgstr "Tumpukan permintaan cork kosong: meng-uncork stream"
-
-#: ../src/utils/pacat.c:425
-msgid "Warning: Received more uncork requests than cork requests."
-msgstr ""
-"Peringatan: Menerima lebih banyak permintaan uncork daripada permintaan cork."
-
-#: ../src/utils/pacat.c:450
-#, c-format
-msgid "Connection established.%s"
-msgstr "Koneksi terbentuk.%s"
-
-#: ../src/utils/pacat.c:453
-#, c-format
-msgid "pa_stream_new() failed: %s"
-msgstr "pa_stream_new() gagal: %s"
-
-#: ../src/utils/pacat.c:491
-#, c-format
-msgid "pa_stream_connect_playback() failed: %s"
-msgstr "pa_stream_connect_playback() gagal: %s"
-
-#: ../src/utils/pacat.c:497
-#, c-format
-msgid "Failed to set monitor stream: %s"
-msgstr "Gagal menata stream pantau: %s"
-
-#: ../src/utils/pacat.c:501
-#, c-format
-msgid "pa_stream_connect_record() failed: %s"
-msgstr "pa_stream_connect_record() gagal: %s"
-
-#: ../src/utils/pacat.c:514 ../src/utils/pactl.c:1446
-#, c-format
-msgid "Connection failure: %s"
-msgstr "Kegagalan koneksi: %s"
-
-#: ../src/utils/pacat.c:557
-msgid "Got EOF."
-msgstr "Mendapat EOF."
-
-#: ../src/utils/pacat.c:581
+#: ../src/utils/pacat.c:168
 #, c-format
 msgid "pa_stream_write() failed: %s"
 msgstr "pa_stream_write() gagal: %s"
 
-#: ../src/utils/pacat.c:605
+#: ../src/utils/pacat.c:209
+#, c-format
+msgid "pa_stream_begin_write() failed: %s"
+msgstr "pa_stream_begin_write() gagal: %s"
+
+#: ../src/utils/pacat.c:259 ../src/utils/pacat.c:289
+#, c-format
+msgid "pa_stream_peek() failed: %s"
+msgstr "pa_stream_peek() gagal: %s"
+
+#: ../src/utils/pacat.c:339
+msgid "Stream successfully created."
+msgstr "Stream sukses dibuat."
+
+#: ../src/utils/pacat.c:342
+#, c-format
+msgid "pa_stream_get_buffer_attr() failed: %s"
+msgstr "pa_stream_get_buffer_attr() gagal: %s"
+
+#: ../src/utils/pacat.c:346
+#, c-format
+msgid "Buffer metrics: maxlength=%u, tlength=%u, prebuf=%u, minreq=%u"
+msgstr "Metrik penyangga: maxlength=%u, tlength=%u, prebuf=%u, minreq=%u"
+
+#: ../src/utils/pacat.c:349
+#, c-format
+msgid "Buffer metrics: maxlength=%u, fragsize=%u"
+msgstr "Metrik penyangga: maxlength=%u, fragsize=%u"
+
+#: ../src/utils/pacat.c:353
+#, c-format
+msgid "Using sample spec '%s', channel map '%s'."
+msgstr "Memakai spek cuplikan '%s', peta kanal '%s'."
+
+#: ../src/utils/pacat.c:357
+#, c-format
+msgid "Connected to device %s (index: %u, suspended: %s)."
+msgstr "Tersambung ke perangkat %s (indeks: %u, disuspensi: %s)."
+
+#: ../src/utils/pacat.c:367
+#, c-format
+msgid "Stream error: %s"
+msgstr "Galat stream: %s"
+
+#: ../src/utils/pacat.c:377
+#, c-format
+msgid "Stream device suspended.%s"
+msgstr "Perangkat stream disuspensi.%s"
+
+#: ../src/utils/pacat.c:379
+#, c-format
+msgid "Stream device resumed.%s"
+msgstr "Perangkat stream dilanjutkan.%s"
+
+#: ../src/utils/pacat.c:387
+#, c-format
+msgid "Stream underrun.%s"
+msgstr "Stream underrun.%s"
+
+#: ../src/utils/pacat.c:394
+#, c-format
+msgid "Stream overrun.%s"
+msgstr "Stream tertimpa.%s"
+
+#: ../src/utils/pacat.c:401
+#, c-format
+msgid "Stream started.%s"
+msgstr "Stream dimulai.%s"
+
+#: ../src/utils/pacat.c:408
+#, c-format
+msgid "Stream moved to device %s (%u, %ssuspended).%s"
+msgstr "Stream dipindah ke perangkat %s (%u, %sdisuspensi).%s"
+
+#: ../src/utils/pacat.c:408
+msgid "not "
+msgstr "tidak"
+
+#: ../src/utils/pacat.c:415
+#, c-format
+msgid "Stream buffer attributes changed.%s"
+msgstr "Atribut penyangga stream diubah.%s"
+
+#: ../src/utils/pacat.c:430
+msgid "Cork request stack is empty: corking stream"
+msgstr "Tumpukan permintaan cork kosong: meng-cork stream"
+
+#: ../src/utils/pacat.c:436
+msgid "Cork request stack is empty: uncorking stream"
+msgstr "Tumpukan permintaan cork kosong: meng-uncork stream"
+
+#: ../src/utils/pacat.c:440
+#, fuzzy
+msgid "Warning: Received more uncork requests than cork requests!"
+msgstr ""
+"Peringatan: Menerima lebih banyak permintaan uncork daripada permintaan cork."
+
+#: ../src/utils/pacat.c:465
+#, c-format
+msgid "Connection established.%s"
+msgstr "Koneksi terbentuk.%s"
+
+#: ../src/utils/pacat.c:468
+#, c-format
+msgid "pa_stream_new() failed: %s"
+msgstr "pa_stream_new() gagal: %s"
+
+#: ../src/utils/pacat.c:506
+#, c-format
+msgid "pa_stream_connect_playback() failed: %s"
+msgstr "pa_stream_connect_playback() gagal: %s"
+
+#: ../src/utils/pacat.c:512
+#, c-format
+msgid "Failed to set monitor stream: %s"
+msgstr "Gagal menata stream pantau: %s"
+
+#: ../src/utils/pacat.c:516
+#, c-format
+msgid "pa_stream_connect_record() failed: %s"
+msgstr "pa_stream_connect_record() gagal: %s"
+
+#: ../src/utils/pacat.c:529 ../src/utils/pactl.c:1446
+#, c-format
+msgid "Connection failure: %s"
+msgstr "Kegagalan koneksi: %s"
+
+#: ../src/utils/pacat.c:562
+msgid "Got EOF."
+msgstr "Mendapat EOF."
+
+#: ../src/utils/pacat.c:599
 #, c-format
 msgid "write() failed: %s"
 msgstr "write() gagal: %s"
 
-#: ../src/utils/pacat.c:626
+#: ../src/utils/pacat.c:620
 msgid "Got signal, exiting."
 msgstr "Mendapat sinyal, keluar."
 
-#: ../src/utils/pacat.c:640
+#: ../src/utils/pacat.c:634
 #, c-format
 msgid "Failed to get latency: %s"
 msgstr "Gagal mendapat latensi: %s"
 
-#: ../src/utils/pacat.c:645
+#: ../src/utils/pacat.c:639
 #, c-format
 msgid "Time: %0.3f sec; Latency: %0.0f usec."
 msgstr "Waktu: %0.3f dtk; Latensi: %0.0f udtk."
 
-#: ../src/utils/pacat.c:666
+#: ../src/utils/pacat.c:660
 #, c-format
 msgid "pa_stream_update_timing_info() failed: %s"
 msgstr "pa_stream_update_timing_info() gagal: %s"
 
-#: ../src/utils/pacat.c:676
-#, c-format
+#: ../src/utils/pacat.c:670
+#, fuzzy, c-format
 msgid ""
 "%s [options]\n"
-"%s\n"
 "\n"
 "  -h, --help                            Show this help\n"
 "      --version                         Show version\n"
@@ -1964,34 +1952,7 @@ msgstr ""
 "      --monitor-stream=INDEKS           Rekam dari masukan muara dengan "
 "indeks INDEKS.\n"
 
-#: ../src/utils/pacat.c:793
-msgid "Play back encoded audio files on a PulseAudio sound server."
-msgstr "Memutar berkas audio terenkode pada server suara PulseAudio."
-
-#: ../src/utils/pacat.c:797
-msgid ""
-"Capture audio data from a PulseAudio sound server and write it to a file."
-msgstr ""
-"Menangkap data audio dari suatu server suara PulseAudio dan menulisnya ke "
-"sebuah berkas."
-
-#: ../src/utils/pacat.c:801
-msgid ""
-"Capture audio data from a PulseAudio sound server and write it to STDOUT or "
-"the specified file."
-msgstr ""
-"Menangkap data audio dari suatu server suara PulseAudio dan menulisnya ke "
-"STDOUT atau berkas yang dinyatakan."
-
-#: ../src/utils/pacat.c:805
-msgid ""
-"Play back audio data from STDIN or the specified file on a PulseAudio sound "
-"server."
-msgstr ""
-"Memutar data audio dari STDIN atau berkas yang dinyatakan pada suatu server "
-"suara PulseAudio."
-
-#: ../src/utils/pacat.c:819
+#: ../src/utils/pacat.c:808
 #, c-format
 msgid ""
 "pacat %s\n"
@@ -2002,72 +1963,72 @@ msgstr ""
 "Dikompail dengan libpulse %s\n"
 "Ditaut dengan libpulse %s\n"
 
-#: ../src/utils/pacat.c:852 ../src/utils/pactl.c:1648
+#: ../src/utils/pacat.c:841 ../src/utils/pactl.c:1642
 #, c-format
 msgid "Invalid client name '%s'"
 msgstr "Nama klien '%s' tak valid"
 
-#: ../src/utils/pacat.c:867
+#: ../src/utils/pacat.c:856
 #, c-format
 msgid "Invalid stream name '%s'"
 msgstr "Nama stream '%s' tak valid"
 
-#: ../src/utils/pacat.c:904
+#: ../src/utils/pacat.c:893
 #, c-format
 msgid "Invalid channel map '%s'"
 msgstr "Peta kanal '%s' tak valid"
 
-#: ../src/utils/pacat.c:933 ../src/utils/pacat.c:947
+#: ../src/utils/pacat.c:922 ../src/utils/pacat.c:936
 #, c-format
 msgid "Invalid latency specification '%s'"
 msgstr "Spesifikasi latensi '%s' tak valid"
 
-#: ../src/utils/pacat.c:940 ../src/utils/pacat.c:954
+#: ../src/utils/pacat.c:929 ../src/utils/pacat.c:943
 #, c-format
 msgid "Invalid process time specification '%s'"
 msgstr "Spesifikasi waktu proses '%s' tak valid"
 
-#: ../src/utils/pacat.c:966
+#: ../src/utils/pacat.c:955
 #, c-format
 msgid "Invalid property '%s'"
 msgstr "Properti '%s' tak valid"
 
-#: ../src/utils/pacat.c:985
+#: ../src/utils/pacat.c:974
 #, c-format
 msgid "Unknown file format %s."
 msgstr "Format berkas %s tak dikenal."
 
-#: ../src/utils/pacat.c:1000
+#: ../src/utils/pacat.c:989
 msgid "Failed to parse the argument for --monitor-stream"
 msgstr "Gagal mengurai argumen untuk --monitor-stream"
 
-#: ../src/utils/pacat.c:1011
+#: ../src/utils/pacat.c:1000
 msgid "Invalid sample specification"
 msgstr "Spesifikasi cuplikan tak valid"
 
-#: ../src/utils/pacat.c:1021
+#: ../src/utils/pacat.c:1010
 #, c-format
 msgid "open(): %s"
 msgstr "open(): %s"
 
-#: ../src/utils/pacat.c:1026
+#: ../src/utils/pacat.c:1015
 #, c-format
 msgid "dup2(): %s"
 msgstr "dup2(): %s"
 
-#: ../src/utils/pacat.c:1033
+#: ../src/utils/pacat.c:1022
 msgid "Too many arguments."
 msgstr "Terlalu banyak argumen."
 
-#: ../src/utils/pacat.c:1044
+#: ../src/utils/pacat.c:1033
 msgid "Failed to generate sample specification for file."
 msgstr "Gagal menjangkitkan spesifikasi cuplikan bagi berkas."
 
-#: ../src/utils/pacat.c:1070
+#: ../src/utils/pacat.c:1059
 msgid "Failed to open audio file."
 msgstr "Gagal membuka berkas audio."
 
-#: ../src/utils/pacat.c:1076
+#: ../src/utils/pacat.c:1065
 msgid ""
 "Warning: specified sample specification will be overwritten with "
 "specification from file."
@@ -2075,23 +2036,23 @@ msgstr ""
 "Peringatan: spesifikasi cuplikan yang dinyatakan akan ditimpa oleh "
 "spesifikasi dari berkas."
 
-#: ../src/utils/pacat.c:1079 ../src/utils/pactl.c:1712
+#: ../src/utils/pacat.c:1068 ../src/utils/pactl.c:1706
 msgid "Failed to determine sample specification from file."
 msgstr "Gagal menentukan spesifikasi cuplikan dari berkas."
 
-#: ../src/utils/pacat.c:1088
+#: ../src/utils/pacat.c:1077
 msgid "Warning: Failed to determine channel map from file."
 msgstr "Peringatan: Gagal menentukan peta kanal dari berkas."
 
-#: ../src/utils/pacat.c:1099
+#: ../src/utils/pacat.c:1088
 msgid "Channel map doesn't match sample specification"
 msgstr "Peta kanan tak cocok dengan spesifikasi cuplikan"
 
-#: ../src/utils/pacat.c:1110
+#: ../src/utils/pacat.c:1099
 msgid "Warning: failed to write channel map to file."
 msgstr "Peringatan: gagal menulis peta kanal ke berkas."
 
-#: ../src/utils/pacat.c:1125
+#: ../src/utils/pacat.c:1114
 #, c-format
 msgid ""
 "Opening a %s stream with sample specification '%s' and channel map '%s'."
@@ -2099,53 +2060,53 @@ msgstr ""
 "Sedang membuka stream %s dengan spesifikasi cuplikan '%s' dan peta kanal "
 "'%s'."
 
-#: ../src/utils/pacat.c:1126
+#: ../src/utils/pacat.c:1115
 msgid "recording"
 msgstr "merekam"
 
-#: ../src/utils/pacat.c:1126
+#: ../src/utils/pacat.c:1115
 msgid "playback"
 msgstr "memainkan"
 
-#: ../src/utils/pacat.c:1150
+#: ../src/utils/pacat.c:1139
 msgid "Failed to set media name."
 msgstr "Gagal menata nama media."
 
-#: ../src/utils/pacat.c:1160 ../src/utils/pactl.c:2062
+#: ../src/utils/pacat.c:1146 ../src/utils/pactl.c:2056
 msgid "pa_mainloop_new() failed."
 msgstr "pa_mainloop_new() gagal."
 
-#: ../src/utils/pacat.c:1183
+#: ../src/utils/pacat.c:1169
 msgid "io_new() failed."
 msgstr "io_new() gagal."
 
-#: ../src/utils/pacat.c:1190 ../src/utils/pactl.c:2074
+#: ../src/utils/pacat.c:1176 ../src/utils/pactl.c:2068
 msgid "pa_context_new() failed."
 msgstr "pa_context_new() gagal."
 
-#: ../src/utils/pacat.c:1198 ../src/utils/pactl.c:2080
+#: ../src/utils/pacat.c:1184 ../src/utils/pactl.c:2074
 #, c-format
 msgid "pa_context_connect() failed: %s"
 msgstr "pa_context_connect() gagal: %s"
 
-#: ../src/utils/pacat.c:1204
+#: ../src/utils/pacat.c:1190
 msgid "pa_context_rttime_new() failed."
 msgstr "pa_context_rttime_new() gagal."
 
-#: ../src/utils/pacat.c:1211 ../src/utils/pactl.c:2085
+#: ../src/utils/pacat.c:1197 ../src/utils/pactl.c:2079
 msgid "pa_mainloop_run() failed."
 msgstr "pa_mainloop_run() gagal."
 
-#: ../src/utils/pacmd.c:51 ../src/utils/pactl.c:1570
+#: ../src/utils/pacmd.c:51 ../src/utils/pactl.c:1564
 msgid "NAME [ARGS ...]"
 msgstr "NAMA [ARG ...]"
 
-#: ../src/utils/pacmd.c:52 ../src/utils/pacmd.c:60 ../src/utils/pactl.c:1571
+#: ../src/utils/pacmd.c:52 ../src/utils/pacmd.c:60 ../src/utils/pactl.c:1565
 msgid "NAME|#N"
 msgstr "NAMA|#N"
 
-#: ../src/utils/pacmd.c:53 ../src/utils/pacmd.c:63 ../src/utils/pactl.c:1569
-#: ../src/utils/pactl.c:1575
+#: ../src/utils/pacmd.c:53 ../src/utils/pacmd.c:63 ../src/utils/pactl.c:1563
+#: ../src/utils/pactl.c:1569
 msgid "NAME"
 msgstr "NAMA"
 
@@ -2157,7 +2118,7 @@ msgstr "NAMA|#N VOLUME"
 msgid "#N VOLUME"
 msgstr "#N VOLUME"
 
-#: ../src/utils/pacmd.c:56 ../src/utils/pacmd.c:70 ../src/utils/pactl.c:1573
+#: ../src/utils/pacmd.c:56 ../src/utils/pacmd.c:70 ../src/utils/pactl.c:1567
 msgid "NAME|#N 1|0"
 msgstr "NAMA|#N 1|0"
 
@@ -2193,7 +2154,7 @@ msgstr "NAMAPATH"
 msgid "FILENAME SINK|#N"
 msgstr "NAMABERKAS MUARA|#N"
 
-#: ../src/utils/pacmd.c:69 ../src/utils/pactl.c:1572
+#: ../src/utils/pacmd.c:69 ../src/utils/pactl.c:1566
 msgid "#N SINK|SOURCE"
 msgstr "#N MUARA|SUMBER"
 
@@ -2201,15 +2162,15 @@ msgstr "#N MUARA|SUMBER"
 msgid "1|0"
 msgstr "1|0"
 
-#: ../src/utils/pacmd.c:72 ../src/utils/pactl.c:1574
+#: ../src/utils/pacmd.c:72 ../src/utils/pactl.c:1568
 msgid "CARD PROFILE"
 msgstr "PROFIL KARTU"
 
-#: ../src/utils/pacmd.c:73 ../src/utils/pactl.c:1576
+#: ../src/utils/pacmd.c:73 ../src/utils/pactl.c:1570
 msgid "NAME|#N PORT"
 msgstr "NAMA|#N PORT"
 
-#: ../src/utils/pacmd.c:74 ../src/utils/pactl.c:1582
+#: ../src/utils/pacmd.c:74 ../src/utils/pactl.c:1576
 msgid "CARD-NAME|CARD-#N PORT OFFSET"
 msgstr "NAMA-KARTU|KARTU-#N PORT OFSET"
 
@@ -2219,7 +2180,7 @@ msgstr "TARGET"
 
 #: ../src/utils/pacmd.c:76
 #, fuzzy
-msgid "NUMERIC-LEVEL"
+msgid "NUMERIC LEVEL"
 msgstr "NUMERIC-LEVEL"
 
 #: ../src/utils/pacmd.c:79
@@ -2536,11 +2497,6 @@ msgstr ""
 msgid "\tProfiles:\n"
 msgstr "\tProfil:\n"
 
-#: ../src/utils/pactl.c:581
-#, c-format
-msgid "\t\t%s: %s (sinks: %u, sources: %u, priority: %u, available: %s)\n"
-msgstr "\t\t%s: %s (muara: %u, sumber: %u, prioritas: %u, tersedia: %s)\n"
-
 #: ../src/utils/pactl.c:586
 #, c-format
 msgid "\tActive Profile: %s\n"
@@ -2776,22 +2732,25 @@ msgstr "Kejadian '%s' pada %s #%u\n"
 msgid "Got SIGINT, exiting."
 msgstr "Mendapat SIGINT, keluar."
 
-#: ../src/utils/pactl.c:1485
+#: ../src/utils/pactl.c:1479
 msgid "Invalid volume specification"
 msgstr "Spesifikasi volume tak valid"
 
-#: ../src/utils/pactl.c:1508
+#: ../src/utils/pactl.c:1502
 msgid "Volume outside permissible range.\n"
 msgstr "Volume di luar rentang yang diizinkan.\n"
 
-#: ../src/utils/pactl.c:1521
+#: ../src/utils/pactl.c:1515
 msgid "Invalid number of volume specifications.\n"
 msgstr "Banyaknya spesifikasi volume tidak valid.\n"
 
-#: ../src/utils/pactl.c:1533
+#: ../src/utils/pactl.c:1527
 msgid "Inconsistent volume specification.\n"
 msgstr "Spesifikasi volume tidak konsisten.\n"
 
+#: ../src/utils/pactl.c:1557 ../src/utils/pactl.c:1558
+#: ../src/utils/pactl.c:1559 ../src/utils/pactl.c:1560
+#: ../src/utils/pactl.c:1561 ../src/utils/pactl.c:1562
 #: ../src/utils/pactl.c:1563 ../src/utils/pactl.c:1564
 #: ../src/utils/pactl.c:1565 ../src/utils/pactl.c:1566
 #: ../src/utils/pactl.c:1567 ../src/utils/pactl.c:1568
@@ -2799,46 +2758,43 @@ msgstr "Spesifikasi volume tidak konsisten.\n"
 #: ../src/utils/pactl.c:1571 ../src/utils/pactl.c:1572
 #: ../src/utils/pactl.c:1573 ../src/utils/pactl.c:1574
 #: ../src/utils/pactl.c:1575 ../src/utils/pactl.c:1576
-#: ../src/utils/pactl.c:1577 ../src/utils/pactl.c:1578
-#: ../src/utils/pactl.c:1579 ../src/utils/pactl.c:1580
-#: ../src/utils/pactl.c:1581 ../src/utils/pactl.c:1582
-#: ../src/utils/pactl.c:1583
+#: ../src/utils/pactl.c:1577
 msgid "[options]"
 msgstr "[opsi]"
 
-#: ../src/utils/pactl.c:1565
+#: ../src/utils/pactl.c:1559
 msgid "[TYPE]"
 msgstr "[TIPE]"
 
-#: ../src/utils/pactl.c:1567
+#: ../src/utils/pactl.c:1561
 msgid "FILENAME [NAME]"
 msgstr "NAMABERKAS [NAMA]"
 
-#: ../src/utils/pactl.c:1568
+#: ../src/utils/pactl.c:1562
 msgid "NAME [SINK]"
 msgstr "NAMA [MUARA]"
 
-#: ../src/utils/pactl.c:1577
+#: ../src/utils/pactl.c:1571
 msgid "NAME|#N VOLUME [VOLUME ...]"
 msgstr "NAMA|#N VOLUME [VOLUME ...]"
 
-#: ../src/utils/pactl.c:1578
+#: ../src/utils/pactl.c:1572
 msgid "#N VOLUME [VOLUME ...]"
 msgstr "#N VOLUME [VOLUME ...]"
 
-#: ../src/utils/pactl.c:1579
+#: ../src/utils/pactl.c:1573
 msgid "NAME|#N 1|0|toggle"
 msgstr "NAMA|#N 1|0|toggle"
 
-#: ../src/utils/pactl.c:1580
+#: ../src/utils/pactl.c:1574
 msgid "#N 1|0|toggle"
 msgstr "#N 1|0|toggle"
 
-#: ../src/utils/pactl.c:1581
+#: ../src/utils/pactl.c:1575
 msgid "#N FORMATS"
 msgstr "#N FORMAT"
 
-#: ../src/utils/pactl.c:1584
+#: ../src/utils/pactl.c:1578
 #, c-format
 msgid ""
 "\n"
@@ -2849,7 +2805,7 @@ msgstr ""
 "Nama-nama khusus @DEFAULT_SINK@, @DEFAULT_SOURCE@, dan @DEFAULT_MONITOR@\n"
 "dapat dipakai untuk menyatakan muara, sumber, dan pemantau baku.\n"
 
-#: ../src/utils/pactl.c:1587
+#: ../src/utils/pactl.c:1581
 #, c-format
 msgid ""
 "\n"
@@ -2869,7 +2825,7 @@ msgstr ""
 "  -n, --client-name=NAMA                Bagaimana memanggil klien ini pada "
 "server\n"
 
-#: ../src/utils/pactl.c:1628
+#: ../src/utils/pactl.c:1622
 #, c-format
 msgid ""
 "pactl %s\n"
@@ -2880,59 +2836,59 @@ msgstr ""
 "Dikompail dengan libpulse %s\n"
 "Ditaut dengan libpulse %s\n"
 
-#: ../src/utils/pactl.c:1684
+#: ../src/utils/pactl.c:1678
 #, c-format
 msgid "Specify nothing, or one of: %s"
 msgstr "Jangan nyatakan apapun, atau satu dari: %s"
 
-#: ../src/utils/pactl.c:1694
+#: ../src/utils/pactl.c:1688
 msgid "Please specify a sample file to load"
 msgstr "Nyatakan berkas cuplikan untuk dimuat"
 
-#: ../src/utils/pactl.c:1707
+#: ../src/utils/pactl.c:1701
 msgid "Failed to open sound file."
 msgstr "Gagal membuka berkas suara."
 
-#: ../src/utils/pactl.c:1719
+#: ../src/utils/pactl.c:1713
 msgid "Warning: Failed to determine sample specification from file."
 msgstr "Peringatan: Gagal menentukan spesifikasi cuplikan dari berkas."
 
-#: ../src/utils/pactl.c:1729
+#: ../src/utils/pactl.c:1723
 msgid "You have to specify a sample name to play"
 msgstr "Anda mesti menyatakan nama cuplikan untuk diputar"
 
-#: ../src/utils/pactl.c:1741
+#: ../src/utils/pactl.c:1735
 msgid "You have to specify a sample name to remove"
 msgstr "Anda mesti menyatakan nama cuplikan untuk dihapus"
 
-#: ../src/utils/pactl.c:1750
+#: ../src/utils/pactl.c:1744
 msgid "You have to specify a sink input index and a sink"
 msgstr "Anda mesti menyatakan suatu indeks masukan muara dan suatu muara"
 
-#: ../src/utils/pactl.c:1760
+#: ../src/utils/pactl.c:1754
 msgid "You have to specify a source output index and a source"
 msgstr "Anda mesti menyatakan suatu indeks keluaran sumber dan suatu sumber"
 
-#: ../src/utils/pactl.c:1775
+#: ../src/utils/pactl.c:1769
 msgid "You have to specify a module name and arguments."
 msgstr "Anda mesti menyatakan nama modul dan argumen."
 
-#: ../src/utils/pactl.c:1795
+#: ../src/utils/pactl.c:1789
 msgid "You have to specify a module index or name"
 msgstr "Anda mesti menyatakan suatu nama atau indeks modul"
 
-#: ../src/utils/pactl.c:1808
+#: ../src/utils/pactl.c:1802
 msgid ""
 "You may not specify more than one sink. You have to specify a boolean value."
 msgstr ""
 "Anda tak boleh menyatakan lebih dari satu muara. Anda mesti menyatakan suatu "
 "nilai bool."
 
-#: ../src/utils/pactl.c:1813 ../src/utils/pactl.c:1833
+#: ../src/utils/pactl.c:1807 ../src/utils/pactl.c:1827
 msgid "Invalid suspend specification."
 msgstr "Spesifikasi suspensi tak valid."
 
-#: ../src/utils/pactl.c:1828
+#: ../src/utils/pactl.c:1822
 msgid ""
 "You may not specify more than one source. You have to specify a boolean "
 "value."
@@ -2940,93 +2896,84 @@ msgstr ""
 "Anda tak boleh menyatakan lebih dari satu sumber. Anda mesti menyatakan "
 "suatu nilai bool."
 
-#: ../src/utils/pactl.c:1845
+#: ../src/utils/pactl.c:1839
 msgid "You have to specify a card name/index and a profile name"
 msgstr "Anda mesti menyatakan suatu indeks/nama kartu dan suatu nama profil"
 
-#: ../src/utils/pactl.c:1856
+#: ../src/utils/pactl.c:1850
 msgid "You have to specify a sink name/index and a port name"
 msgstr "Anda mesti menyatakan suatu indeks/nama muara dan suatu nama port"
 
-#: ../src/utils/pactl.c:1867
+#: ../src/utils/pactl.c:1861
 msgid "You have to specify a sink name"
 msgstr "Anda mesti menyatakan suatu nama muara"
 
-#: ../src/utils/pactl.c:1877
+#: ../src/utils/pactl.c:1871
 msgid "You have to specify a source name/index and a port name"
 msgstr "Anda mesti menyatakan suatu indeks/nama sumber dan suatu nama port"
 
-#: ../src/utils/pactl.c:1888
+#: ../src/utils/pactl.c:1882
 msgid "You have to specify a source name"
 msgstr "Anda mesti menyatakan suatu nama sumber"
 
-#: ../src/utils/pactl.c:1898
+#: ../src/utils/pactl.c:1892
 msgid "You have to specify a sink name/index and a volume"
 msgstr "Anda mesti menyatakan suatu indeks/nama muara dan suatu volume"
 
-#: ../src/utils/pactl.c:1911
+#: ../src/utils/pactl.c:1905
 msgid "You have to specify a source name/index and a volume"
 msgstr "Anda mesti menyatakan suatu indeks/nama sumber dan suatu volume"
 
-#: ../src/utils/pactl.c:1924
+#: ../src/utils/pactl.c:1918
 msgid "You have to specify a sink input index and a volume"
 msgstr "Anda mesti menyatakan suatu indeks masukan muara dan suatu volume"
 
-#: ../src/utils/pactl.c:1929
+#: ../src/utils/pactl.c:1923
 msgid "Invalid sink input index"
 msgstr "Indeks masukan muara tak valid"
 
-#: ../src/utils/pactl.c:1940
+#: ../src/utils/pactl.c:1934
 msgid "You have to specify a source output index and a volume"
 msgstr "Anda mesti menyatakan suatu indeks keluaran sumber dan suatu volume"
 
-#: ../src/utils/pactl.c:1945
+#: ../src/utils/pactl.c:1939
 msgid "Invalid source output index"
 msgstr "Indeks keluaran sumber yang tak valid"
 
-#: ../src/utils/pactl.c:1956
-msgid ""
-"You have to specify a sink name/index and a mute action (0, 1, or 'toggle')"
-msgstr ""
-"Anda harus menyatakan suatu nama muara/indeks dan suatu aksi bisu (0, 1, "
-"atau 'toggle')"
+#: ../src/utils/pactl.c:1950
+#, fuzzy
+msgid "You have to specify a sink name/index and a mute boolean"
+msgstr "Anda mesti menyatakan suatu indeks/nama muara dan suatu volume"
 
-#: ../src/utils/pactl.c:1961 ../src/utils/pactl.c:1976
-#: ../src/utils/pactl.c:1996 ../src/utils/pactl.c:2014
+#: ../src/utils/pactl.c:1955 ../src/utils/pactl.c:1970
+#: ../src/utils/pactl.c:1990 ../src/utils/pactl.c:2008
 msgid "Invalid mute specification"
 msgstr "Spesifikasi bisu tak valid"
 
-#: ../src/utils/pactl.c:1971
-msgid ""
-"You have to specify a source name/index and a mute action (0, 1, or 'toggle')"
-msgstr ""
-"Anda harus menyatakan suatu nama sumber/indeks dan suatu aksi bisu (0, 1, "
-"atau 'toggle')"
+#: ../src/utils/pactl.c:1965
+#, fuzzy
+msgid "You have to specify a source name/index and a mute boolean"
+msgstr "Anda mesti menyatakan suatu indeks/nama sumber dan suatu volume"
 
-#: ../src/utils/pactl.c:1986
-msgid ""
-"You have to specify a sink input index and a mute action (0, 1, or 'toggle')"
-msgstr ""
-"Anda harus menyatakan suatu indeks masukan muara dan suatu aksi bisu (0, 1, "
-"atau 'toggle')"
+#: ../src/utils/pactl.c:1980
+#, fuzzy
+msgid "You have to specify a sink input index and a mute boolean"
+msgstr "Anda mesti menyatakan suatu indeks masukan muara dan suatu volume"
 
-#: ../src/utils/pactl.c:1991
+#: ../src/utils/pactl.c:1985
 msgid "Invalid sink input index specification"
 msgstr "Spesifikasi index masukan muara tak valid"
 
-#: ../src/utils/pactl.c:2004
-msgid ""
-"You have to specify a source output index and a mute action (0, 1, or "
-"'toggle')"
-msgstr ""
-"Anda harus menyatakan suatu indeks keluaran sumber dan suatu aksi bisu (0, "
-"1, atau 'toggle')"
+#: ../src/utils/pactl.c:1998
+#, fuzzy
+msgid "You have to specify a source output index and a mute boolean"
+msgstr "Anda mesti menyatakan suatu indeks keluaran sumber dan suatu volume"
 
-#: ../src/utils/pactl.c:2009
+#: ../src/utils/pactl.c:2003
 msgid "Invalid source output index specification"
 msgstr "Spesifikasi index keluaran sumber tak valid"
 
-#: ../src/utils/pactl.c:2026
+#: ../src/utils/pactl.c:2020
 msgid ""
 "You have to specify a sink index and a semicolon-separated list of supported "
 "formats"
@@ -3034,17 +2981,17 @@ msgstr ""
 "Anda mesti menyatakan suatu indeks muara dan daftar format yang didukung "
 "yang dipisah titik koma"
 
-#: ../src/utils/pactl.c:2038
+#: ../src/utils/pactl.c:2032
 msgid "You have to specify a card name/index, a port name and a latency offset"
 msgstr ""
 "Anda mesti menyatakan suatu indeks/nama kartu, suatu nama port, dan suatu "
 "ofset latensi"
 
-#: ../src/utils/pactl.c:2045
+#: ../src/utils/pactl.c:2039
 msgid "Could not parse latency offset"
 msgstr "Tak bisa mengurai ofset latensi"
 
-#: ../src/utils/pactl.c:2057
+#: ../src/utils/pactl.c:2051
 msgid "No valid command specified."
 msgstr "Tak ada perintah valid yang dinyatakan."
 
@@ -3201,3 +3148,122 @@ msgstr "Gagal memuat data cookie\n"
 #, c-format
 msgid "Not yet implemented.\n"
 msgstr "Belum diimplementasikan.\n"
+
+#~ msgid "--enable-memfd expects boolean argument"
+#~ msgstr "--enable-memfd mengharapkan argumen boolean"
+
+#~ msgid "Headphones Mono Output"
+#~ msgstr "Keluaran Mono Headphone"
+
+#~ msgid "Multichannel Input"
+#~ msgstr "Masukan Multikanal"
+
+#~ msgid "Multichannel Output"
+#~ msgstr "Keluaran Multikanal"
+
+#~ msgid "Multichannel Duplex"
+#~ msgstr "Dupleks Multikanal"
+
+#~ msgid "Stereo Duplex"
+#~ msgstr "Dupleks Stereo"
+
+#, c-format
+#~ msgid ""
+#~ "ALSA woke us up to write new data to the device, but there was actually "
+#~ "nothing to write.\n"
+#~ "Most likely this is a bug in the ALSA driver '%s'. Please report this "
+#~ "issue to the ALSA developers.\n"
+#~ "We were woken up with POLLOUT set -- however a subsequent snd_pcm_avail() "
+#~ "returned 0 or another value < min_avail."
+#~ msgstr ""
+#~ "ALSA membangunkan kita untuk menulis data baru ke peranti, tapi "
+#~ "sebenarnya tak ada sesuatu untuk ditulis!\n"
+#~ "Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan "
+#~ "masalah ini ke para pengembang ALSA.\n"
+#~ "Kami dibangunkan dengan POLLOUT diset -- namun snd_pcm_avail() setelahnya "
+#~ "mengembalikan 0 atau nilai lain < min_avail."
+
+#, c-format
+#~ msgid ""
+#~ "ALSA woke us up to read new data from the device, but there was actually "
+#~ "nothing to read.\n"
+#~ "Most likely this is a bug in the ALSA driver '%s'. Please report this "
+#~ "issue to the ALSA developers.\n"
+#~ "We were woken up with POLLIN set -- however a subsequent snd_pcm_avail() "
+#~ "returned 0 or another value < min_avail."
+#~ msgstr ""
+#~ "ALSA membangunkan kita untuk membaca data baru dari peranti, tapi "
+#~ "sebenarnya tak ada sesuatu untuk dibaca!\n"
+#~ "Sangat mungkin ini adalah kutu pada driver ALSA '%s'. Silakan laporkan "
+#~ "masalah ini ke para pengembang ALSA.\n"
+#~ "Kami dibangunkan dengan POLLIN diset -- namun snd_pcm_avail() setelahnya "
+#~ "mengembalikan 0 atau nilai lain < min_avail."
+
+#~ msgid "Always keeps at least one source loaded even if it's a null one"
+#~ msgstr ""
+#~ "Selalu jaga paling tidak satu muara bermuatan bahkan jika berupa null"
+
+#, c-format
+#~ msgid "FFT based equalizer on %s"
+#~ msgstr "Ekualiser berbasis FFT pada %s"
+
+#~ msgid "Unknown device model"
+#~ msgstr "Model peranti tak dikenal"
+
+#~ msgid "RAOP standard profile"
+#~ msgstr "Profil standar RAOP"
+
+#~ msgid "Play back encoded audio files on a PulseAudio sound server."
+#~ msgstr "Memutar berkas audio terenkode pada server suara PulseAudio."
+
+#~ msgid ""
+#~ "Capture audio data from a PulseAudio sound server and write it to a file."
+#~ msgstr ""
+#~ "Menangkap data audio dari suatu server suara PulseAudio dan menulisnya ke "
+#~ "sebuah berkas."
+
+#~ msgid ""
+#~ "Capture audio data from a PulseAudio sound server and write it to STDOUT "
+#~ "or the specified file."
+#~ msgstr ""
+#~ "Menangkap data audio dari suatu server suara PulseAudio dan menulisnya ke "
+#~ "STDOUT atau berkas yang dinyatakan."
+
+#~ msgid ""
+#~ "Play back audio data from STDIN or the specified file on a PulseAudio "
+#~ "sound server."
+#~ msgstr ""
+#~ "Memutar data audio dari STDIN atau berkas yang dinyatakan pada suatu "
+#~ "server suara PulseAudio."
+
+#, c-format
+#~ msgid "\t\t%s: %s (sinks: %u, sources: %u, priority: %u, available: %s)\n"
+#~ msgstr "\t\t%s: %s (muara: %u, sumber: %u, prioritas: %u, tersedia: %s)\n"
+
+#~ msgid ""
+#~ "You have to specify a sink name/index and a mute action (0, 1, or "
+#~ "'toggle')"
+#~ msgstr ""
+#~ "Anda harus menyatakan suatu nama muara/indeks dan suatu aksi bisu (0, 1, "
+#~ "atau 'toggle')"
+
+#~ msgid ""
+#~ "You have to specify a source name/index and a mute action (0, 1, or "
+#~ "'toggle')"
+#~ msgstr ""
+#~ "Anda harus menyatakan suatu nama sumber/indeks dan suatu aksi bisu (0, 1, "
+#~ "atau 'toggle')"
+
+#~ msgid ""
+#~ "You have to specify a sink input index and a mute action (0, 1, or "
+#~ "'toggle')"
+#~ msgstr ""
+#~ "Anda harus menyatakan suatu indeks masukan muara dan suatu aksi bisu (0, "
+#~ "1, atau 'toggle')"
+
+#~ msgid ""
+#~ "You have to specify a source output index and a mute action (0, 1, or "
+#~ "'toggle')"
+#~ msgstr ""
+#~ "Anda harus menyatakan suatu indeks keluaran sumber dan suatu aksi bisu "
+#~ "(0, 1, atau 'toggle')"
