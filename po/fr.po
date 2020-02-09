@@ -1,8 +1,8 @@
 # French translation of pulseaudio.
 # Copyright (C) 2006-2008 Lennart Poettering
 # This file is distributed under the same license as the pulseaudio package.
-# 
-# 
+#
+#
 # Robert-André Mauchin <zebob.m@pengzone.org>, 2008.
 # Michaël Ughetto <telimektar esraonline com>, 2008.
 # Pablo Martin-Gomez <pablo.martin-gomez@laposte.net>, 2008.
@@ -16,13 +16,13 @@ msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2015-10-06 16:57+0200\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
 "PO-Revision-Date: 2017-05-10 04:42-0400\n"
 "Last-Translator: Edouard Duliege <edouard.duliege@gmail.com>\n"
 "Language-Team: French <fedora-trans-fr@redhat.com>\n"
 "Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n>1;\n"
 "X-Generator: Zanata 3.9.6\n"
 
@@ -37,7 +37,8 @@ msgid ""
 "      --dump-conf                       Dump default configuration\n"
 "      --dump-modules                    Dump list of available modules\n"
 "      --dump-resample-methods           Dump available resample methods\n"
-"      --cleanup-shm                     Cleanup stale shared memory segments\n"
+"      --cleanup-shm                     Cleanup stale shared memory "
+"segments\n"
 "      --start                           Start the daemon if it is not "
 "running\n"
 "  -k  --kill                            Kill a running daemon\n"
@@ -115,7 +116,8 @@ msgstr ""
 "d'exécution (retourne uniquement un code de sortie)\n"
 "\n"
 "OPTIONS :\n"
-"      --system[=BOOL]                   Exécuter en tant qu'instance globale\n"
+"      --system[=BOOL]                   Exécuter en tant qu'instance "
+"globale\n"
 "  -D, --daemonize[=BOOL]                Démoniser après le lancement\n"
 "      --fail[=BOOL]                     Quitter si le lancement échoue\n"
 "      --high-priority[=BOOL]            Tenter de définir un niveau nice "
@@ -415,8 +417,7 @@ msgstr ""
 #: ../src/daemon/main.c:179
 #, c-format
 msgid "Home directory of user '%s' is not '%s', ignoring."
-msgstr ""
-"Le dossier personnel de l'utilisateur « %s » n'est pas « %s », ignoré."
+msgstr "Le dossier personnel de l'utilisateur « %s » n'est pas « %s », ignoré."
 
 #: ../src/daemon/main.c:182 ../src/daemon/main.c:187
 #, c-format
@@ -606,6 +607,7 @@ msgid "Line In"
 msgstr "Entrée ligne"
 
 #: ../src/modules/alsa/alsa-mixer.c:2296 ../src/modules/alsa/alsa-mixer.c:2374
+#: ../src/modules/bluetooth/module-bluez4-device.c:2102
 #: ../src/modules/bluetooth/module-bluez5-device.c:1710
 msgid "Microphone"
 msgstr "Microphone"
@@ -667,6 +669,7 @@ msgid "No Bass Boost"
 msgstr "Pas de booster de basses"
 
 #: ../src/modules/alsa/alsa-mixer.c:2311
+#: ../src/modules/bluetooth/module-bluez4-device.c:2107
 #: ../src/modules/bluetooth/module-bluez5-device.c:1717
 msgid "Speaker"
 msgstr "Haut-parleur"
@@ -821,6 +824,7 @@ msgstr "Duplex stéréo numérique (IEC958)"
 
 #: ../src/modules/alsa/alsa-mixer.c:4052
 #: ../src/modules/alsa/module-alsa-card.c:190
+#: ../src/modules/bluetooth/module-bluez4-device.c:2298
 #: ../src/modules/bluetooth/module-bluez5-device.c:1941
 msgid "Off"
 msgstr "Éteint"
@@ -885,8 +889,8 @@ msgstr ""
 #: ../src/modules/alsa/alsa-util.c:1184
 #, c-format
 msgid ""
-"snd_pcm_delay() returned a value that is exceptionally large: %li bytes "
-"(%s%lu ms).\n"
+"snd_pcm_delay() returned a value that is exceptionally large: %li bytes (%s"
+"%lu ms).\n"
 "Most likely this is a bug in the ALSA driver '%s'. Please report this issue "
 "to the ALSA developers."
 msgstr ""
@@ -916,51 +920,79 @@ msgid ""
 "Most likely this is a bug in the ALSA driver '%s'. Please report this issue "
 "to the ALSA developers."
 msgstr ""
-"snd_pcm_mmap_begin() a retourné une valeur qui est exceptionnellement large :"
-" %lu octets (%lu·ms).\n"
+"snd_pcm_mmap_begin() a retourné une valeur qui est exceptionnellement "
+"large : %lu octets (%lu·ms).\n"
 "Il s'agit très probablement d'un bogue dans le pilote ALSA « %s ». Veuillez "
 "rapporter ce problème aux développeurs d'ALSA."
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2092
 #: ../src/modules/bluetooth/module-bluez5-device.c:1700
 msgid "Headset"
 msgstr "Casque"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2097
 #: ../src/modules/bluetooth/module-bluez5-device.c:1705
 msgid "Handsfree"
 msgstr "Mains-libres"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2112
 #: ../src/modules/bluetooth/module-bluez5-device.c:1723
 msgid "Headphone"
 msgstr "Écouteurs"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2117
 #: ../src/modules/bluetooth/module-bluez5-device.c:1728
 msgid "Portable"
 msgstr "Portable"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2122
 #: ../src/modules/bluetooth/module-bluez5-device.c:1733
 msgid "Car"
 msgstr "Voiture"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2127
 #: ../src/modules/bluetooth/module-bluez5-device.c:1738
 msgid "HiFi"
 msgstr "HiFi"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2132
 #: ../src/modules/bluetooth/module-bluez5-device.c:1743
 msgid "Phone"
 msgstr "Téléphone"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2140
 #: ../src/modules/bluetooth/module-bluez5-device.c:1695
 #: ../src/modules/bluetooth/module-bluez5-device.c:1711
 #: ../src/modules/bluetooth/module-bluez5-device.c:1749
 msgid "Bluetooth Output"
 msgstr "Sortie Bluetooth"
 
+#: ../src/modules/bluetooth/module-bluez4-device.c:2143
 #: ../src/modules/bluetooth/module-bluez5-device.c:1694
 #: ../src/modules/bluetooth/module-bluez5-device.c:1716
 #: ../src/modules/bluetooth/module-bluez5-device.c:1722
 #: ../src/modules/bluetooth/module-bluez5-device.c:1748
 msgid "Bluetooth Input"
 msgstr "Entrée Bluetooth"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2179
+#, fuzzy
+msgid "High Fidelity Playback (A2DP)"
+msgstr "Lecture haute fidélité (A2DP Sink)"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2190
+#, fuzzy
+msgid "High Fidelity Capture (A2DP)"
+msgstr "Capture haute fidélité (A2DP Source)"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2201
+msgid "Telephony Duplex (HSP/HFP)"
+msgstr "Telephonie en duplex (HSP/HFP)"
+
+#: ../src/modules/bluetooth/module-bluez4-device.c:2213
+#, fuzzy
+msgid "Handsfree Gateway"
+msgstr "Mains-libres"
 
 #: ../src/modules/bluetooth/module-bluez5-device.c:1786
 msgid "High Fidelity Playback (A2DP Sink)"
@@ -985,10 +1017,10 @@ msgid ""
 "sink> sink_properties=<properties for the sink> sink_master=<name of sink to "
 "filter> adjust_time=<how often to readjust rates in s> adjust_threshold=<how "
 "much drift to readjust after in ms> format=<sample format> rate=<sample "
-"rate> channels=<number of channels> channel_map=<channel map> aec_method="
-"<implementation to use> aec_args=<parameters for the AEC engine> save_aec="
-"<save AEC data in /tmp> autoloaded=<set if this module is being loaded "
-"automatically> use_volume_sharing=<yes or no> "
+"rate> channels=<number of channels> channel_map=<channel map> "
+"aec_method=<implementation to use> aec_args=<parameters for the AEC engine> "
+"save_aec=<save AEC data in /tmp> autoloaded=<set if this module is being "
+"loaded automatically> use_volume_sharing=<yes or no> "
 msgstr ""
 "source_name=<nom de la source> source_properties=<propriétés de la source> "
 "source_master=<nom de la source à filtrer> sink_name=<nom de la  "
@@ -1026,10 +1058,11 @@ msgid ""
 "this module is being loaded automatically> use_volume_sharing=<yes or no> "
 msgstr ""
 "sink_name=<nom de la destination> sink_properties=<propriétés de la "
-"destination> sink_master=<destination à laquelle se connecter> format="
-"<format de l'échantillon> rate=<taux d'échantillonage> channels=<nombre de "
-"canaux> channel_map=<plan des canaux> autoloaded=<définir si ce module est "
-"chargé automatiquement> use_volume_sharing=<oui ou non>"
+"destination> sink_master=<destination à laquelle se connecter> "
+"format=<format de l'échantillon> rate=<taux d'échantillonage> "
+"channels=<nombre de canaux> channel_map=<plan des canaux> "
+"autoloaded=<définir si ce module est chargé automatiquement> "
+"use_volume_sharing=<oui ou non>"
 
 #: ../src/modules/module-filter-apply.c:46
 msgid "autoclean=<automatically unload unused filters?>"
@@ -1052,9 +1085,9 @@ msgstr ""
 "sink_name=<nom de la destination> sink_properties=<propriétés de la "
 "destination> master=<nom de la destination à filter> format=<format de "
 "l'échantillon> rate=<taux d'échantillonnage> channels=<nombre de canaux> "
-"channel_map=<plan des canaux> plugin=<nom de l'extension ladspa> label="
-"<étiquette de l'extension ladspa> control=<liste des valeurs de contrôle de "
-"l'entrée séparées par des virgules>"
+"channel_map=<plan des canaux> plugin=<nom de l'extension ladspa> "
+"label=<étiquette de l'extension ladspa> control=<liste des valeurs de "
+"contrôle de l'entrée séparées par des virgules>"
 
 #: ../src/modules/module-null-sink.c:47
 msgid "Clocked NULL sink"
@@ -1080,8 +1113,10 @@ msgstr "Périphériques d'entrée"
 msgid "Audio on @HOSTNAME@"
 msgstr "Audio sur @HOSTNAME@"
 
-#. TODO: old tunnel put here the remote sink_name into stream name e.g. 'Null Output for lynxis@lazus'
-#. TODO: old tunnel put here the remote source_name into stream name e.g. 'Null Output for lynxis@lazus'
+#. TODO: old tunnel put here the remote sink_name into stream name e.g. 'Null
+#. Output for lynxis@lazus'
+#. TODO: old tunnel put here the remote source_name into stream name e.g.
+#. 'Null Output for lynxis@lazus'
 #: ../src/modules/module-tunnel-sink-new.c:307
 #: ../src/modules/module-tunnel-source-new.c:305
 #, c-format
@@ -1102,8 +1137,9 @@ msgstr "Destination surround virtuelle"
 msgid ""
 "sink_name=<name for the sink> sink_properties=<properties for the sink> "
 "master=<name of sink to filter> format=<sample format> rate=<sample rate> "
-"channels=<number of channels> channel_map=<channel map> use_volume_sharing="
-"<yes or no> force_flat_volume=<yes or no> hrir=/path/to/left_hrir.wav "
+"channels=<number of channels> channel_map=<channel map> "
+"use_volume_sharing=<yes or no> force_flat_volume=<yes or no> hrir=/path/to/"
+"left_hrir.wav "
 msgstr ""
 "sink_name=<nom de la destination> sink_properties=<propriétés de la "
 "destination> master=<nom de la destination à filtrer> format=<format de "
@@ -1699,7 +1735,6 @@ msgstr "Mesures du tampon : maxlength=%u, fragsize=%u"
 msgid "Using sample spec '%s', channel map '%s'."
 msgstr ""
 "Utilisation de la spécification d'échantillon « %s », plan des canaux « %s »."
-""
 
 #: ../src/utils/pacat.c:357
 #, c-format
@@ -1835,7 +1870,8 @@ msgid ""
 "\n"
 "  -v, --verbose                         Enable verbose operations\n"
 "\n"
-"  -s, --server=SERVER                   The name of the server to connect to\n"
+"  -s, --server=SERVER                   The name of the server to connect "
+"to\n"
 "  -d, --device=DEVICE                   The name of the sink/source to "
 "connect to\n"
 "  -n, --client-name=NAME                How to call this client on the "
@@ -1956,10 +1992,12 @@ msgstr ""
 
 #: ../src/utils/pacat.c:808
 #, c-format
-msgid "pacat %s\n"
+msgid ""
+"pacat %s\n"
 "Compiled with libpulse %s\n"
 "Linked with libpulse %s\n"
-msgstr "pacat %s\n"
+msgstr ""
+"pacat %s\n"
 "Compilé avec libpulse %s\n"
 "Lié avec libpulse %s\n"
 
@@ -2206,10 +2244,12 @@ msgstr ""
 
 #: ../src/utils/pacmd.c:128
 #, c-format
-msgid "pacmd %s\n"
+msgid ""
+"pacmd %s\n"
 "Compiled with libpulse %s\n"
 "Linked with libpulse %s\n"
-msgstr "pacmd %s\n"
+msgstr ""
+"pacmd %s\n"
 "Compilé avec libpulse %s\n"
 "Lié avec libpulse %s\n"
 
@@ -2328,55 +2368,55 @@ msgstr "Échec lors de l'obtention des informations sur la destination : %s"
 #, c-format
 msgid ""
 "Sink #%u\n"
-"	State: %s\n"
-"	Name: %s\n"
-"	Description: %s\n"
-"	Driver: %s\n"
-"	Sample Specification: %s\n"
-"	Channel Map: %s\n"
-"	Owner Module: %u\n"
-"	Mute: %s\n"
-"	Volume: %s\n"
-"	        balance %0.2f\n"
-"	Base Volume: %s\n"
-"	Monitor Source: %s\n"
-"	Latency: %0.0f usec, configured %0.0f usec\n"
-"	Flags: %s%s%s%s%s%s%s\n"
-"	Properties:\n"
-"		%s\n"
+"\tState: %s\n"
+"\tName: %s\n"
+"\tDescription: %s\n"
+"\tDriver: %s\n"
+"\tSample Specification: %s\n"
+"\tChannel Map: %s\n"
+"\tOwner Module: %u\n"
+"\tMute: %s\n"
+"\tVolume: %s\n"
+"\t        balance %0.2f\n"
+"\tBase Volume: %s\n"
+"\tMonitor Source: %s\n"
+"\tLatency: %0.0f usec, configured %0.0f usec\n"
+"\tFlags: %s%s%s%s%s%s%s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Destination #%u\n"
-"	État : %s\n"
-"	Nom : %s\n"
-"	Description : %s\n"
-"	Pilote : %s\n"
-"	Spécification de l'échantillon : %s\n"
-"	Plan des canaux : %s\n"
-"	Module du propriétaire : %u\n"
-"	Sourdine : %s\n"
-"	Volume : %s\n"
-"	        balance %0.2f\n"
-"	Volume de base : %s\n"
-"	Source du moniteur : %s\n"
-"	Latence : %0.0f usec, configuré %0.0f usec\n"
-"	Marqueurs : %s%s%s%s%s%s%s\n"
-"	Propriétés :\n"
-"		%s\n"
+"\tÉtat : %s\n"
+"\tNom : %s\n"
+"\tDescription : %s\n"
+"\tPilote : %s\n"
+"\tSpécification de l'échantillon : %s\n"
+"\tPlan des canaux : %s\n"
+"\tModule du propriétaire : %u\n"
+"\tSourdine : %s\n"
+"\tVolume : %s\n"
+"\t        balance %0.2f\n"
+"\tVolume de base : %s\n"
+"\tSource du moniteur : %s\n"
+"\tLatence : %0.0f usec, configuré %0.0f usec\n"
+"\tMarqueurs : %s%s%s%s%s%s%s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:325 ../src/utils/pactl.c:431 ../src/utils/pactl.c:592
 #, c-format
-msgid "	Ports:\n"
-msgstr "	Ports :\n"
+msgid "\tPorts:\n"
+msgstr "\tPorts :\n"
 
 #: ../src/utils/pactl.c:332 ../src/utils/pactl.c:438
 #, c-format
-msgid "	Active Port: %s\n"
-msgstr "	Port actif : %s\n"
+msgid "\tActive Port: %s\n"
+msgstr "\tPort actif : %s\n"
 
 #: ../src/utils/pactl.c:338 ../src/utils/pactl.c:444
 #, c-format
-msgid "	Formats:\n"
-msgstr "	Formats :\n"
+msgid "\tFormats:\n"
+msgstr "\tFormats :\n"
 
 #: ../src/utils/pactl.c:362 ../src/utils/pactl.c:920 ../src/utils/pactl.c:993
 #, c-format
@@ -2387,40 +2427,40 @@ msgstr "Échec lors de l'obtention des informations sur la source : %s"
 #, c-format
 msgid ""
 "Source #%u\n"
-"	State: %s\n"
-"	Name: %s\n"
-"	Description: %s\n"
-"	Driver: %s\n"
-"	Sample Specification: %s\n"
-"	Channel Map: %s\n"
-"	Owner Module: %u\n"
-"	Mute: %s\n"
-"	Volume: %s\n"
-"	        balance %0.2f\n"
-"	Base Volume: %s\n"
-"	Monitor of Sink: %s\n"
-"	Latency: %0.0f usec, configured %0.0f usec\n"
-"	Flags: %s%s%s%s%s%s\n"
-"	Properties:\n"
-"		%s\n"
+"\tState: %s\n"
+"\tName: %s\n"
+"\tDescription: %s\n"
+"\tDriver: %s\n"
+"\tSample Specification: %s\n"
+"\tChannel Map: %s\n"
+"\tOwner Module: %u\n"
+"\tMute: %s\n"
+"\tVolume: %s\n"
+"\t        balance %0.2f\n"
+"\tBase Volume: %s\n"
+"\tMonitor of Sink: %s\n"
+"\tLatency: %0.0f usec, configured %0.0f usec\n"
+"\tFlags: %s%s%s%s%s%s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Source #%u\n"
-"	État : %s\n"
-"	Nom : %s\n"
-"	Description : %s\n"
-"	Pilote : %s\n"
-"	Spécification de l'échantillon : %s\n"
-"	Plan des canaux : %s\n"
-"	Module du propriétaire : %u\n"
-"	Sourdine : %s\n"
-"	Volume : %s\n"
-"	        balance %0.2f\n"
-"	Volume de base : %s\n"
-"	Moniteur de la destination : %s\n"
-"	Latence : %0.0f usec, configuré %0.0f usec\n"
-"	Marqueurs : %s%s%s%s%s%s\n"
-"	Propriétés :\n"
-"		%s\n"
+"\tÉtat : %s\n"
+"\tNom : %s\n"
+"\tDescription : %s\n"
+"\tPilote : %s\n"
+"\tSpécification de l'échantillon : %s\n"
+"\tPlan des canaux : %s\n"
+"\tModule du propriétaire : %u\n"
+"\tSourdine : %s\n"
+"\tVolume : %s\n"
+"\t        balance %0.2f\n"
+"\tVolume de base : %s\n"
+"\tMoniteur de la destination : %s\n"
+"\tLatence : %0.0f usec, configuré %0.0f usec\n"
+"\tMarqueurs : %s%s%s%s%s%s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:416 ../src/utils/pactl.c:486 ../src/utils/pactl.c:529
 #: ../src/utils/pactl.c:571 ../src/utils/pactl.c:669 ../src/utils/pactl.c:670
@@ -2439,18 +2479,18 @@ msgstr "Échec lors de l'obtention des informations du module : %s"
 #, c-format
 msgid ""
 "Module #%u\n"
-"	Name: %s\n"
-"	Argument: %s\n"
-"	Usage counter: %s\n"
-"	Properties:\n"
-"		%s\n"
+"\tName: %s\n"
+"\tArgument: %s\n"
+"\tUsage counter: %s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Module #%u\n"
-"	Nom : %s\n"
-"	Paramètre : %s\n"
-"	Nombre d'utilisations : %s\n"
-"	Propriétés : \n"
-"		%s\n"
+"\tNom : %s\n"
+"\tParamètre : %s\n"
+"\tNombre d'utilisations : %s\n"
+"\tPropriétés : \n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:497
 #, c-format
@@ -2459,16 +2499,18 @@ msgstr "Échec lors de l'obtention des informations du client : %s"
 
 #: ../src/utils/pactl.c:523
 #, c-format
-msgid "Client #%u\n"
-"	Driver: %s\n"
-"	Owner Module: %s\n"
-"	Properties:\n"
-"		%s\n"
-msgstr "Client #%u\n"
-"	Pilote : %s\n"
-"	Module propriétaire : %s\n"
-"	Propriétés :\n"
-"		%s\n"
+msgid ""
+"Client #%u\n"
+"\tDriver: %s\n"
+"\tOwner Module: %s\n"
+"\tProperties:\n"
+"\t\t%s\n"
+msgstr ""
+"Client #%u\n"
+"\tPilote : %s\n"
+"\tModule propriétaire : %s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:540
 #, c-format
@@ -2477,87 +2519,89 @@ msgstr "Impossible d'obtenir des informations sur la carte : %s"
 
 #: ../src/utils/pactl.c:563
 #, c-format
-msgid "Card #%u\n"
-"	Name: %s\n"
-"	Driver: %s\n"
-"	Owner Module: %s\n"
-"	Properties:\n"
-"		%s\n"
+msgid ""
+"Card #%u\n"
+"\tName: %s\n"
+"\tDriver: %s\n"
+"\tOwner Module: %s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Carte #%u\n"
-"	Nom : %s\n"
-"	Pilote : %s\n"
-"	Module propriétaire : %s\n"
-"	Propriétés :\n"
-"		%s\n"
+"\tNom : %s\n"
+"\tPilote : %s\n"
+"\tModule propriétaire : %s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:579
 #, c-format
-msgid "	Profiles:\n"
-msgstr "	Profils :\n"
+msgid "\tProfiles:\n"
+msgstr "\tProfils :\n"
 
 #: ../src/utils/pactl.c:586
 #, c-format
-msgid "	Active Profile: %s\n"
-msgstr "	Profil actif : %s\n"
+msgid "\tActive Profile: %s\n"
+msgstr "\tProfil actif : %s\n"
 
 #: ../src/utils/pactl.c:600
 #, c-format
-msgid "			Properties:\n"
-"				%s\n"
-msgstr "			Propriétés :\n"
-"				%s\n"
+msgid ""
+"\t\t\tProperties:\n"
+"\t\t\t\t%s\n"
+msgstr ""
+"\t\t\tPropriétés :\n"
+"\t\t\t\t%s\n"
 
 #: ../src/utils/pactl.c:605
 #, c-format
-msgid "			Part of profile(s): %s"
-msgstr "			Partie du(des) profil(s) : %s"
+msgid "\t\t\tPart of profile(s): %s"
+msgstr "\t\t\tPartie du(des) profil(s) : %s"
 
 #: ../src/utils/pactl.c:622 ../src/utils/pactl.c:940 ../src/utils/pactl.c:1008
 #, c-format
 msgid "Failed to get sink input information: %s"
 msgstr ""
-"Échec lors de l'obtention des informations de l'entrée de la destination : "
-"%s"
+"Échec lors de l'obtention des informations de l'entrée de la destination : %s"
 
 #: ../src/utils/pactl.c:651
 #, c-format
 msgid ""
 "Sink Input #%u\n"
-"	Driver: %s\n"
-"	Owner Module: %s\n"
-"	Client: %s\n"
-"	Sink: %u\n"
-"	Sample Specification: %s\n"
-"	Channel Map: %s\n"
-"	Format: %s\n"
-"	Corked: %s\n"
-"	Mute: %s\n"
-"	Volume: %s\n"
-"	        balance %0.2f\n"
-"	Buffer Latency: %0.0f usec\n"
-"	Sink Latency: %0.0f usec\n"
-"	Resample method: %s\n"
-"	Properties:\n"
-"		%s\n"
+"\tDriver: %s\n"
+"\tOwner Module: %s\n"
+"\tClient: %s\n"
+"\tSink: %u\n"
+"\tSample Specification: %s\n"
+"\tChannel Map: %s\n"
+"\tFormat: %s\n"
+"\tCorked: %s\n"
+"\tMute: %s\n"
+"\tVolume: %s\n"
+"\t        balance %0.2f\n"
+"\tBuffer Latency: %0.0f usec\n"
+"\tSink Latency: %0.0f usec\n"
+"\tResample method: %s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Entrée de la destination #%u\n"
-"	Pilote : %s\n"
-"	Module du propriétaire : %s\n"
-"	Client : %s\n"
-"	Destination : %u\n"
-"	Spécification de l'échantillon : %s\n"
-"	Plan des canaux : %s\n"
-"	Format : %s\n"
-"	Bouchonné : %s\n"
-"	Sourdine : %s\n"
-"	Volume : %s\n"
-"	        balance %0.2f\n"
-"	Latence du tampon : %0.0f usec\n"
-"	Latence de la destination : %0.0f usec\n"
-"	Méthode de rééchantillonnage : %s\n"
-"	Propriétés :\n"
-"		%s\n"
+"\tPilote : %s\n"
+"\tModule du propriétaire : %s\n"
+"\tClient : %s\n"
+"\tDestination : %u\n"
+"\tSpécification de l'échantillon : %s\n"
+"\tPlan des canaux : %s\n"
+"\tFormat : %s\n"
+"\tBouchonné : %s\n"
+"\tSourdine : %s\n"
+"\tVolume : %s\n"
+"\t        balance %0.2f\n"
+"\tLatence du tampon : %0.0f usec\n"
+"\tLatence de la destination : %0.0f usec\n"
+"\tMéthode de rééchantillonnage : %s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:692 ../src/utils/pactl.c:960 ../src/utils/pactl.c:1023
 #, c-format
@@ -2569,40 +2613,40 @@ msgstr ""
 #, c-format
 msgid ""
 "Source Output #%u\n"
-"	Driver: %s\n"
-"	Owner Module: %s\n"
-"	Client: %s\n"
-"	Source: %u\n"
-"	Sample Specification: %s\n"
-"	Channel Map: %s\n"
-"	Format: %s\n"
-"	Corked: %s\n"
-"	Mute: %s\n"
-"	Volume: %s\n"
-"	        balance %0.2f\n"
-"	Buffer Latency: %0.0f usec\n"
-"	Source Latency: %0.0f usec\n"
-"	Resample method: %s\n"
-"	Properties:\n"
-"		%s\n"
+"\tDriver: %s\n"
+"\tOwner Module: %s\n"
+"\tClient: %s\n"
+"\tSource: %u\n"
+"\tSample Specification: %s\n"
+"\tChannel Map: %s\n"
+"\tFormat: %s\n"
+"\tCorked: %s\n"
+"\tMute: %s\n"
+"\tVolume: %s\n"
+"\t        balance %0.2f\n"
+"\tBuffer Latency: %0.0f usec\n"
+"\tSource Latency: %0.0f usec\n"
+"\tResample method: %s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Sortie de la source #%u\n"
-"	Pilote : %s\n"
-"	Module du propriétaire : %s\n"
-"	Client : %s\n"
-"	Source : %u\n"
-"	Spécification de l'échantillon : %s\n"
-"	Plan des canaux : %s\n"
-"	Format : %s\n"
-"	Bouchonné : %s\n"
-"	Sourdine : %s\n"
-"	Volume : %s\n"
-"	        balance %0.2f\n"
-"	Latence du tampon : %0.0f usec\n"
-"	Latence de la source : %0.0f usec\n"
-"	Méthode de rééchantillonnage : %s\n"
-"	Propriétés :\n"
-"		%s\n"
+"\tPilote : %s\n"
+"\tModule du propriétaire : %s\n"
+"\tClient : %s\n"
+"\tSource : %u\n"
+"\tSpécification de l'échantillon : %s\n"
+"\tPlan des canaux : %s\n"
+"\tFormat : %s\n"
+"\tBouchonné : %s\n"
+"\tSourdine : %s\n"
+"\tVolume : %s\n"
+"\t        balance %0.2f\n"
+"\tLatence du tampon : %0.0f usec\n"
+"\tLatence de la source : %0.0f usec\n"
+"\tMéthode de rééchantillonnage : %s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:762
 #, c-format
@@ -2613,30 +2657,30 @@ msgstr "Échec lors de l'obtention des informations de l'échantillon : %s"
 #, c-format
 msgid ""
 "Sample #%u\n"
-"	Name: %s\n"
-"	Sample Specification: %s\n"
-"	Channel Map: %s\n"
-"	Volume: %s\n"
-"	        balance %0.2f\n"
-"	Duration: %0.1fs\n"
-"	Size: %s\n"
-"	Lazy: %s\n"
-"	Filename: %s\n"
-"	Properties:\n"
-"		%s\n"
+"\tName: %s\n"
+"\tSample Specification: %s\n"
+"\tChannel Map: %s\n"
+"\tVolume: %s\n"
+"\t        balance %0.2f\n"
+"\tDuration: %0.1fs\n"
+"\tSize: %s\n"
+"\tLazy: %s\n"
+"\tFilename: %s\n"
+"\tProperties:\n"
+"\t\t%s\n"
 msgstr ""
 "Échantillon #%u\n"
-"	Nom : %s\n"
-"	Spécification de l'échantillon : %s\n"
-"	Plan des canaux : %s\n"
-"	Volume : %s\n"
-"	        balance %0.2f\n"
-"	Durée : %0.1fs\n"
-"	Taille : %s\n"
-"	Lazy : %s\n"
-"	Nom du fichier : %s\n"
-"	Propriétés :\n"
-"		%s\n"
+"\tNom : %s\n"
+"\tSpécification de l'échantillon : %s\n"
+"\tPlan des canaux : %s\n"
+"\tVolume : %s\n"
+"\t        balance %0.2f\n"
+"\tDurée : %0.1fs\n"
+"\tTaille : %s\n"
+"\tLazy : %s\n"
+"\tNom du fichier : %s\n"
+"\tPropriétés :\n"
+"\t\t%s\n"
 
 #: ../src/utils/pactl.c:817 ../src/utils/pactl.c:827
 #, c-format
@@ -2813,7 +2857,8 @@ msgid ""
 "  -h, --help                            Show this help\n"
 "      --version                         Show version\n"
 "\n"
-"  -s, --server=SERVER                   The name of the server to connect to\n"
+"  -s, --server=SERVER                   The name of the server to connect "
+"to\n"
 "  -n, --client-name=NAME                How to call this client on the "
 "server\n"
 msgstr ""
@@ -2828,10 +2873,12 @@ msgstr ""
 
 #: ../src/utils/pactl.c:1622
 #, c-format
-msgid "pactl %s\n"
+msgid ""
+"pactl %s\n"
 "Compiled with libpulse %s\n"
 "Linked with libpulse %s\n"
-msgstr "pactl %s\n"
+msgstr ""
+"pactl %s\n"
 "Compilé avec libpulse %s\n"
 "Lié avec libpulse %s\n"
 
@@ -2981,8 +3028,7 @@ msgstr ""
 "charge séparée par des points-virgules"
 
 #: ../src/utils/pactl.c:2032
-msgid ""
-"You have to specify a card name/index, a port name and a latency offset"
+msgid "You have to specify a card name/index, a port name and a latency offset"
 msgstr ""
 "Vous devez indiquer un nom ou index carte, un nom de port et un décalage de "
 "latence"
@@ -3043,7 +3089,8 @@ msgid ""
 "\n"
 "  -h, --help                            Show this help\n"
 "      --version                         Show version\n"
-"  -s, --server=SERVER                   The name of the server to connect to\n"
+"  -s, --server=SERVER                   The name of the server to connect "
+"to\n"
 "\n"
 msgstr ""
 "%s [options] ... \n"
@@ -3056,10 +3103,12 @@ msgstr ""
 
 #: ../src/utils/pasuspender.c:266
 #, c-format
-msgid "pasuspender %s\n"
+msgid ""
+"pasuspender %s\n"
 "Compiled with libpulse %s\n"
 "Linked with libpulse %s\n"
-msgstr "pasuspender %s\n"
+msgstr ""
+"pasuspender %s\n"
 "Compilé avec libpulse %s\n"
 "Lié avec libpulse %s\n"
 
@@ -3148,4 +3197,3 @@ msgstr "Échec lors du chargement des données du cookie\n"
 #, c-format
 msgid "Not yet implemented.\n"
 msgstr "Pas encore implémenté.\n"
-
