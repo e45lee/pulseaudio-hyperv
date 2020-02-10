@@ -33,7 +33,7 @@
 #include <sbc/sbc.h>
 
 #include "a2dp-codecs.h"
-#include "a2dp-codec-api.h"
+#include "bt-codec-api.h"
 #include "rtp.h"
 
 #define SBC_BITPOOL_DEC_LIMIT 32
@@ -78,7 +78,7 @@ static bool can_accept_capabilities(const uint8_t *capabilities_buffer, uint8_t 
 }
 
 static const char *choose_remote_endpoint(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
-    const pa_a2dp_codec_capabilities *a2dp_capabilities;
+    const pa_bt_codec_capabilities *a2dp_capabilities;
     const char *key;
     void *state;
 
@@ -661,7 +661,7 @@ static size_t decode_buffer(void *codec_info, const uint8_t *input_buffer, size_
     return d - output_buffer;
 }
 
-const pa_a2dp_codec pa_a2dp_codec_sbc = {
+const pa_bt_codec pa_a2dp_codec_sbc = {
     .name = "sbc",
     .description = "SBC",
     .id = { A2DP_CODEC_SBC, 0, 0 },

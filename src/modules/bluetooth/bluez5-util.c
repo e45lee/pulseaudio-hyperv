@@ -889,7 +889,7 @@ finish:
     pa_xfree(endpoint);
 }
 
-static void register_endpoint(pa_bluetooth_discovery *y, const pa_a2dp_codec *a2dp_codec, const char *path, const char *endpoint, const char *uuid) {
+static void register_endpoint(pa_bluetooth_discovery *y, const pa_bt_codec *a2dp_codec, const char *path, const char *endpoint, const char *uuid) {
     DBusMessage *m;
     DBusMessageIter i, d;
     uint8_t capabilities[MAX_A2DP_CAPS_SIZE];
@@ -963,7 +963,7 @@ static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessa
             /* Order is important. bluez prefers endpoints registered earlier.
              * And codec with higher number has higher priority. So iterate in reverse order. */
             for (a2dp_codec_i = pa_bluetooth_a2dp_codec_count(); a2dp_codec_i > 0; a2dp_codec_i--) {
-                const pa_a2dp_codec *a2dp_codec = pa_bluetooth_a2dp_codec_iter(a2dp_codec_i-1);
+                const pa_bt_codec *a2dp_codec = pa_bluetooth_a2dp_codec_iter(a2dp_codec_i-1);
                 char *endpoint;
 
                 endpoint = pa_sprintf_malloc("%s/%s", A2DP_SINK_ENDPOINT, a2dp_codec->name);
@@ -1282,7 +1282,7 @@ const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile) {
     return NULL;
 }
 
-static const pa_a2dp_codec *a2dp_endpoint_to_a2dp_codec(const char *endpoint) {
+static const pa_bt_codec *a2dp_endpoint_to_a2dp_codec(const char *endpoint) {
     const char *codec_name;
 
     if (pa_startswith(endpoint, A2DP_SINK_ENDPOINT "/"))
@@ -1299,7 +1299,7 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
     pa_bluetooth_discovery *y = userdata;
     pa_bluetooth_device *d;
     pa_bluetooth_transport *t;
-    const pa_a2dp_codec *a2dp_codec = NULL;
+    const pa_bt_codec *a2dp_codec = NULL;
     const char *sender, *path, *endpoint_path, *dev_path = NULL, *uuid = NULL;
     const uint8_t *config = NULL;
     int size = 0;
@@ -1419,7 +1419,7 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
     dbus_message_unref(r);
 
     t = pa_bluetooth_transport_new(d, sender, path, p, config, size);
-    t->a2dp_codec = a2dp_codec;
+    t->bt_codec = a2dp_codec;
     t->acquire = bluez5_transport_acquire_cb;
     t->release = bluez5_transport_release_cb;
     pa_bluetooth_transport_put(t);
@@ -1441,7 +1441,7 @@ static DBusMessage *endpoint_select_configuration(DBusConnection *conn, DBusMess
     const char *endpoint_path;
     uint8_t *cap;
     int size;
-    const pa_a2dp_codec *a2dp_codec;
+    const pa_bt_codec *a2dp_codec;
     uint8_t config[MAX_A2DP_CAPS_SIZE];
     uint8_t *config_ptr = config;
     size_t config_size;
@@ -1593,7 +1593,7 @@ pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *c, int headset_backe
     DBusError err;
     DBusConnection *conn;
     unsigned i, count;
-    const pa_a2dp_codec *a2dp_codec;
+    const pa_bt_codec *a2dp_codec;
     char *endpoint;
 
     y = pa_xnew0(pa_bluetooth_discovery, 1);
@@ -1681,7 +1681,7 @@ pa_bluetooth_discovery* pa_bluetooth_discovery_ref(pa_bluetooth_discovery *y) {
 
 void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
     unsigned i, count;
-    const pa_a2dp_codec *a2dp_codec;
+    const pa_bt_codec *a2dp_codec;
     char *endpoint;
 
     pa_assert(y);

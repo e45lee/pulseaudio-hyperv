@@ -2149,7 +2149,7 @@ module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_bluet
 libbluez5_util_la_SOURCES = \
 		modules/bluetooth/bluez5-util.c \
 		modules/bluetooth/bluez5-util.h \
-		modules/bluetooth/a2dp-codec-api.h \
+		modules/bluetooth/bt-codec-api.h \
 		modules/bluetooth/a2dp-codec-util.c \
 		modules/bluetooth/a2dp-codec-util.h \
 		modules/bluetooth/a2dp-codecs.h \

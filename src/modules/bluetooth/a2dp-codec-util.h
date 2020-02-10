@@ -20,15 +20,15 @@
   License along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
 ***/
 
-#include "a2dp-codec-api.h"
+#include "bt-codec-api.h"
 
 /* Get number of supported A2DP codecs */
 unsigned int pa_bluetooth_a2dp_codec_count(void);
 
 /* Get i-th codec. Codec with higher number has higher priority */
-const pa_a2dp_codec *pa_bluetooth_a2dp_codec_iter(unsigned int i);
+const pa_bt_codec *pa_bluetooth_a2dp_codec_iter(unsigned int i);
 
 /* Get codec by name */
-const pa_a2dp_codec *pa_bluetooth_get_a2dp_codec(const char *name);
+const pa_bt_codec *pa_bluetooth_get_a2dp_codec(const char *name);
 
 #endif
