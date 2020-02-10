@@ -29,10 +29,8 @@
 #include <pulsecore/shared.h>
 #include <pulsecore/core-error.h>
 
+#include "hfp-codecs.h"
 #include "bluez5-util.h"
-
-#define HFP_AUDIO_CODEC_CVSD    0x01
-#define HFP_AUDIO_CODEC_MSBC    0x02
 
 #define OFONO_SERVICE "org.ofono"
 #define HF_AUDIO_AGENT_INTERFACE OFONO_SERVICE ".HandsfreeAudioAgent"
@@ -165,7 +163,7 @@ static int card_acquire(struct hf_audio_card *card) {
                                       DBUS_TYPE_BYTE, &codec,
                                       DBUS_TYPE_INVALID) == true)) {
         dbus_message_unref(r);
-        if (codec != HFP_AUDIO_CODEC_CVSD) {
+        if (!(codec == HFP_AUDIO_CODEC_CVSD || codec == HFP_AUDIO_CODEC_MSBC)) {
             pa_log_error("Invalid codec: %u", codec);
             /* shutdown to make sure connection is dropped immediately */
             shutdown(fd, SHUT_RDWR);
@@ -173,6 +171,7 @@ static int card_acquire(struct hf_audio_card *card) {
             return -1;
         }
         card->transport->codec = codec;
+        card->transport->bt_codec = hf_codec_from_id(codec);
         card->fd = fd;
         return 0;
     }
@@ -251,16 +250,20 @@ static int socket_accept(int sock)
     return 0;
 }
 
+#define HF_MTU (48)
+
 static int hf_audio_agent_transport_acquire(pa_bluetooth_transport *t, bool optional, size_t *imtu, size_t *omtu) {
     struct hf_audio_card *card = t->userdata;
     int err;
 
     pa_assert(card);
-
     if (!optional && card->fd < 0) {
         err = card->acquire(card);
         if (err < 0)
             return err;
+    } else if(!card->transport->bt_codec) {
+        card->transport->bt_codec = hf_codec_from_id(card->transport->codec);
+        pa_assert(card->transport->bt_codec);
     }
 
     /* The correct block size should take into account the SCO MTU from
@@ -269,9 +272,9 @@ static int hf_audio_agent_transport_acquire(pa_bluetooth_transport *t, bool opti
      * made available to userspace by the Bluetooth kernel subsystem.
      * Meanwhile the empiric value 48 will be used. */
     if (imtu)
-        *imtu = 48;
+        *imtu = HF_MTU;
     if (omtu)
-        *omtu = 48;
+        *omtu = HF_MTU;
 
     err = socket_accept(card->fd);
     if (err < 0) {
@@ -304,6 +307,7 @@ static void hf_audio_agent_card_found(pa_bluetooth_backend *backend, const char 
     struct hf_audio_card *card;
     pa_bluetooth_device *d;
     pa_bluetooth_profile_t p = PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY;
+    static struct hf_config hf_config = {HF_MTU};
 
     pa_assert(backend);
     pa_assert(path);
@@ -338,6 +342,8 @@ static void hf_audio_agent_card_found(pa_bluetooth_backend *backend, const char 
         } else if (pa_streq(key, "Type")) {
             if (pa_streq(value, "gateway"))
                 p = PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT;
+            else if (pa_streq(value, "headset"))
+                p = PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT;
         }
 
         pa_log_debug("%s: %s", key, value);
@@ -351,7 +357,7 @@ static void hf_audio_agent_card_found(pa_bluetooth_backend *backend, const char 
         goto fail;
     }
 
-    card->transport = pa_bluetooth_transport_new(d, backend->ofono_bus_id, path, p, NULL, 0);
+    card->transport = pa_bluetooth_transport_new(d, backend->ofono_bus_id, path, p,(const uint8_t *)&hf_config, sizeof(hf_config));
     card->transport->acquire = hf_audio_agent_transport_acquire;
     card->transport->release = hf_audio_agent_transport_release;
     card->transport->userdata = card;
@@ -482,6 +488,7 @@ static void hf_audio_agent_register(pa_bluetooth_backend *hf) {
     pa_assert_se(m = dbus_message_new_method_call(OFONO_SERVICE, "/", HF_AUDIO_MANAGER_INTERFACE, "Register"));
 
     codecs[ncodecs++] = HFP_AUDIO_CODEC_CVSD;
+    codecs[ncodecs++] = HFP_AUDIO_CODEC_MSBC;
 
     pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_OBJECT_PATH, &path, DBUS_TYPE_ARRAY, DBUS_TYPE_BYTE, &pcodecs, ncodecs,
                                           DBUS_TYPE_INVALID));
@@ -629,7 +636,7 @@ static DBusMessage *hf_audio_agent_new_connection(DBusConnection *c, DBusMessage
 
     card->connecting = false;
 
-    if (!card || codec != HFP_AUDIO_CODEC_CVSD || card->fd >= 0) {
+    if (!card || !(codec == HFP_AUDIO_CODEC_CVSD || codec == HFP_AUDIO_CODEC_MSBC) || card->fd >= 0) {
         pa_log_warn("New audio connection invalid arguments (path=%s fd=%d, codec=%d)", path, fd, codec);
         pa_assert_se(r = dbus_message_new_error(m, "org.ofono.Error.InvalidArguments", "Invalid arguments in method call"));
         shutdown(fd, SHUT_RDWR);

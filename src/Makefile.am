@@ -2169,6 +2169,7 @@ libbluez5_util_la_CFLAGS = $(AM_CFLAGS) $(DBUS_CFLAGS)
 libbluez5_util_la_CPPFLAGS = $(AM_CPPFLAGS)
 
 libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-sbc.c
+libbluez5_util_la_SOURCES += modules/bluetooth/hfp-codecs.c
 libbluez5_util_la_LIBADD += $(SBC_LIBS)
 libbluez5_util_la_CFLAGS += $(SBC_CFLAGS)
 
