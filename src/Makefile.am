@@ -271,6 +271,7 @@ TESTS_default = \
 		queue-test \
 		rtpoll-test \
 		resampler-test \
+		resampler-rewind-test \
 		smoother-test \
 		thread-test \
 		volume-test \
@@ -559,6 +560,11 @@ resampler_test_SOURCES = tests/resampler-test.c
 resampler_test_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
 resampler_test_CFLAGS = $(AM_CFLAGS)
 resampler_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS)
+
+resampler_rewind_test_SOURCES = tests/resampler-rewind-test.c
+resampler_rewind_test_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
+resampler_rewind_test_CFLAGS = $(AM_CFLAGS)
+resampler_rewind_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS)
 
 mix_test_SOURCES = tests/mix-test.c
 mix_test_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulse.la libpulsecommon-@PA_MAJORMINOR@.la

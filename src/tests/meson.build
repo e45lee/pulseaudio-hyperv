@@ -54,6 +54,8 @@ default_tests = [
     [ check_dep, libpulse_dep, libpulsecommon_dep, libpulsecore_dep ] ],
   [ 'resampler-test', 'resampler-test.c',
     [            libpulse_dep, libpulsecommon_dep, libpulsecore_dep, libintl_dep ] ],
+  [ 'resampler-rewind-test', 'resampler-rewind-test.c',
+    [            libpulse_dep, libpulsecommon_dep, libpulsecore_dep, libintl_dep ] ],
   [ 'rtpoll-test', 'rtpoll-test.c',
     [ check_dep, libpulse_dep, libpulsecommon_dep, libpulsecore_dep ] ],
   [ 'smoother-test', 'smoother-test.c',
