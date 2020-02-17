@@ -250,8 +250,8 @@ static void connect_ports(struct userdata *u, void *new_data, pa_direction_t dir
 
 /* Run from IO thread */
 static int bt_write_buffer(struct userdata *u, size_t nbytes) {
-    int ret = 0;
-
+    int ret;
+    uint8_t *data_ptr, *data_end;
     /* Encoder function of A2DP codec may provide empty buffer, in this case do
      * not post any empty buffer via A2DP socket. It may be because of codec
      * internal state, e.g. encoder is waiting for more samples so it can
@@ -274,7 +274,7 @@ static int bt_write_buffer(struct userdata *u, size_t nbytes) {
     while((data_end - data_ptr) >= (ssize_t)u->write_link_mtu) {
         ssize_t l;
 
-        l = pa_write(u->stream_fd, u->encoder_buffer, nbytes, &u->stream_write_type);
+        l = pa_write(u->stream_fd, data_ptr, u->write_link_mtu, &u->stream_write_type);
 
         pa_assert(l != 0);
 
@@ -295,23 +295,15 @@ static int bt_write_buffer(struct userdata *u, size_t nbytes) {
             break;
         }
 
-        pa_assert((size_t) l <= nbytes);
-
-        if ((size_t) l != nbytes) {
+        if ((size_t) l != u->write_link_mtu) {
             pa_log_warn("Wrote memory block to socket only partially! %llu written, wanted to write %llu.",
                         (unsigned long long) l,
-                        (unsigned long long) nbytes);
+                        (unsigned long long) u->write_link_mtu);
             ret = -1;
             break;
         }
-
-        u->write_index += (uint64_t) u->write_memchunk.length;
-        pa_memblock_unref(u->write_memchunk.memblock);
-        pa_memchunk_reset(&u->write_memchunk);
-
+        data_ptr += l;
         ret = 1;
-
-        break;
     }
 
     return ret;
@@ -319,16 +311,18 @@ static int bt_write_buffer(struct userdata *u, size_t nbytes) {
 
 /* Run from IO thread */
 static void bt_prepare_encoder_buffer(struct userdata *u) {
+    size_t enc_buf_size;
+
     pa_assert(u);
+    pa_assert(u->bt_codec);
+    pa_assert(u->bt_codec->get_max_output_buffer_size);
+    enc_buf_size = u->bt_codec->get_max_output_buffer_size(u->encoder_info, u->write_link_mtu);
 
-    if (u->encoder_buffer_size < u->write_link_mtu) {
+    if (u->encoder_buffer_size < enc_buf_size) {
         pa_xfree(u->encoder_buffer);
-        u->encoder_buffer = pa_xmalloc(u->write_link_mtu);
+        u->encoder_buffer = pa_xmalloc(enc_buf_size);
     }
-
-    /* Encoder buffer cannot be larger then link MTU, otherwise
-     * encode method would produce larger packets then link MTU */
-    u->encoder_buffer_size = u->write_link_mtu;
+    u->encoder_buffer_size = enc_buf_size;
 }
 
 /* Run from IO thread */

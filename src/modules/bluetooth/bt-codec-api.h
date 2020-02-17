@@ -79,6 +79,10 @@ typedef struct pa_bt_codec {
     /* Get write block size for codec, it is maximal size of buffer
      * which can produce at most write_link_mtu bytes of encoded data */
     size_t (*get_write_block_size)(void *codec_info, size_t write_link_mtu);
+    /* Get maximum size of the output buffer codec might use to store encoded
+     * data. This buffer is to be provided into encode_buffer func call.
+     * Returned value must be the multiple of write_link_mtu. */
+    size_t (*get_max_output_buffer_size)(void *codec_info, size_t write_link_mtu);
 
     /* Reduce encoder bitrate for codec, returns new write block size or zero
      * if not changed, called when socket is not accepting encoded data fast

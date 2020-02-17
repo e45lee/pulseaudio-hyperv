@@ -247,6 +247,15 @@ static size_t msbc_get_block_size(void *codec_info, size_t link_mtu) {
     return msbc_info->decoded_frame_size;
 }
 
+/*
+ * mSBC encoded frame size is 60, typical mtu is 48.
+ * Double buffer might be required to push out 2 * 48 data
+ * to avoid conjestion.
+ */
+static size_t msbc_get_max_output_buffer_size(void *codec_info, size_t write_link_mtu) {
+    return 2 * write_link_mtu;
+}
+
 static size_t msbc_reduce_encoder_bitrate(void *codec_info, size_t write_link_mtu) {
 
     return msbc_get_block_size(codec_info, write_link_mtu);
@@ -465,6 +474,10 @@ static size_t cvsd_get_block_size(void *codec_info, size_t link_mtu) {
     return link_mtu;
 }
 
+static size_t cvsd_get_max_output_buffer_size(void *codec_info, size_t write_link_mtu) {
+    return write_link_mtu;
+}
+
 static size_t cvsd_reduce_encoder_bitrate(void *codec_info, size_t write_link_mtu) {
     return write_link_mtu;
 }
@@ -505,6 +518,7 @@ const pa_bt_codec pa_hf_codec_msbc = {
     .reset = msbc_reset,
     .get_read_block_size = msbc_get_block_size,
     .get_write_block_size = msbc_get_block_size,
+    .get_max_output_buffer_size = msbc_get_max_output_buffer_size,
     .reduce_encoder_bitrate = msbc_reduce_encoder_bitrate,
     .encode_buffer = msbc_encode_buffer,
     .decode_buffer = msbc_decode_buffer,
@@ -525,6 +539,7 @@ const pa_bt_codec pa_hf_codec_cvsd = {
     .reset = cvsd_reset,
     .get_read_block_size = cvsd_get_block_size,
     .get_write_block_size = cvsd_get_block_size,
+    .get_max_output_buffer_size = cvsd_get_max_output_buffer_size,
     .reduce_encoder_bitrate = cvsd_reduce_encoder_bitrate,
     .encode_buffer = cvsd_encode_buffer,
     .decode_buffer = cvsd_decode_buffer,

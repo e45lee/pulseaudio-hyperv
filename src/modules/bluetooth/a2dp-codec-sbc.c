@@ -495,6 +495,10 @@ static size_t get_block_size(void *codec_info, size_t link_mtu) {
     return frame_count * sbc_info->codesize;
 }
 
+static size_t get_max_output_buffer_size(void *codec_info, size_t write_link_mtu) {
+    return write_link_mtu;
+}
+
 static size_t reduce_encoder_bitrate(void *codec_info, size_t write_link_mtu) {
     struct sbc_info *sbc_info = (struct sbc_info *) codec_info;
     uint8_t bitpool;
@@ -676,6 +680,7 @@ const pa_bt_codec pa_a2dp_codec_sbc = {
     .reset = reset,
     .get_read_block_size = get_block_size,
     .get_write_block_size = get_block_size,
+    .get_max_output_buffer_size = get_max_output_buffer_size,
     .reduce_encoder_bitrate = reduce_encoder_bitrate,
     .encode_buffer = encode_buffer,
     .decode_buffer = decode_buffer,
