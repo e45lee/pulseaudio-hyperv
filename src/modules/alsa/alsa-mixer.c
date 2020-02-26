@@ -2654,6 +2654,9 @@ static int path_verify(pa_alsa_path *p) {
         { "multichannel-output",        N_("Multichannel Output") },
         { "steelseries-arctis-5-output-game", N_("Game Output") },
         { "steelseries-arctis-5-output-chat", N_("Chat Output") },
+        { "analog-chat-output",         N_("Chat Output") },
+        { "analog-chat-input",          N_("Chat Input") },
+        { "virtual-surround-7.1",       N_("Virtual Surround 7.1") },
     };
 
     pa_alsa_element *e;
@@ -4390,6 +4393,7 @@ static int profile_verify(pa_alsa_profile *p) {
         { "output:iec958-stereo+input:iec958-stereo", N_("Digital Stereo Duplex (IEC958)") },
         { "output:multichannel-output+input:multichannel-input", N_("Multichannel Duplex") },
         { "output:unknown-stereo+input:unknown-stereo", N_("Stereo Duplex") },
+        { "output:analog-output-surround71+output:analog-output-chat+input:analog-input", N_("Mono Chat + 7.1 Surround") },
         { "off",                                      N_("Off") }
     };
 
