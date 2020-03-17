@@ -26,11 +26,11 @@
 
 #include "a2dp-codec-util.h"
 
-extern const pa_a2dp_codec pa_a2dp_codec_sbc;
+extern const pa_bt_codec pa_a2dp_codec_sbc;
 
 /* This is list of supported codecs. Their order is important.
  * Codec with higher index has higher priority. */
-const pa_a2dp_codec *pa_a2dp_codecs[] = {
+const pa_bt_codec *pa_a2dp_codecs[] = {
     &pa_a2dp_codec_sbc,
 };
 
@@ -38,12 +38,12 @@ unsigned int pa_bluetooth_a2dp_codec_count(void) {
     return PA_ELEMENTSOF(pa_a2dp_codecs);
 }
 
-const pa_a2dp_codec *pa_bluetooth_a2dp_codec_iter(unsigned int i) {
+const pa_bt_codec *pa_bluetooth_a2dp_codec_iter(unsigned int i) {
     pa_assert(i < pa_bluetooth_a2dp_codec_count());
     return pa_a2dp_codecs[i];
 }
 
-const pa_a2dp_codec *pa_bluetooth_get_a2dp_codec(const char *name) {
+const pa_bt_codec *pa_bluetooth_get_a2dp_codec(const char *name) {
     unsigned int i;
     unsigned int count = pa_bluetooth_a2dp_codec_count();
 

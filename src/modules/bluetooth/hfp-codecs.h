@@ -1,10 +1,10 @@
-#ifndef fooa2dpcodecutilhfoo
-#define fooa2dpcodecutilhfoo
-
+#ifndef foohfpcodecsfoo
+#define foohfpcodecsfoo
 /***
   This file is part of PulseAudio.
 
-  Copyright 2019 Pali Rohár <pali.rohar@gmail.com>
+  Copyright (C) 2019 Sathish Narasimman <sathish.narasimman@intel.com>
+  Copyright (C) 2020 DSP Group
 
   PulseAudio is free software; you can redistribute it and/or modify
   it under the terms of the GNU Lesser General Public License as
@@ -19,16 +19,15 @@
   You should have received a copy of the GNU Lesser General Public
   License along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
 ***/
-
+#include <sbc/sbc.h>
 #include "bt-codec-api.h"
 
-/* Get number of supported A2DP codecs */
-unsigned int pa_bluetooth_a2dp_codec_count(void);
+#define HFP_AUDIO_CODEC_CVSD    0x01
+#define HFP_AUDIO_CODEC_MSBC    0x02
 
-/* Get i-th codec. Codec with higher number has higher priority */
-const pa_bt_codec *pa_bluetooth_a2dp_codec_iter(unsigned int i);
+struct hf_config {
+    size_t mtu;
+};
 
-/* Get codec by name */
-const pa_bt_codec *pa_bluetooth_get_a2dp_codec(const char *name);
-
+const pa_bt_codec *hf_codec_from_id(int codec);
 #endif

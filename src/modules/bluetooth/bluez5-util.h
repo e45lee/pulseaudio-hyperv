@@ -86,7 +86,7 @@ struct pa_bluetooth_transport {
     uint8_t *config;
     size_t config_size;
 
-    const pa_a2dp_codec *a2dp_codec;
+    const pa_bt_codec *bt_codec;
 
     uint16_t microphone_gain;
     uint16_t speaker_gain;

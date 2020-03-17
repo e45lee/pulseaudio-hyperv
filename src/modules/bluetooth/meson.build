@@ -2,14 +2,16 @@ libbluez5_util_sources = [
   'a2dp-codec-sbc.c',
   'a2dp-codec-util.c',
   'bluez5-util.c',
+  'hfp-codecs.c',
 ]
 
 libbluez5_util_headers = [
-  'a2dp-codec-api.h',
+  'bt-codec-api.h',
   'a2dp-codecs.h',
   'a2dp-codec-util.h',
   'bluez5-util.h',
   'rtp.h',
+  'hfp-codecs.h',
 ]
 
 if get_option('bluez5-native-headset')

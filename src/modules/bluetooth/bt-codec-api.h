@@ -1,5 +1,5 @@
-#ifndef fooa2dpcodechfoo
-#define fooa2dpcodechfoo
+#ifndef foobtcodechfoo
+#define foobtcodechfoo
 
 /***
   This file is part of PulseAudio.
@@ -24,18 +24,18 @@
 
 #define MAX_A2DP_CAPS_SIZE 254
 
-typedef struct pa_a2dp_codec_capabilities {
+typedef struct pa_bt_codec_capabilities {
     uint8_t size;
     uint8_t buffer[]; /* max size is 254 bytes */
-} pa_a2dp_codec_capabilities;
+} pa_bt_codec_capabilities;
 
-typedef struct pa_a2dp_codec_id {
+typedef struct pa_bt_codec_id {
     uint8_t codec_id;
     uint32_t vendor_id;
     uint16_t vendor_codec_id;
-} pa_a2dp_codec_id;
+} pa_bt_codec_id;
 
-typedef struct pa_a2dp_codec {
+typedef struct pa_bt_codec {
     /* Unique name of the codec, lowercase and without whitespaces, used for
      * constructing identifier, D-Bus paths, ... */
     const char *name;
@@ -43,7 +43,7 @@ typedef struct pa_a2dp_codec {
     const char *description;
 
     /* A2DP codec id */
-    pa_a2dp_codec_id id;
+    pa_bt_codec_id id;
 
     /* True if codec is bi-directional and supports backchannel */
     bool support_backchannel;
@@ -52,7 +52,7 @@ typedef struct pa_a2dp_codec {
      * capabilities are used for encoding */
     bool (*can_accept_capabilities)(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding);
     /* Choose remote endpoint based on capabilities from hash map
-     * (const char *endpoint -> const pa_a2dp_codec_capabilities *capability)
+     * (const char *endpoint -> const pa_bt_codec_capabilities *capability)
      * and returns corresponding endpoint key (or NULL when there is no valid),
      * for_encoder is true when capabilities hash map is used for encoding */
     const char *(*choose_remote_endpoint)(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding);
@@ -79,6 +79,10 @@ typedef struct pa_a2dp_codec {
     /* Get write block size for codec, it is maximal size of buffer
      * which can produce at most write_link_mtu bytes of encoded data */
     size_t (*get_write_block_size)(void *codec_info, size_t write_link_mtu);
+    /* Get maximum size of the output buffer codec might use to store encoded
+     * data. This buffer is to be provided into encode_buffer func call.
+     * Returned value must be the multiple of write_link_mtu. */
+    size_t (*get_max_output_buffer_size)(void *codec_info, size_t write_link_mtu);
 
     /* Reduce encoder bitrate for codec, returns new write block size or zero
      * if not changed, called when socket is not accepting encoded data fast
@@ -93,6 +97,6 @@ typedef struct pa_a2dp_codec {
      * returns size of filled ouput_buffer and set processed to size of
      * processed input_buffer */
     size_t (*decode_buffer)(void *codec_info, const uint8_t *input_buffer, size_t input_size, uint8_t *output_buffer, size_t output_size, size_t *processed);
-} pa_a2dp_codec;
+} pa_bt_codec;
 
 #endif
