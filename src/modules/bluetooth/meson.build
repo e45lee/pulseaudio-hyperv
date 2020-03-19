@@ -13,8 +13,8 @@ libbluez5_util_headers = [
   'rtp.h',
 ]
 
-if get_option('bluez5-native-headset')
-  libbluez5_util_sources += [ 'backend-native.c' ]
+if get_option('bluez5-legacy-hsp')
+  libbluez5_util_sources += [ 'legacy-hsp.c' ]
 endif
 
 if bluez5_aptx

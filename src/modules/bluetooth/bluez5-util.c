@@ -118,7 +118,7 @@ struct pa_bluetooth_discovery {
     pa_hashmap *transports;
 
     int headset_backend;
-    pa_bluetooth_backend *native_backend;
+    pa_bluetooth_backend *legacy_hsp_backend;
     PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
 
@@ -1374,8 +1374,8 @@ static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) 
 
     y->objects_listed = true;
 
-    if (!y->native_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_NATIVE))
-        y->native_backend = pa_bluetooth_native_backend_new(y->core, y, (y->headset_backend == HEADSET_BACKEND_NATIVE));
+    if (!y->legacy_hsp_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_LEGACY_HSP))
+        y->legacy_hsp_backend = pa_bluetooth_legacy_hsp_backend_new(y->core, y, (y->headset_backend == HEADSET_BACKEND_LEGACY_HSP));
 
 finish:
     dbus_message_unref(r);
@@ -1429,9 +1429,9 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
                 pa_hashmap_remove_all(y->devices);
                 pa_hashmap_remove_all(y->adapters);
                 y->objects_listed = false;
-                if (y->native_backend) {
-                    pa_bluetooth_native_backend_free(y->native_backend);
-                    y->native_backend = NULL;
+                if (y->legacy_hsp_backend) {
+                    pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);
+                    y->legacy_hsp_backend = NULL;
                 }
             }
 
@@ -2398,8 +2398,8 @@ void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
 
     pa_dbus_free_pending_list(&y->pending);
 
-    if (y->native_backend)
-        pa_bluetooth_native_backend_free(y->native_backend);
+    if (y->legacy_hsp_backend)
+        pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);
 
     if (y->adapters)
         pa_hashmap_free(y->adapters);

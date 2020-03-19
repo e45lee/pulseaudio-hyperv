@@ -2154,9 +2154,9 @@ libbluez5_util_la_SOURCES = \
 		modules/bluetooth/a2dp-codec-util.h \
 		modules/bluetooth/a2dp-codecs.h \
 		modules/bluetooth/rtp.h
-if HAVE_BLUEZ_5_NATIVE_HEADSET
+if HAVE_BLUEZ_5_LEGACY_HSP
 libbluez5_util_la_SOURCES += \
-		modules/bluetooth/backend-native.c
+		modules/bluetooth/legacy-hsp.c
 endif
 
 libbluez5_util_la_LDFLAGS = -avoid-version

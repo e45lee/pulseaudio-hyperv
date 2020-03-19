@@ -78,9 +78,9 @@ option('bluez5',
 option('bluez5-aptx',
        type : 'feature', value : 'auto',
        description : 'Optional aptX support')
-option('bluez5-native-headset',
+option('bluez5-legacy-hsp',
        type : 'boolean',
-       description : 'Optional native headset backend support (BlueZ 5)')
+       description : 'Optional legacy HSP backend support (BlueZ 5)')
 option('dbus',
        type : 'feature', value : 'auto',
        description : 'Optional D-Bus support')

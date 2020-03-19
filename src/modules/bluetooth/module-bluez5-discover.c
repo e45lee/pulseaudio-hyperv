@@ -35,7 +35,7 @@ PA_MODULE_DESCRIPTION("Detect available BlueZ 5 Bluetooth audio devices and load
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE(
-    "headset=native|auto"
+    "headset=legacy_hsp|auto"
     "autodetect_mtu=<boolean>"
 );
 
@@ -109,12 +109,13 @@ int pa__init(pa_module *m) {
     }
 
     pa_assert_se(headset_str = pa_modargs_get_value(ma, "headset", default_headset_backend));
-    if (pa_streq(headset_str, "native"))
-        headset_backend = HEADSET_BACKEND_NATIVE;
+    /* For backward compatibility we also support "native" as alias for "legacy_hsp" */
+    if (pa_streq(headset_str, "native") || pa_streq(headset_str, "legacy_hsp"))
+        headset_backend = HEADSET_BACKEND_LEGACY_HSP;
     else if (pa_streq(headset_str, "auto"))
         headset_backend = HEADSET_BACKEND_AUTO;
     else {
-        pa_log("headset parameter must be either native or auto (found %s)", headset_str);
+        pa_log("headset parameter must be either legacy_hsp or auto (found %s)", headset_str);
         goto fail;
     }
 
