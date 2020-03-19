@@ -118,7 +118,7 @@ struct pa_bluetooth_discovery {
     pa_hashmap *transports;
 
     int headset_backend;
-    pa_bluetooth_backend *ofono_backend, *native_backend;
+    pa_bluetooth_backend *native_backend;
     PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
 
@@ -1336,34 +1336,6 @@ static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessa
     return;
 }
 
-void pa_bluetooth_discovery_set_ofono_running(pa_bluetooth_discovery *y, bool is_running) {
-    pa_assert(y);
-
-    pa_log_debug("oFono is running: %s", pa_yes_no(is_running));
-    if (y->headset_backend != HEADSET_BACKEND_AUTO)
-        return;
-
-    /* If ofono starts running, all devices that might be connected to the HS role
-     * need to be disconnected, so that the devices can be handled by ofono */
-    if (is_running) {
-        void *state;
-        pa_bluetooth_device *d;
-
-        PA_HASHMAP_FOREACH(d, y->devices, state) {
-            if (device_supports_profile(d, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY)) {
-                DBusMessage *m;
-
-                pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, d->path, "org.bluez.Device1", "Disconnect"));
-                dbus_message_set_no_reply(m, true);
-                pa_assert_se(dbus_connection_send(pa_dbus_connection_get(y->connection), m, NULL));
-                dbus_message_unref(m);
-            }
-        }
-    }
-
-    pa_bluetooth_native_backend_enable_hs_role(y->native_backend, !is_running);
-}
-
 static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) {
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
@@ -1402,10 +1374,8 @@ static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) 
 
     y->objects_listed = true;
 
-    if (!y->native_backend && y->headset_backend != HEADSET_BACKEND_OFONO)
+    if (!y->native_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_NATIVE))
         y->native_backend = pa_bluetooth_native_backend_new(y->core, y, (y->headset_backend == HEADSET_BACKEND_NATIVE));
-    if (!y->ofono_backend && y->headset_backend != HEADSET_BACKEND_NATIVE)
-        y->ofono_backend = pa_bluetooth_ofono_backend_new(y->core, y);
 
 finish:
     dbus_message_unref(r);
@@ -1459,10 +1429,6 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
                 pa_hashmap_remove_all(y->devices);
                 pa_hashmap_remove_all(y->adapters);
                 y->objects_listed = false;
-                if (y->ofono_backend) {
-                    pa_bluetooth_ofono_backend_free(y->ofono_backend);
-                    y->ofono_backend = NULL;
-                }
                 if (y->native_backend) {
                     pa_bluetooth_native_backend_free(y->native_backend);
                     y->native_backend = NULL;
@@ -2432,8 +2398,6 @@ void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
 
     pa_dbus_free_pending_list(&y->pending);
 
-    if (y->ofono_backend)
-        pa_bluetooth_ofono_backend_free(y->ofono_backend);
     if (y->native_backend)
         pa_bluetooth_native_backend_free(y->native_backend);
 

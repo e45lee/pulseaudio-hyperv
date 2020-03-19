@@ -629,9 +629,6 @@ if get_option('bluez5')
   if get_option('bluez5-native-headset')
     cdata.set('HAVE_BLUEZ_5_NATIVE_HEADSET', 1)
   endif
-  if get_option('bluez5-ofono-headset')
-    cdata.set('HAVE_BLUEZ_5_OFONO_HEADSET', 1)
-  endif
 endif
 
 bluez5_aptx_feature = get_option('bluez5-aptx')
@@ -822,7 +819,6 @@ summary = [
   'Enable D-Bus:                  @0@'.format(dbus_dep.found()),
   '  Enable BlueZ 5:              @0@'.format(get_option('bluez5')),
   '    Enable native headsets:    @0@'.format(get_option('bluez5-native-headset')),
-  '    Enable  ofono headsets:    @0@'.format(get_option('bluez5-ofono-headset')),
   '    Enable aptX+aptXHD codecs: @0@'.format(bluez5_aptx),
   'Enable udev:                   @0@'.format(udev_dep.found()),
   '  Enable HAL->udev compat:     @0@'.format(get_option('hal-compat')),

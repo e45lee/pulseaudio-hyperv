@@ -17,10 +17,6 @@ if get_option('bluez5-native-headset')
   libbluez5_util_sources += [ 'backend-native.c' ]
 endif
 
-if get_option('bluez5-ofono-headset')
-  libbluez5_util_sources += [ 'backend-ofono.c' ]
-endif
-
 if bluez5_aptx
   libbluez5_util_sources += [ 'a2dp-codec-aptx.c' ]
 endif

@@ -81,9 +81,6 @@ option('bluez5-aptx',
 option('bluez5-native-headset',
        type : 'boolean',
        description : 'Optional native headset backend support (BlueZ 5)')
-option('bluez5-ofono-headset',
-       type : 'boolean',
-       description : 'Optional oFono headset backend support (BlueZ 5)')
 option('dbus',
        type : 'feature', value : 'auto',
        description : 'Optional D-Bus support')

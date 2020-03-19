@@ -82,7 +82,6 @@ struct pa_bluetooth_transport {
     char *path;
     pa_bluetooth_profile_t profile;
 
-    uint8_t codec;
     uint8_t *config;
     size_t config_size;
 
@@ -133,16 +132,6 @@ struct pa_bluetooth_adapter {
     bool media_application_registered;
 };
 
-#ifdef HAVE_BLUEZ_5_OFONO_HEADSET
-pa_bluetooth_backend *pa_bluetooth_ofono_backend_new(pa_core *c, pa_bluetooth_discovery *y);
-void pa_bluetooth_ofono_backend_free(pa_bluetooth_backend *b);
-#else
-static inline pa_bluetooth_backend *pa_bluetooth_ofono_backend_new(pa_core *c, pa_bluetooth_discovery *y) {
-    return NULL;
-}
-static inline void pa_bluetooth_ofono_backend_free(pa_bluetooth_backend *b) {}
-#endif
-
 #ifdef HAVE_BLUEZ_5_NATIVE_HEADSET
 pa_bluetooth_backend *pa_bluetooth_native_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable_hs_role);
 void pa_bluetooth_native_backend_free(pa_bluetooth_backend *b);
@@ -192,12 +181,10 @@ static inline bool pa_bluetooth_uuid_is_hsp_hs(const char *uuid) {
     return pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS) || pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS_ALT);
 }
 
-#define HEADSET_BACKEND_OFONO 0
 #define HEADSET_BACKEND_NATIVE 1
 #define HEADSET_BACKEND_AUTO 2
 
 pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *core, int headset_backend);
 pa_bluetooth_discovery* pa_bluetooth_discovery_ref(pa_bluetooth_discovery *y);
 void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y);
-void pa_bluetooth_discovery_set_ofono_running(pa_bluetooth_discovery *y, bool is_running);
 #endif
