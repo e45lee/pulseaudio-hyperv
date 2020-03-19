@@ -75,6 +75,9 @@ option('avahi',
 option('bluez5',
        type : 'boolean', value : 'true',
        description : 'Optional BlueZ 5 support')
+option('bluez5-aptx',
+       type : 'feature', value : 'auto',
+       description : 'Optional aptX support')
 option('bluez5-native-headset',
        type : 'boolean',
        description : 'Optional native headset backend support (BlueZ 5)')

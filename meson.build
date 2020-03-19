@@ -634,6 +634,14 @@ if get_option('bluez5')
   endif
 endif
 
+bluez5_aptx_feature = get_option('bluez5-aptx')
+bluez5_aptx_dep = cc.find_library('openaptx', required : bluez5_aptx_feature)
+bluez5_aptx = cc.has_header_symbol('openaptx.h', 'aptx_init', required : bluez5_aptx_feature) \
+    and bluez5_aptx_dep.found()
+if bluez5_aptx
+  cdata.set('HAVE_OPENAPTX', 1)
+endif
+
 fftw_dep = dependency('fftw3f', required : get_option('fftw'))
 if fftw_dep.found()
   cdata.set('HAVE_FFTW', 1)
@@ -815,6 +823,7 @@ summary = [
   '  Enable BlueZ 5:              @0@'.format(get_option('bluez5')),
   '    Enable native headsets:    @0@'.format(get_option('bluez5-native-headset')),
   '    Enable  ofono headsets:    @0@'.format(get_option('bluez5-ofono-headset')),
+  '    Enable aptX+aptXHD codecs: @0@'.format(bluez5_aptx),
   'Enable udev:                   @0@'.format(udev_dep.found()),
   '  Enable HAL->udev compat:     @0@'.format(get_option('hal-compat')),
   'Enable systemd:                @0@'.format(libsystemd_dep.found()),
