@@ -55,28 +55,28 @@
 
 #define ENDPOINT_INTROSPECT_XML                                         \
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE                           \
-    "<node>"                                                            \
-    " <interface name=\"" BLUEZ_MEDIA_ENDPOINT_INTERFACE "\">"          \
-    "  <method name=\"SetConfiguration\">"                              \
-    "   <arg name=\"transport\" direction=\"in\" type=\"o\"/>"          \
-    "   <arg name=\"properties\" direction=\"in\" type=\"ay\"/>"        \
-    "  </method>"                                                       \
-    "  <method name=\"SelectConfiguration\">"                           \
-    "   <arg name=\"capabilities\" direction=\"in\" type=\"ay\"/>"      \
-    "   <arg name=\"configuration\" direction=\"out\" type=\"ay\"/>"    \
-    "  </method>"                                                       \
-    "  <method name=\"ClearConfiguration\">"                            \
-    "   <arg name=\"transport\" direction=\"in\" type=\"o\"/>"          \
-    "  </method>"                                                       \
-    "  <method name=\"Release\">"                                       \
-    "  </method>"                                                       \
-    " </interface>"                                                     \
-    " <interface name=\"org.freedesktop.DBus.Introspectable\">"         \
-    "  <method name=\"Introspect\">"                                    \
-    "   <arg name=\"data\" type=\"s\" direction=\"out\"/>"              \
-    "  </method>"                                                       \
-    " </interface>"                                                     \
-    "</node>"
+    "<node>\n"                                                          \
+    " <interface name=\"" BLUEZ_MEDIA_ENDPOINT_INTERFACE "\">\n"        \
+    "  <method name=\"SetConfiguration\">\n"                            \
+    "   <arg name=\"transport\" direction=\"in\" type=\"o\"/>\n"        \
+    "   <arg name=\"properties\" direction=\"in\" type=\"ay\"/>\n"      \
+    "  </method>\n"                                                     \
+    "  <method name=\"SelectConfiguration\">\n"                         \
+    "   <arg name=\"capabilities\" direction=\"in\" type=\"ay\"/>\n"    \
+    "   <arg name=\"configuration\" direction=\"out\" type=\"ay\"/>\n"  \
+    "  </method>\n"                                                     \
+    "  <method name=\"ClearConfiguration\">\n"                          \
+    "   <arg name=\"transport\" direction=\"in\" type=\"o\"/>\n"        \
+    "  </method>\n"                                                     \
+    "  <method name=\"Release\">\n"                                     \
+    "  </method>\n"                                                     \
+    " </interface>\n"                                                   \
+    " <interface name=\"org.freedesktop.DBus.Introspectable\">\n"       \
+    "  <method name=\"Introspect\">\n"                                  \
+    "   <arg name=\"data\" type=\"s\" direction=\"out\"/>\n"            \
+    "  </method>\n"                                                     \
+    " </interface>\n"                                                   \
+    "</node>\n"
 
 struct pa_bluetooth_discovery {
     PA_REFCNT_DECLARE;
