@@ -30,7 +30,7 @@ extern const pa_a2dp_codec pa_a2dp_codec_sbc;
 
 /* This is list of supported codecs. Their order is important.
  * Codec with higher index has higher priority. */
-const pa_a2dp_codec *pa_a2dp_codecs[] = {
+static const pa_a2dp_codec *pa_a2dp_codecs[] = {
     &pa_a2dp_codec_sbc,
 };
 
