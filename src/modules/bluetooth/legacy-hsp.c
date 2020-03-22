@@ -40,7 +40,7 @@ struct pa_bluetooth_backend {
   pa_core *core;
   pa_dbus_connection *connection;
   pa_bluetooth_discovery *discovery;
-  bool enable_hs_role;
+  bool enabled;
 
   PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
@@ -659,24 +659,26 @@ static void profile_done(pa_bluetooth_backend *b, pa_bluetooth_profile_t profile
     }
 }
 
-void pa_bluetooth_legacy_hsp_backend_enable_hs_role(pa_bluetooth_backend *legacy_hsp_backend, bool enable_hs_role) {
-
-   if (enable_hs_role == legacy_hsp_backend->enable_hs_role)
+void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *backend, bool enable) {
+   if (enable == backend->enabled)
        return;
 
-   if (enable_hs_role)
-       profile_init(legacy_hsp_backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
-   else
-       profile_done(legacy_hsp_backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+   if (enable) {
+       pa_log_warn("Enabling legacy HSP backend");
+       profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
+       profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+   } else {
+       pa_log_warn("Disabling legacy HSP backend");
+       profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
+       profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+   }
 
-   legacy_hsp_backend->enable_hs_role = enable_hs_role;
+   backend->enabled = enable;
 }
 
-pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable_hs_role) {
+pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable) {
     pa_bluetooth_backend *backend;
     DBusError err;
-
-    pa_log_debug("Bluetooth Headset Backend API support using the legacy HSP backend");
 
     backend = pa_xnew0(pa_bluetooth_backend, 1);
     backend->core = c;
@@ -690,11 +692,12 @@ pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetoo
     }
 
     backend->discovery = y;
-    backend->enable_hs_role = enable_hs_role;
+    backend->enabled = enable;
 
-    if (enable_hs_role)
-       profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
-    profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
+    if (enable) {
+        profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
+        profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+    }
 
     return backend;
 }
@@ -704,9 +707,10 @@ void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *backend) {
 
     pa_dbus_free_pending_list(&backend->pending);
 
-    if (backend->enable_hs_role)
-       profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
-    profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
+    if (backend->enabled) {
+        profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+        profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
+    }
 
     pa_dbus_connection_unref(backend->connection);
 

@@ -3,6 +3,7 @@ libbluez5_util_sources = [
   'a2dp-codec-sbc.c',
   'a2dp-codec-util.c',
   'bluez5-util.c',
+  'hsphfpd.c',
 ]
 
 libbluez5_util_headers = [

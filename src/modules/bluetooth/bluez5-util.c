@@ -118,6 +118,7 @@ struct pa_bluetooth_discovery {
     pa_hashmap *transports;
 
     int headset_backend;
+    pa_bluetooth_backend *hsphfpd_backend;
     pa_bluetooth_backend *legacy_hsp_backend;
     PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
@@ -379,6 +380,11 @@ void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_tr
         device_stop_waiting_for_profiles(t->device);
         pa_hook_fire(&t->device->discovery->hooks[PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED], t->device);
     }
+}
+
+pa_bluetooth_transport *pa_bluetooth_transport_get(pa_bluetooth_discovery *y, const char *path) {
+    pa_assert(path);
+    return pa_hashmap_get(y->transports, path);
 }
 
 void pa_bluetooth_transport_put(pa_bluetooth_transport *t) {
@@ -1336,6 +1342,13 @@ static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessa
     return;
 }
 
+/* This function may be called only by hsphfpd backend.
+   Legacy HSP backend may be enabled only when hsphfpd daemon is not running. */
+void pa_bluetooth_discovery_legacy_hsp_backend_enable(pa_bluetooth_discovery *y, bool enable) {
+    if (y->legacy_hsp_backend)
+        pa_bluetooth_legacy_hsp_backend_enable(y->legacy_hsp_backend, enable);
+}
+
 static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) {
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
@@ -1376,6 +1389,9 @@ static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) 
 
     if (!y->legacy_hsp_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_LEGACY_HSP))
         y->legacy_hsp_backend = pa_bluetooth_legacy_hsp_backend_new(y->core, y, (y->headset_backend == HEADSET_BACKEND_LEGACY_HSP));
+
+    if (!y->hsphfpd_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_HSPHFPD))
+        y->hsphfpd_backend = pa_bluetooth_hsphfpd_backend_new(y->core, y);
 
 finish:
     dbus_message_unref(r);
@@ -1429,6 +1445,10 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
                 pa_hashmap_remove_all(y->devices);
                 pa_hashmap_remove_all(y->adapters);
                 y->objects_listed = false;
+                if (y->hsphfpd_backend) {
+                    pa_bluetooth_hsphfpd_backend_free(y->hsphfpd_backend);
+                    y->hsphfpd_backend = NULL;
+                }
                 if (y->legacy_hsp_backend) {
                     pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);
                     y->legacy_hsp_backend = NULL;
@@ -2397,6 +2417,9 @@ void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
         return;
 
     pa_dbus_free_pending_list(&y->pending);
+
+    if (y->hsphfpd_backend)
+        pa_bluetooth_hsphfpd_backend_free(y->hsphfpd_backend);
 
     if (y->legacy_hsp_backend)
         pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);

@@ -85,6 +85,7 @@ struct pa_bluetooth_transport {
     uint8_t *config;
     size_t config_size;
 
+    bool soft_volume;
     uint16_t microphone_gain;
     uint16_t speaker_gain;
 
@@ -132,22 +133,26 @@ struct pa_bluetooth_adapter {
     bool media_application_registered;
 };
 
+pa_bluetooth_backend *pa_bluetooth_hsphfpd_backend_new(pa_core *c, pa_bluetooth_discovery *y);
+void pa_bluetooth_hsphfpd_backend_free(pa_bluetooth_backend *b);
+
 #ifdef HAVE_BLUEZ_5_LEGACY_HSP
-pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable_hs_role);
+pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable);
 void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *b);
-void pa_bluetooth_legacy_hsp_backend_enable_hs_role(pa_bluetooth_backend *b, bool enable_hs_role);
+void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *b, bool enable);
 #else
-static inline pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable_hs_role) {
+static inline pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable) {
     return NULL;
 }
 static inline void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *b) {}
-static inline void pa_bluetooth_legacy_hsp_backend_enable_hs_role(pa_bluetooth_backend *b, bool enable_hs_role) {}
+static inline void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *b, bool enable) {}
 #endif
 
 pa_bluetooth_transport *pa_bluetooth_transport_new(pa_bluetooth_device *d, const char *owner, const char *path,
                                                    pa_bluetooth_profile_t p, const uint8_t *config, size_t size);
 
 void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_transport_state_t state);
+pa_bluetooth_transport *pa_bluetooth_transport_get(pa_bluetooth_discovery *y, const char *path);
 void pa_bluetooth_transport_put(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_unlink(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t);
@@ -181,10 +186,12 @@ static inline bool pa_bluetooth_uuid_is_hsp_hs(const char *uuid) {
     return pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS) || pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS_ALT);
 }
 
+#define HEADSET_BACKEND_HSPHFPD 0
 #define HEADSET_BACKEND_LEGACY_HSP 1
 #define HEADSET_BACKEND_AUTO 2
 
 pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *core, int headset_backend);
 pa_bluetooth_discovery* pa_bluetooth_discovery_ref(pa_bluetooth_discovery *y);
 void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y);
+void pa_bluetooth_discovery_legacy_hsp_backend_enable(pa_bluetooth_discovery *y, bool enable);
 #endif
