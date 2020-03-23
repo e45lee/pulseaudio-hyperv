@@ -321,7 +321,6 @@ static size_t _msbc_encode_buffer(void *codec_info, uint32_t timestamp, const ui
     }
     out_ptr += written;
     *out_ptr++ = 0x0;
-    written += 3;
     *processed = (size_t)encoded;
     msbc_info->frame_count.enc++;
     return out_ptr - output_buffer;
