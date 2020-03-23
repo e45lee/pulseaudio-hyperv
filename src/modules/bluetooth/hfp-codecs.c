@@ -417,7 +417,7 @@ static size_t msbc_decode_buffer(void *codec_info, const uint8_t *input_buffer, 
         if (PA_UNLIKELY(decoded <= 0)) {
             pa_log_debug("Error while decoding: %ld\n", decoded);
             msbc_parser_reset(&msbc_info->parser);
-            return -1;
+            continue;
         }
         /*count header and zero byte back. Encoder counts only sbc payoad.*/
         pa_assert(written == msbc_info->decoded_frame_size);
