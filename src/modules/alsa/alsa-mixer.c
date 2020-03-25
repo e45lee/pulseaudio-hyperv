@@ -107,7 +107,7 @@ struct description_map {
     const char *description;
 };
 
-static char *alsa_id_str(char *dst, size_t dst_len, pa_alsa_mixer_id *id) {
+char *alsa_id_str(char *dst, size_t dst_len, pa_alsa_mixer_id *id) {
     if (id->index > 0) {
         snprintf(dst, dst_len, "'%s',%d", id->name, id->index);
     } else {
@@ -147,7 +147,7 @@ static int alsa_id_decode(const char *src, char *name, int *index) {
     return 0;
 }
 
-pa_alsa_jack *pa_alsa_jack_new(pa_alsa_path *path, const char *mixer_device_name, const char *name) {
+pa_alsa_jack *pa_alsa_jack_new(pa_alsa_path *path, const char *mixer_device_name, const char *name, int index) {
     pa_alsa_jack *jack;
 
     pa_assert(name);
@@ -156,7 +156,8 @@ pa_alsa_jack *pa_alsa_jack_new(pa_alsa_path *path, const char *mixer_device_name
     jack->path = path;
     jack->mixer_device_name = pa_xstrdup(mixer_device_name);
     jack->name = pa_xstrdup(name);
-    jack->alsa_name = pa_sprintf_malloc("%s Jack", name);
+    jack->alsa_id.name = pa_sprintf_malloc("%s Jack", name);
+    jack->alsa_id.index = index;
     jack->state_unplugged = PA_AVAILABLE_NO;
     jack->state_plugged = PA_AVAILABLE_YES;
     jack->ucm_devices = pa_dynarray_new(NULL);
@@ -171,7 +172,7 @@ void pa_alsa_jack_free(pa_alsa_jack *jack) {
     pa_dynarray_free(jack->ucm_hw_mute_devices);
     pa_dynarray_free(jack->ucm_devices);
 
-    pa_xfree(jack->alsa_name);
+    pa_xfree(jack->alsa_id.name);
     pa_xfree(jack->name);
     pa_xfree(jack->mixer_device_name);
     pa_xfree(jack);
@@ -1910,12 +1911,12 @@ static int jack_probe(pa_alsa_jack *j, pa_alsa_mapping *mapping, snd_mixer_t *m)
         }
 
         new_name = pa_sprintf_malloc("%s,pcm=%i Jack", j->name, mapping->hw_device_index);
-        pa_xfree(j->alsa_name);
-        j->alsa_name = new_name;
+        pa_xfree(j->alsa_id.name);
+        j->alsa_id.name = new_name;
         j->append_pcm_to_name = false;
     }
 
-    has_control = pa_alsa_mixer_find_card(m, j->alsa_name, 0) != NULL;
+    has_control = pa_alsa_mixer_find_card(m, &j->alsa_id, 0) != NULL;
     pa_alsa_jack_set_has_control(j, has_control);
 
     if (j->has_control) {
@@ -1978,19 +1979,26 @@ finish:
 
 static pa_alsa_jack* jack_get(pa_alsa_path *p, const char *section) {
     pa_alsa_jack *j;
+    char *name;
+    int index;
 
     if (!pa_startswith(section, "Jack "))
         return NULL;
     section += 5;
 
-    if (p->last_jack && pa_streq(p->last_jack->name, section))
+    name = alloca(strlen(section) + 1);
+    if (alsa_id_decode(section, name, &index))
+        return NULL;
+
+    if (p->last_jack && pa_streq(p->last_jack->name, name) &&
+        p->last_jack->alsa_id.index == index)
         return p->last_jack;
 
     PA_LLIST_FOREACH(j, p->jacks)
-        if (pa_streq(j->name, section))
+        if (pa_streq(j->name, name) && j->alsa_id.index == index)
             goto finish;
 
-    j = pa_alsa_jack_new(p, NULL, section);
+    j = pa_alsa_jack_new(p, NULL, name, index);
     PA_LLIST_INSERT_AFTER(pa_alsa_jack, p->jacks, p->last_jack, j);
 
 finish:
@@ -2950,12 +2958,13 @@ int pa_alsa_path_probe(pa_alsa_path *p, pa_alsa_mapping *mapping, snd_mixer_t *m
     pa_log_debug("Probing path '%s'", p->name);
 
     PA_LLIST_FOREACH(j, p->jacks) {
+        alsa_id_str(buf, sizeof(buf), &j->alsa_id);
         if (jack_probe(j, mapping, m) < 0) {
             p->supported = false;
-            pa_log_debug("Probe of jack '%s' failed.", j->alsa_name);
+            pa_log_debug("Probe of jack %s failed.", buf);
             return -1;
         }
-        pa_log_debug("Probe of jack '%s' succeeded (%s)", j->alsa_name, j->has_control ? "found!" : "not found");
+        pa_log_debug("Probe of jack %s succeeded (%s)", buf, j->has_control ? "found!" : "not found");
     }
 
     PA_LLIST_FOREACH(e, p->elements) {
@@ -3056,7 +3065,7 @@ void pa_alsa_setting_dump(pa_alsa_setting *s) {
 void pa_alsa_jack_dump(pa_alsa_jack *j) {
     pa_assert(j);
 
-    pa_log_debug("Jack %s, alsa_name='%s', detection %s", j->name, j->alsa_name, j->has_control ? "possible" : "unavailable");
+    pa_log_debug("Jack %s, alsa_name='%s', index='%d', detection %s", j->name, j->alsa_id.name, j->alsa_id.index, j->has_control ? "possible" : "unavailable");
 }
 
 void pa_alsa_option_dump(pa_alsa_option *o) {
@@ -3539,7 +3548,8 @@ static void path_set_condense(pa_alsa_path_set *ps, snd_mixer_t *m) {
                     continue;
 
                 PA_LLIST_FOREACH(jb, p2->jacks) {
-                    if (jb->has_control && pa_streq(jb->alsa_name, ja->alsa_name) &&
+                    if (jb->has_control && pa_streq(ja->alsa_id.name, jb->alsa_id.name) &&
+                       (ja->alsa_id.index == jb->alsa_id.index) &&
                        (ja->state_plugged == jb->state_plugged) &&
                        (ja->state_unplugged == jb->state_unplugged)) {
                         exists = true;
