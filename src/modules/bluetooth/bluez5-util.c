@@ -50,9 +50,9 @@
 
 #define BLUEZ_ERROR_NOT_SUPPORTED "org.bluez.Error.NotSupported"
 
-#define A2DP_OBJECT_MANAGER_PATH "/MediaEndpoint"
-#define A2DP_SOURCE_ENDPOINT A2DP_OBJECT_MANAGER_PATH "/A2DPSource"
-#define A2DP_SINK_ENDPOINT A2DP_OBJECT_MANAGER_PATH "/A2DPSink"
+#define A2DP_OBJECT_MANAGER_PATH "/A2DPEndpoint"
+#define A2DP_SOURCE_ENDPOINT A2DP_OBJECT_MANAGER_PATH "/Source"
+#define A2DP_SINK_ENDPOINT A2DP_OBJECT_MANAGER_PATH "/Sink"
 
 #define OBJECT_MANAGER_INTROSPECT_XML                                          \
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE                                  \
