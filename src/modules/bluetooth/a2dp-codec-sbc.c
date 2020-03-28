@@ -77,18 +77,153 @@ static bool can_accept_capabilities(const uint8_t *capabilities_buffer, uint8_t 
     return true;
 }
 
-static const char *choose_remote_endpoint(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding) {
-    const pa_a2dp_codec_capabilities *a2dp_capabilities;
-    const char *key;
-    void *state;
-
-    /* There is no preference, just choose random valid entry */
-    PA_HASHMAP_FOREACH_KV(key, a2dp_capabilities, capabilities_hashmap, state) {
-        if (can_accept_capabilities(a2dp_capabilities->buffer, a2dp_capabilities->size, for_encoding))
-            return key;
+static int cmp_endpoints_by_channels(const a2dp_sbc_t *capabilities1, const a2dp_sbc_t *capabilities2, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    /* Prefer enpoint which number of channels is near to default sample channel number */
+    if (default_sample_spec->channels < 2) {
+        if ((capabilities1->channel_mode & SBC_CHANNEL_MODE_MONO) && !(capabilities2->channel_mode & SBC_CHANNEL_MODE_MONO))
+            return -1;
+        if (!(capabilities1->channel_mode & SBC_CHANNEL_MODE_MONO) && (capabilities2->channel_mode & SBC_CHANNEL_MODE_MONO))
+            return 1;
+    } else {
+        if ((capabilities1->channel_mode & (SBC_CHANNEL_MODE_DUAL_CHANNEL|SBC_CHANNEL_MODE_STEREO|SBC_CHANNEL_MODE_JOINT_STEREO)) &&
+           !(capabilities2->channel_mode & (SBC_CHANNEL_MODE_DUAL_CHANNEL|SBC_CHANNEL_MODE_STEREO|SBC_CHANNEL_MODE_JOINT_STEREO)))
+            return -1;
+        if (!(capabilities1->channel_mode & (SBC_CHANNEL_MODE_DUAL_CHANNEL|SBC_CHANNEL_MODE_STEREO|SBC_CHANNEL_MODE_JOINT_STEREO)) &&
+             (capabilities2->channel_mode & (SBC_CHANNEL_MODE_DUAL_CHANNEL|SBC_CHANNEL_MODE_STEREO|SBC_CHANNEL_MODE_JOINT_STEREO)))
+            return 1;
     }
 
-    return NULL;
+    return 0;
+}
+
+static int cmp_endpoints_by_freq(const a2dp_sbc_t *capabilities1, const a2dp_sbc_t *capabilities2, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    uint32_t freq1 = 0;
+    uint32_t freq2 = 0;
+    int i;
+
+    static const struct {
+        uint32_t rate;
+        uint8_t cap;
+    } freq_table[] = {
+        { 16000U, SBC_SAMPLING_FREQ_16000 },
+        { 32000U, SBC_SAMPLING_FREQ_32000 },
+        { 44100U, SBC_SAMPLING_FREQ_44100 },
+        { 48000U, SBC_SAMPLING_FREQ_48000 }
+    };
+
+    /* Find the lowest freq that is at least as high as the requested sampling rate */
+    for (i = 0; (unsigned)i < PA_ELEMENTSOF(freq_table); i++) {
+        if (!freq1 && freq_table[i].rate >= default_sample_spec->rate && (capabilities1->frequency & freq_table[i].cap))
+            freq1 = freq_table[i].rate;
+        if (!freq2 && freq_table[i].rate >= default_sample_spec->rate && (capabilities2->frequency & freq_table[i].cap))
+            freq2 = freq_table[i].rate;
+        if (freq1 && freq2)
+            break;
+    }
+
+    /* Prefer endpoint which frequency is near to default sample rate */
+    if (freq1 && freq2) {
+        if (freq1 < freq2)
+            return -1;
+        if (freq1 > freq2)
+            return 1;
+    } else if (freq1) {
+        return freq1;
+    } else if (freq2) {
+        return freq2;
+    } else {
+        for (i = PA_ELEMENTSOF(freq_table)-1; i >= 0; i--) {
+            if (capabilities1->frequency & freq_table[i].cap)
+                freq1 = freq_table[i].rate;
+            if (capabilities2->frequency & freq_table[i].cap)
+                freq2 = freq_table[i].rate;
+            if (freq1 && freq2)
+                break;
+        }
+        pa_assert(i >= 0);
+
+        if (freq1 > freq2)
+            return -1;
+        if (freq2 < freq1)
+            return 1;
+    }
+
+    return 0;
+}
+
+static int cmp_endpoints(const uint8_t *capabilities1_buffer, uint8_t capabilities1_size, const uint8_t *capabilities2_buffer, uint8_t capabilities2_size, const pa_sample_spec *default_sample_spec, bool for_encoding) {
+    const a2dp_sbc_t *capabilities1 = (const a2dp_sbc_t *) capabilities1_buffer;
+    const a2dp_sbc_t *capabilities2 = (const a2dp_sbc_t *) capabilities2_buffer;
+    uint8_t max1_bitpool, max2_bitpool, min1_bitpool, min2_bitpool;
+    uint8_t capabilities1_range, capabilities2_range;
+    uint8_t unusable1_range, unusable2_range;
+    int cmp;
+
+    pa_assert(capabilities1_size == sizeof(a2dp_sbc_t));
+    pa_assert(capabilities2_size == sizeof(a2dp_sbc_t));
+
+    /* For mono outputs prefer endpoint with mono capability and for other outputs prefer non-mono capabilities */
+    cmp = cmp_endpoints_by_channels(capabilities1, capabilities2, default_sample_spec, for_encoding);
+    if (cmp != 0)
+        return cmp;
+
+    /* For sample rate above 44.1kHz when at least one endpoint does not support frequency suitable for 44.1kHz, use preference based on frequency */
+    if (default_sample_spec->rate >= 44100 &&
+        !((capabilities1->frequency & (SBC_SAMPLING_FREQ_44100|SBC_SAMPLING_FREQ_48000)) &&
+          (capabilities2->frequency & (SBC_SAMPLING_FREQ_44100|SBC_SAMPLING_FREQ_48000)))) {
+        cmp = cmp_endpoints_by_freq(capabilities1, capabilities2, default_sample_spec, for_encoding);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    /* Calculate usable bitpool range compatible with both remote capabilities and capabilities from auto sbc quality */
+    max1_bitpool = PA_MIN(capabilities1->max_bitpool, SBC_BITPOOL_HQ_JOINT_STEREO_44100);
+    max2_bitpool = PA_MIN(capabilities2->max_bitpool, SBC_BITPOOL_HQ_JOINT_STEREO_44100);
+    min1_bitpool = PA_MAX(capabilities1->min_bitpool, SBC_MIN_BITPOOL);
+    min2_bitpool = PA_MAX(capabilities2->min_bitpool, SBC_MIN_BITPOOL);
+    capabilities1_range = max1_bitpool - min1_bitpool;
+    capabilities2_range = max2_bitpool - min2_bitpool;
+
+    /* Prefer endpoint with larger usable bitpool range compatible with both sides */
+    if (capabilities1_range > capabilities2_range)
+        return -1;
+    if (capabilities1_range < capabilities2_range)
+        return 1;
+
+    /* Calculate unusable bitpool range which is not not compatible with both sides */
+    unusable1_range = PA_MAX(capabilities1->max_bitpool, SBC_BITPOOL_HQ_JOINT_STEREO_44100) - PA_MIN(capabilities1->min_bitpool, SBC_MIN_BITPOOL) - capabilities1_range;
+    unusable2_range = PA_MAX(capabilities2->max_bitpool, SBC_BITPOOL_HQ_JOINT_STEREO_44100) - PA_MIN(capabilities2->min_bitpool, SBC_MIN_BITPOOL) - capabilities2_range;
+
+    /* Prefer endpoint with smaller unusable bitpool range */
+    if (unusable1_range > unusable2_range)
+        return -1;
+    if (unusable1_range < unusable2_range)
+        return 1;
+
+    /* Prefer endpoint with higher maximal bitpool value compatible with boot sides */
+    if (max1_bitpool > max2_bitpool)
+        return -1;
+    if (max1_bitpool < max2_bitpool)
+        return 1;
+
+    /* Prefer endpoint with larger bitpool range */
+    if (capabilities1->max_bitpool - capabilities1->min_bitpool > capabilities2->max_bitpool - capabilities2->min_bitpool)
+        return -1;
+    if (capabilities1->max_bitpool - capabilities1->min_bitpool < capabilities2->max_bitpool - capabilities2->min_bitpool)
+        return 1;
+
+    /* Prefer endpoint with higher maximal bitpool value */
+    if (capabilities1->max_bitpool > capabilities2->max_bitpool)
+        return -1;
+    if (capabilities1->max_bitpool < capabilities2->max_bitpool)
+        return 1;
+
+    /* Last preference is by frequency */
+    cmp = cmp_endpoints_by_freq(capabilities1, capabilities2, default_sample_spec, for_encoding);
+    if (cmp != 0)
+        return cmp;
+
+    return 0;
 }
 
 static uint8_t fill_capabilities(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]) {
@@ -667,7 +802,7 @@ const pa_a2dp_codec pa_a2dp_codec_sbc = {
     .id = { A2DP_CODEC_SBC, 0, 0 },
     .support_backchannel = false,
     .can_accept_capabilities = can_accept_capabilities,
-    .choose_remote_endpoint = choose_remote_endpoint,
+    .cmp_endpoints = cmp_endpoints,
     .fill_capabilities = fill_capabilities,
     .is_configuration_valid = is_configuration_valid,
     .fill_preferred_configuration = fill_preferred_configuration,
