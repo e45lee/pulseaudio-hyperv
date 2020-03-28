@@ -381,6 +381,11 @@ static int reset(void *codec_info) {
     struct aptx_context *aptx_c = (struct aptx_context *) codec_info;
 
     aptx_reset(aptx_c);
+
+#if OPENAPTX_MAJOR == 0 && OPENAPTX_MINOR >= 2
+    aptx_decode_sync_finish(aptx_c);
+#endif
+
     return 0;
 }
 
@@ -392,19 +397,36 @@ static int reset_hd(void *codec_info) {
     return 0;
 }
 
-static size_t get_block_size(void *codec_info, size_t link_mtu) {
-    /* aptX compression ratio is 6:1 and we need to process one aptX frame (4 bytes) at once */
+static size_t get_read_block_size(void *codec_info, size_t link_mtu) {
+    /* one aptX sample is 4 bytes long and decompress to four stereo 24 bit samples */
     size_t frame_count = (link_mtu / 4);
 
-    return frame_count * 4 * 6;
+    /* due to synchronization support, libopenaptx may decode one additional frame */
+    return (frame_count + 1) * 3 * 2 * 4;
 }
 
-static size_t get_block_size_hd(void *codec_info, size_t link_mtu) {
-    /* aptX HD compression ratio is 4:1 and we need to process one aptX HD frame (6 bytes) at once, plus aptX HD frames are encapsulated in RTP */
+static size_t get_write_block_size(void *codec_info, size_t link_mtu) {
+    /* one aptX sample is 4 bytes long and decompress to four stereo 24 bit samples */
+    size_t frame_count = (link_mtu / 4);
+
+    return frame_count * 3 * 2 * 4;
+}
+
+static size_t get_read_block_size_hd(void *codec_info, size_t link_mtu) {
+    /* one aptX HD sample is 6 bytes long and decompress to four stereo 24 bit samples */
     size_t rtp_size = sizeof(struct rtp_header);
     size_t frame_count = (link_mtu - rtp_size) / 6;
 
-    return frame_count * 6 * 4;
+    /* due to synchronization support, libopenaptx may decode one additional frame */
+    return (frame_count + 1) * 3 * 2 * 4;
+}
+
+static size_t get_write_block_size_hd(void *codec_info, size_t link_mtu) {
+    /* one aptX HD sample is 6 bytes long and decompress to four stereo 24 bit samples */
+    size_t rtp_size = sizeof(struct rtp_header);
+    size_t frame_count = (link_mtu - rtp_size) / 6;
+
+    return frame_count * 3 * 2 * 4;
 }
 
 static size_t reduce_encoder_bitrate(void *codec_info, size_t write_link_mtu) {
@@ -452,7 +474,18 @@ static size_t decode_buffer(void *codec_info, const uint8_t *input_buffer, size_
     struct aptx_context *aptx_c = (struct aptx_context *) codec_info;
     size_t written;
 
+#if OPENAPTX_MAJOR == 0 && OPENAPTX_MINOR >= 2
+    int synced;
+    size_t dropped;
+
+    *processed = aptx_decode_sync(aptx_c, input_buffer, input_size, output_buffer, output_size, &written, &synced, &dropped);
+    if (!synced)
+        pa_log_warn("aptX decoding is failing");
+    if (dropped)
+        pa_log_warn("aptX decoder dropped %lu bytes", dropped);
+#else
     *processed = aptx_decode(aptx_c, input_buffer, input_size, output_buffer, output_size, &written);
+#endif
 
     /* Due to aptX latency, aptx_decode starts filling output buffer after 90 input samples.
      * If input buffer contains less than 90 samples, aptx_decode returns zero (=no output)
@@ -494,8 +527,8 @@ const pa_a2dp_codec pa_a2dp_codec_aptx = {
     .init = init,
     .deinit = deinit,
     .reset = reset,
-    .get_read_block_size = get_block_size,
-    .get_write_block_size = get_block_size,
+    .get_read_block_size = get_read_block_size,
+    .get_write_block_size = get_write_block_size,
     .reduce_encoder_bitrate = reduce_encoder_bitrate,
     .encode_buffer = encode_buffer,
     .decode_buffer = decode_buffer,
@@ -514,8 +547,8 @@ const pa_a2dp_codec pa_a2dp_codec_aptx_hd = {
     .init = init_hd,
     .deinit = deinit_hd,
     .reset = reset_hd,
-    .get_read_block_size = get_block_size_hd,
-    .get_write_block_size = get_block_size_hd,
+    .get_read_block_size = get_read_block_size_hd,
+    .get_write_block_size = get_write_block_size_hd,
     .reduce_encoder_bitrate = reduce_encoder_bitrate,
     .encode_buffer = encode_buffer_hd,
     .decode_buffer = decode_buffer_hd,
