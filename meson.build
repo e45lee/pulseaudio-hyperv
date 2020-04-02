@@ -409,6 +409,8 @@ size_t iconv (iconv_t cd, char * *inbuf, size_t *inbytesleft, char * *outbuf, si
   endif
 endif
 
+execinfo_dep = cc.find_library('execinfo', required : false)
+
 # Atomic operations
 
 if get_option('atomic-arm-memory-barrier')
