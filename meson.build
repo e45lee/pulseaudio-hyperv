@@ -296,7 +296,9 @@ if cc.has_function('SYS_memfd_create', prefix : '#include <sys/syscall.h>')
   cdata.set('HAVE_MEMFD', 1)
 endif
 
-if cc.has_function('dgettext')
+# Prefer libintl, because its headers can take priority over libc's (FreeBSD)
+libintl_dep = cc.find_library('intl', required : false)
+if not libintl_dep.found() and cc.has_function('dgettext')
   libintl_dep = []
 else
   libintl_dep = cc.find_library('intl')
