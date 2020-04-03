@@ -160,6 +160,8 @@ if host_machine.system() == 'darwin'
 elif host_machine.system() == 'windows'
   cdata.set('OS_IS_WIN32', 1)
   cdata.set('WIN32_LEAN_AND_MEAN', 1) # Needed to avoid including unnecessary headers on Windows
+elif host_machine.system() == 'freebsd'
+  cdata.set('OS_IS_FREEBSD', 1)
 #elif host_machine.system() == 'solaris'
 #  # Apparently meson has no solaris support?
 #  # Needed to get declarations for msg_control and msg_controllen on Solaris
