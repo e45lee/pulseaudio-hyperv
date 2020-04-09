@@ -1089,6 +1089,10 @@ connect_finish:
 
                 pa_log_debug("Connection established (UDP;control_port=%d;timing_port=%d)", cport, tport);
 
+                /* Send an initial UDP packet so a connection tracking firewall
+                 * knows the src_ip:src_port <-> dest_ip:dest_port relation
+                 * and accepts the incoming timing packets.
+                 */
                 send_initial_udp_timing_packet(c);
                 pa_log_debug("Sent initial timing packet to UDP port %d", tport);
 
