@@ -1844,6 +1844,15 @@ static int setup_mixer(struct userdata *u, bool ignore_dB) {
 
     pa_assert(u);
 
+    /* This code is before the u->mixer_handle check, because if the UCM
+     * configuration doesn't specify volume or mute controls, u->mixer_handle
+     * will be NULL, but the UCM device enable sequence will still need to be
+     * executed. */
+    if (u->source->active_port && u->ucm_context) {
+        if (pa_alsa_ucm_set_port(u->ucm_context, u->source->active_port, false) < 0)
+            return -1;
+    }
+
     if (!u->mixer_handle)
         return 0;
 
@@ -1860,10 +1869,6 @@ static int setup_mixer(struct userdata *u, bool ignore_dB) {
             pa_alsa_path_select(data->path, data->setting, u->mixer_handle, u->source->muted);
         } else {
             pa_alsa_ucm_port_data *data;
-
-            /* First activate the port on the UCM side */
-            if (pa_alsa_ucm_set_port(u->ucm_context, u->source->active_port, false) < 0)
-                return -1;
 
             data = PA_DEVICE_PORT_DATA(u->source->active_port);
 
@@ -2193,8 +2198,6 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
     /* ALSA might tweak the sample spec, so recalculate the frame size */
     frame_size = pa_frame_size(&ss);
 
-    find_mixer(u, mapping, pa_modargs_get_value(ma, "control", NULL), ignore_dB);
-
     pa_source_new_data_init(&data);
     data.driver = driver;
     data.module = m;
@@ -2249,10 +2252,14 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
         goto fail;
     }
 
-    if (u->ucm_context)
+    if (u->ucm_context) {
         pa_alsa_ucm_add_ports(&data.ports, data.proplist, u->ucm_context, false, card, u->pcm_handle, ignore_dB);
-    else if (u->mixer_path_set)
-        pa_alsa_add_ports(&data, u->mixer_path_set, card);
+        find_mixer(u, mapping, pa_modargs_get_value(ma, "control", NULL), ignore_dB);
+    } else {
+        find_mixer(u, mapping, pa_modargs_get_value(ma, "control", NULL), ignore_dB);
+        if (u->mixer_path_set)
+            pa_alsa_add_ports(&data, u->mixer_path_set, card);
+    }
 
     u->source = pa_source_new(m->core, &data, PA_SOURCE_HARDWARE|PA_SOURCE_LATENCY|(u->use_tsched ? PA_SOURCE_DYNAMIC_LATENCY : 0));
     volume_is_set = data.volume_is_set;
