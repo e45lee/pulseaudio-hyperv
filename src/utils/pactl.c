@@ -35,6 +35,7 @@
 #include <sndfile.h>
 
 #include <pulse/pulseaudio.h>
+#include <pulse/message-params.h>
 #include <pulse/ext-device-restore.h>
 
 #include <pulsecore/i18n.h>
@@ -56,7 +57,10 @@ static char
     *card_name = NULL,
     *profile_name = NULL,
     *port_name = NULL,
-    *formats = NULL;
+    *formats = NULL,
+    *object_path = NULL,
+    *message = NULL,
+    *message_args = NULL;
 
 static uint32_t
     sink_input_idx = PA_INVALID_INDEX,
@@ -130,6 +134,7 @@ static enum {
     SET_SOURCE_OUTPUT_MUTE,
     SET_SINK_FORMATS,
     SET_PORT_LATENCY_OFFSET,
+    SEND_MESSAGE,
     SUBSCRIBE
 } action = NONE;
 
@@ -840,6 +845,75 @@ static void index_callback(pa_context *c, uint32_t idx, void *userdata) {
     complete_action();
 }
 
+static void send_message_callback(pa_context *c, int success, char *response, void *userdata) {
+
+    if (!success) {
+        pa_log(_("Send message failed: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    printf("%s\n", response);
+
+    complete_action();
+}
+
+static void list_handlers_callback(pa_context *c, int success, char *response, void *userdata) {
+    void *state = NULL;
+    char *handler_list;
+    char *handler_struct;
+    int err;
+
+    if (!success) {
+        pa_log(_("list-handlers message failed: %s"), pa_strerror(pa_context_errno(c)));
+        quit(1);
+        return;
+    }
+
+    if (pa_message_params_read_raw(response, &handler_list, &state) <= 0) {
+        pa_log(_("list-handlers message response could not be parsed correctly"));
+        quit(1);
+        return;
+    }
+
+    state = NULL;
+    while ((err = pa_message_params_read_raw(handler_list, &handler_struct, &state)) > 0) {
+        void *state2 = NULL;
+        const char *path;
+        const char *description;
+
+        if (pa_message_params_read_string(handler_struct, &path, &state2) <= 0) {
+            err = -1;
+            break;
+        }
+        if (pa_message_params_read_string(handler_struct, &description, &state2) <= 0) {
+            err = -1;
+            break;
+        }
+
+        if (short_list_format)
+            printf("%s\n", path);
+        else {
+            if (nl)
+                printf("\n");
+            nl = true;
+
+            printf("Message Handler %s\n"
+                   "\tDescription: %s\n",
+                   path,
+                   description);
+        }
+    }
+
+    if (err < 0) {
+        pa_log(_("list-handlers message response could not be parsed correctly"));
+        quit(1);
+        return;
+    }
+
+    complete_action();
+}
+
 static void volume_relative_adjust(pa_cvolume *cv) {
     pa_assert(volume_flags & VOL_RELATIVE);
 
@@ -1253,6 +1327,8 @@ static void context_state_callback(pa_context *c, void *userdata) {
                             o = pa_context_get_sample_info_list(c, get_sample_info_callback, NULL);
                         else if (pa_streq(list_type, "cards"))
                             o = pa_context_get_card_info_list(c, get_card_info_callback, NULL);
+                        else if (pa_streq(list_type, "message-handlers"))
+                            o = pa_context_send_message_to_object(c, "/core", "list-handlers", NULL, list_handlers_callback, NULL);
                         else
                             pa_assert_not_reached();
                     } else {
@@ -1410,6 +1486,10 @@ static void context_state_callback(pa_context *c, void *userdata) {
 
                 case SET_PORT_LATENCY_OFFSET:
                     o = pa_context_set_port_latency_offset(c, card_name, port_name, latency_offset, simple_callback, NULL);
+                    break;
+
+                case SEND_MESSAGE:
+                    o = pa_context_send_message_to_object(c, object_path, message, message_args, send_message_callback, NULL);
                     break;
 
                 case SUBSCRIBE:
@@ -1588,6 +1668,7 @@ static void help(const char *argv0) {
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-(sink-input|source-output)-mute", _("#N 1|0|toggle"));
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-sink-formats", _("#N FORMATS"));
     printf("%s %s %s %s\n", argv0, _("[options]"), "set-port-latency-offset", _("CARD-NAME|CARD-#N PORT OFFSET"));
+    printf("%s %s %s %s\n", argv0, _("[options]"), "send-message", _("RECIPIENT MESSAGE [MESSAGE_PARAMETERS]"));
     printf("%s %s %s\n",    argv0, _("[options]"), "subscribe");
     printf(_("\nThe special names @DEFAULT_SINK@, @DEFAULT_SOURCE@ and @DEFAULT_MONITOR@\n"
              "can be used to specify the default sink, source and monitor.\n"));
@@ -1684,12 +1765,13 @@ int main(int argc, char *argv[]) {
                 if (pa_streq(argv[i], "modules") || pa_streq(argv[i], "clients") ||
                     pa_streq(argv[i], "sinks")   || pa_streq(argv[i], "sink-inputs") ||
                     pa_streq(argv[i], "sources") || pa_streq(argv[i], "source-outputs") ||
-                    pa_streq(argv[i], "samples") || pa_streq(argv[i], "cards")) {
+                    pa_streq(argv[i], "samples") || pa_streq(argv[i], "cards") ||
+                    pa_streq(argv[i], "message-handlers")) {
                     list_type = pa_xstrdup(argv[i]);
                 } else if (pa_streq(argv[i], "short")) {
                     short_list_format = true;
                 } else {
-                    pa_log(_("Specify nothing, or one of: %s"), "modules, sinks, sources, sink-inputs, source-outputs, clients, samples, cards");
+                    pa_log(_("Specify nothing, or one of: %s"), "modules, sinks, sources, sink-inputs, source-outputs, clients, samples, cards, message-handlers");
                     goto quit;
                 }
             }
@@ -2023,6 +2105,22 @@ int main(int argc, char *argv[]) {
                 goto quit;
             }
 
+        } else if (pa_streq(argv[optind], "send-message")) {
+            action = SEND_MESSAGE;
+
+            if (argc < optind+3) {
+                pa_log(_("You have to specify at least an object path and a message name"));
+                goto quit;
+            }
+
+            object_path = pa_xstrdup(argv[optind + 1]);
+            message = pa_xstrdup(argv[optind + 2]);
+            if (argc >= optind+4)
+                message_args = pa_xstrdup(argv[optind + 3]);
+
+            if (argc > optind+4)
+                pa_log(_("Excess arguments given, they will be ignored. Note that all message parameters must be given as a single string."));
+
         } else if (pa_streq(argv[optind], "subscribe"))
 
             action = SUBSCRIBE;
@@ -2116,6 +2214,9 @@ quit:
     pa_xfree(profile_name);
     pa_xfree(port_name);
     pa_xfree(formats);
+    pa_xfree(object_path);
+    pa_xfree(message);
+    pa_xfree(message_args);
 
     if (sndfile)
         sf_close(sndfile);

@@ -29,15 +29,18 @@
 #include <pulse/rtclock.h>
 #include <pulse/timeval.h>
 #include <pulse/xmalloc.h>
+#include <pulse/message-params.h>
 
 #include <pulsecore/module.h>
 #include <pulsecore/core-rtclock.h>
 #include <pulsecore/core-util.h>
+#include <pulsecore/message-handler.h>
 #include <pulsecore/core-scache.h>
 #include <pulsecore/core-subscribe.h>
 #include <pulsecore/random.h>
 #include <pulsecore/log.h>
 #include <pulsecore/macro.h>
+#include <pulsecore/strbuf.h>
 
 #include "core.h"
 
@@ -60,6 +63,46 @@ static int core_process_msg(pa_msgobject *o, int code, void *userdata, int64_t o
 }
 
 static void core_free(pa_object *o);
+
+/* Returns a list of handlers. */
+static char *message_handler_list(pa_core *c) {
+    pa_message_params *param;
+    void *state = NULL;
+    struct pa_message_handler *handler;
+
+    param = pa_message_params_new();
+
+    pa_message_params_begin_list(param);
+    PA_HASHMAP_FOREACH(handler, c->message_handlers, state) {
+        pa_message_params_begin_list(param);
+
+        /* object_path cannot contain characters that need escaping, therefore
+         * pa_message_params_write_raw() can safely be used here. */
+        pa_message_params_write_raw(param, handler->object_path, true);
+        pa_message_params_write_string(param, handler->description);
+
+        pa_message_params_end_list(param);
+    }
+    pa_message_params_end_list(param);
+
+    return pa_message_params_to_string_free(param);
+}
+
+static int core_message_handler(const char *object_path, const char *message, char *message_parameters, char **response, void *userdata) {
+    pa_core *c;
+
+    pa_assert(c = (pa_core *) userdata);
+    pa_assert(message);
+    pa_assert(response);
+    pa_assert(pa_safe_streq(object_path, "/core"));
+
+    if (pa_streq(message, "list-handlers")) {
+        *response = message_handler_list(c);
+        return PA_OK;
+    }
+
+    return -PA_ERR_NOTIMPLEMENTED;
+}
 
 pa_core* pa_core_new(pa_mainloop_api *m, bool shared, bool enable_memfd, size_t shm_size) {
     pa_core* c;
@@ -104,6 +147,8 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, bool enable_memfd, size_t 
     c->namereg = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     c->shared = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
     c->message_handlers = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+
+    pa_message_handler_register(c, "/core", "Core message handler", core_message_handler, (void *) c);
 
     c->default_source = NULL;
     c->default_sink = NULL;
@@ -205,6 +250,8 @@ static void core_free(pa_object *o) {
 
     pa_assert(pa_hashmap_isempty(c->shared));
     pa_hashmap_free(c->shared);
+
+    pa_message_handler_unregister(c, "/core");
 
     pa_assert(pa_hashmap_isempty(c->message_handlers));
     pa_hashmap_free(c->message_handlers);
