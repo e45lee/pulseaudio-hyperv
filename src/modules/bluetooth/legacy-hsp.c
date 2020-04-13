@@ -252,10 +252,10 @@ static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_i
     if (events & PA_IO_EVENT_INPUT) {
         char buf[512];
         ssize_t len;
-        int gain, dummy;
-        bool  do_reply = false;
+        int gain;
+        bool success;
 
-        len = pa_read(fd, buf, 511, NULL);
+        len = pa_read(fd, buf, sizeof(buf)-1, NULL);
         if (len < 0) {
             pa_log_error("RFCOMM read error: %s", pa_cstrerror(errno));
             goto fail;
@@ -266,38 +266,42 @@ static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_i
         /* There are only four HSP AT commands:
          * AT+VGS=value: value between 0 and 15, sent by the HS to AG to set the speaker gain.
          * +VGS=value is sent by AG to HS as a response to an AT+VGS command or when the gain
-         * is changed on the AG side.
+         * is changed on the AG side. Some buggy headsets sent it instead of AT+VGS.
          * AT+VGM=value: value between 0 and 15, sent by the HS to AG to set the microphone gain.
          * +VGM=value is sent by AG to HS as a response to an AT+VGM command or when the gain
-         * is changed on the AG side.
+         * is changed on the AG side. Some buggy headsets sent it instead of AT+VGM.
          * AT+CKPD=200: Sent by HS when headset button is pressed.
          * RING: Sent by AG to HS to notify of an incoming call. It can safely be ignored because
-         * it does not expect a reply. */
-        if (sscanf(buf, "AT+VGS=%d", &gain) == 1 || sscanf(buf, "\r\n+VGM=%d\r\n", &gain) == 1) {
+         * it does not expect a reply.
+         * We support only local AG role and only microphone and speaker gain commands.
+         * Leading space in sscanf format matches any amount of whitespace characters including none */
+        if (sscanf(buf, " AT+VGS=%d", &gain) == 1 || sscanf(buf, " +VGS=%d", &gain) == 1) {
             t->speaker_gain = gain;
             pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), t);
-            do_reply = true;
-
-        } else if (sscanf(buf, "AT+VGM=%d", &gain) == 1 || sscanf(buf, "\r\n+VGS=%d\r\n", &gain) == 1) {
+            success = true;
+        } else if (sscanf(buf, " AT+VGM=%d", &gain) == 1 || sscanf(buf, " +VGM=%d", &gain) == 1) {
             t->microphone_gain = gain;
             pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), t);
-            do_reply = true;
-        } else if (sscanf(buf, "AT+CKPD=%d", &dummy) == 1) {
-            do_reply = true;
+            success = true;
         } else {
-            do_reply = false;
+            success = false;
         }
 
-        if (do_reply) {
+        if (success) {
             pa_log_debug("RFCOMM >> OK");
-
             len = write(fd, "\r\nOK\r\n", 6);
-
-            /* we ignore any errors, it's not critical and real errors should
-             * be caught with the HANGUP and ERROR events handled above */
-            if (len < 0)
-                pa_log_error("RFCOMM write error: %s", pa_cstrerror(errno));
+        } else if (!strstr(buf, "ERROR")) {
+            /* Do not reply to ERROR command as some buggy headsets sent it for ERROR response */
+            pa_log_debug("RFCOMM >> ERROR");
+            len = write(fd, "\r\nERROR\r\n", 9);
+        } else {
+            len = 0;
         }
+
+        /* we ignore any errors, it's not critical and real errors should
+         * be caught with the HANGUP and ERROR events handled above */
+        if (len < 0)
+            pa_log_error("RFCOMM write error: %s", pa_cstrerror(errno));
     }
 
     return;
