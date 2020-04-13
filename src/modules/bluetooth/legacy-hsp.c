@@ -48,8 +48,6 @@ struct pa_bluetooth_backend {
 struct transport_data {
     int rfcomm_fd;
     pa_io_event *rfcomm_io;
-    int sco_fd;
-    pa_io_event *sco_io;
     pa_mainloop_api *mainloop;
 };
 
@@ -62,11 +60,6 @@ struct transport_data {
 #define BLUEZ_PROFILE_INTERFACE BLUEZ_SERVICE ".Profile1"
 
 #define HSP_AG_PROFILE "/Profile/HSPAGProfile"
-#define HSP_HS_PROFILE "/Profile/HSPHSProfile"
-
-/* RFCOMM channel for HSP headset role
- * The choice seems to be a bit arbitrary -- it looks like at least channels 2, 4 and 5 also work*/
-#define HSP_HS_DEFAULT_CHANNEL  3
 
 #define PROFILE_INTROSPECT_XML                                          \
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE                           \
@@ -160,37 +153,11 @@ fail_close:
     return -1;
 }
 
-static int sco_do_accept(pa_bluetooth_transport *t) {
-    struct transport_data *trd = t->userdata;
-    struct sockaddr_sco addr;
-    socklen_t optlen;
-    int sock;
-
-    memset(&addr, 0, sizeof(addr));
-    optlen = sizeof(addr);
-
-    pa_log_info ("doing accept");
-    sock = accept(trd->sco_fd, (struct sockaddr *) &addr, &optlen);
-    if (sock < 0) {
-        if (errno != EAGAIN)
-            pa_log_error("accept(): %s", pa_cstrerror(errno));
-        goto fail;
-    }
-    return sock;
-
-fail:
-    return -1;
-}
-
 static int sco_acquire_cb(pa_bluetooth_transport *t, bool optional, size_t *imtu, size_t *omtu) {
     int sock;
     socklen_t len;
 
-    if (optional)
-        sock = sco_do_accept(t);
-    else
-        sock = sco_do_connect(t);
-
+    sock = sco_do_connect(t);
     if (sock < 0)
         goto fail;
 
@@ -223,86 +190,18 @@ static void sco_release_cb(pa_bluetooth_transport *t) {
     /* device will close the SCO socket for us */
 }
 
-static void sco_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_io_event_flags_t events, void *userdata) {
-    pa_bluetooth_transport *t = userdata;
-
-    pa_assert(io);
-    pa_assert(t);
-
-    if (events & (PA_IO_EVENT_HANGUP|PA_IO_EVENT_ERROR)) {
-        pa_log_error("error listening SCO connection: %s", pa_cstrerror(errno));
-        goto fail;
-    }
-
-    if (t->state != PA_BLUETOOTH_TRANSPORT_STATE_PLAYING) {
-        pa_log_info("SCO incoming connection: changing state to PLAYING");
-        pa_bluetooth_transport_set_state (t, PA_BLUETOOTH_TRANSPORT_STATE_PLAYING);
-    }
-
-fail:
-    return;
-}
-
-static int sco_listen(pa_bluetooth_transport *t) {
-    struct transport_data *trd = t->userdata;
-    struct sockaddr_sco addr;
-    int sock, i;
-    bdaddr_t src;
-    const char *src_addr;
-
-    sock = socket(PF_BLUETOOTH, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, BTPROTO_SCO);
-    if (sock < 0) {
-        pa_log_error("socket(SEQPACKET, SCO) %s", pa_cstrerror(errno));
-        return -1;
-    }
-
-    src_addr = t->device->adapter->address;
-
-    /* don't use ba2str to avoid -lbluetooth */
-    for (i = 5; i >= 0; i--, src_addr += 3)
-        src.b[i] = strtol(src_addr, NULL, 16);
-
-    /* Bind to local address */
-    memset(&addr, 0, sizeof(addr));
-    addr.sco_family = AF_BLUETOOTH;
-    bacpy(&addr.sco_bdaddr, &src);
-
-    if (bind(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        pa_log_error("bind(): %s", pa_cstrerror(errno));
-        goto fail_close;
-    }
-
-    pa_log_info ("doing listen");
-    if (listen(sock, 1) < 0) {
-        pa_log_error("listen(): %s", pa_cstrerror(errno));
-        goto fail_close;
-    }
-
-    trd->sco_fd = sock;
-    trd->sco_io = trd->mainloop->io_new(trd->mainloop, sock, PA_IO_EVENT_INPUT,
-        sco_io_callback, t);
-
-    return sock;
-
-fail_close:
-    close(sock);
-    return -1;
-}
-
 static void register_profile_reply(DBusPendingCall *pending, void *userdata) {
     DBusMessage *r;
     pa_dbus_pending *p;
     pa_bluetooth_backend *b;
-    char *profile;
 
     pa_assert(pending);
     pa_assert_se(p = userdata);
     pa_assert_se(b = p->context_data);
-    pa_assert_se(profile = p->call_data);
     pa_assert_se(r = dbus_pending_call_steal_reply(pending));
 
     if (dbus_message_is_error(r, BLUEZ_ERROR_NOT_SUPPORTED)) {
-        pa_log_info("Couldn't register profile %s because it is disabled in BlueZ", profile);
+        pa_log_info("Couldn't register HSP profile because it is disabled in BlueZ");
         goto finish;
     }
 
@@ -317,38 +216,26 @@ finish:
 
     PA_LLIST_REMOVE(pa_dbus_pending, b->pending, p);
     pa_dbus_pending_free(p);
-
-    pa_xfree(profile);
 }
 
-static void register_profile(pa_bluetooth_backend *b, const char *profile, const char *uuid) {
+static void register_profile(pa_bluetooth_backend *b) {
     DBusMessage *m;
     DBusMessageIter i, d;
-    dbus_bool_t autoconnect;
-    dbus_uint16_t version, chan;
+    const char *object = HSP_AG_PROFILE;
+    const char *uuid = PA_BLUETOOTH_UUID_HSP_AG; /* Remote headset role connects to local audio gateway role */
 
-    pa_log_debug("Registering Profile %s %s", profile, uuid);
+    pa_log_debug("Registering HSP profile to BlueZ");
 
     pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, "/org/bluez", BLUEZ_PROFILE_MANAGER_INTERFACE, "RegisterProfile"));
 
     dbus_message_iter_init_append(m, &i);
-    pa_assert_se(dbus_message_iter_append_basic(&i, DBUS_TYPE_OBJECT_PATH, &profile));
+    pa_assert_se(dbus_message_iter_append_basic(&i, DBUS_TYPE_OBJECT_PATH, &object));
     pa_assert_se(dbus_message_iter_append_basic(&i, DBUS_TYPE_STRING, &uuid));
     dbus_message_iter_open_container(&i, DBUS_TYPE_ARRAY, DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING DBUS_TYPE_STRING_AS_STRING
             DBUS_TYPE_VARIANT_AS_STRING DBUS_DICT_ENTRY_END_CHAR_AS_STRING, &d);
-    if (pa_bluetooth_uuid_is_hsp_hs(uuid)) {
-        /* In the headset role, the connection will only be initiated from the remote side */
-        autoconnect = 0;
-        pa_dbus_append_basic_variant_dict_entry(&d, "AutoConnect", DBUS_TYPE_BOOLEAN, &autoconnect);
-        chan = HSP_HS_DEFAULT_CHANNEL;
-        pa_dbus_append_basic_variant_dict_entry(&d, "Channel", DBUS_TYPE_UINT16, &chan);
-        /* HSP version 1.2 */
-        version = 0x0102;
-        pa_dbus_append_basic_variant_dict_entry(&d, "Version", DBUS_TYPE_UINT16, &version);
-    }
     dbus_message_iter_close_container(&i, &d);
 
-    send_and_add_to_pending(b, m, register_profile_reply, pa_xstrdup(profile));
+    send_and_add_to_pending(b, m, register_profile_reply, NULL);
 }
 
 static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_io_event_flags_t events, void *userdata) {
@@ -423,12 +310,6 @@ fail:
 static void transport_destroy(pa_bluetooth_transport *t) {
     struct transport_data *trd = t->userdata;
 
-    if (trd->sco_io) {
-        trd->mainloop->io_free(trd->sco_io);
-        shutdown(trd->sco_fd, SHUT_RDWR);
-        close (trd->sco_fd);
-    }
-
     trd->mainloop->io_free(trd->rfcomm_io);
     shutdown(trd->rfcomm_fd, SHUT_RDWR);
     close (trd->rfcomm_fd);
@@ -446,16 +327,8 @@ static void set_speaker_gain(pa_bluetooth_transport *t, uint16_t gain) {
 
     t->speaker_gain = gain;
 
-    /* If we are in the AG role, we send a command to the head set to change
-     * the speaker gain. In the HS role, source and sink are swapped, so
-     * in this case we notify the AG that the microphone gain has changed */
-    if (t->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT) {
-        len = sprintf(buf, "\r\n+VGS=%d\r\n", gain);
-        pa_log_debug("RFCOMM >> +VGS=%d", gain);
-    } else {
-        len = sprintf(buf, "\r\nAT+VGM=%d\r\n", gain);
-        pa_log_debug("RFCOMM >> AT+VGM=%d", gain);
-    }
+    len = sprintf(buf, "\r\n+VGS=%d\r\n", gain);
+    pa_log_debug("RFCOMM >> +VGS=%d", gain);
 
     written = write(trd->rfcomm_fd, buf, len);
 
@@ -473,16 +346,8 @@ static void set_microphone_gain(pa_bluetooth_transport *t, uint16_t gain) {
 
     t->microphone_gain = gain;
 
-    /* If we are in the AG role, we send a command to the head set to change
-     * the microphone gain. In the HS role, source and sink are swapped, so
-     * in this case we notify the AG that the speaker gain has changed */
-    if (t->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT) {
-        len = sprintf(buf, "\r\n+VGM=%d\r\n", gain);
-        pa_log_debug("RFCOMM >> +VGM=%d", gain);
-    } else {
-        len = sprintf(buf, "\r\nAT+VGS=%d\r\n", gain);
-        pa_log_debug("RFCOMM >> AT+VGS=%d", gain);
-    }
+    len = sprintf(buf, "\r\n+VGM=%d\r\n", gain);
+    pa_log_debug("RFCOMM >> +VGM=%d", gain);
 
     written = write (trd->rfcomm_fd, buf, len);
 
@@ -494,7 +359,6 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     pa_bluetooth_backend *b = userdata;
     pa_bluetooth_device *d;
     pa_bluetooth_transport *t;
-    pa_bluetooth_profile_t p;
     DBusMessage *r;
     int fd;
     const char *sender, *path, PA_UNUSED *handler;
@@ -508,11 +372,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     }
 
     handler = dbus_message_get_path(m);
-    if (pa_streq(handler, HSP_AG_PROFILE)) {
-        p = PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT;
-    } else if (pa_streq(handler, HSP_HS_PROFILE)) {
-        p = PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY;
-    } else {
+    if (!pa_streq(handler, HSP_AG_PROFILE)) {
         pa_log_error("Invalid handler");
         goto fail;
     }
@@ -531,13 +391,12 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     pa_assert(dbus_message_iter_get_arg_type(&arg_i) == DBUS_TYPE_UNIX_FD);
     dbus_message_iter_get_basic(&arg_i, &fd);
 
-    pa_log_debug("dbus: NewConnection path=%s, fd=%d, profile %s", path, fd,
-        pa_bluetooth_profile_to_string(p));
+    pa_log_debug("dbus: NewConnection path=%s, fd=%d", path, fd);
 
     sender = dbus_message_get_sender(m);
 
     pathfd = pa_sprintf_malloc ("%s/fd%d", path, fd);
-    t = pa_bluetooth_transport_new(d, sender, pathfd, p, NULL, 0);
+    t = pa_bluetooth_transport_new(d, sender, pathfd, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT, NULL, 0);
     pa_xfree(pathfd);
 
     t->acquire = sco_acquire_cb;
@@ -552,8 +411,6 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     trd->rfcomm_io = trd->mainloop->io_new(b->core->mainloop, fd, PA_IO_EVENT_INPUT,
         rfcomm_io_callback, t);
     t->userdata =  trd;
-
-    sco_listen(t);
 
     pa_bluetooth_transport_put(t);
 
@@ -589,7 +446,7 @@ static DBusHandlerResult profile_handler(DBusConnection *c, DBusMessage *m, void
 
     pa_log_debug("dbus: path=%s, interface=%s, member=%s", path, interface, member);
 
-    if (!pa_streq(path, HSP_AG_PROFILE) && !pa_streq(path, HSP_HS_PROFILE))
+    if (!pa_streq(path, HSP_AG_PROFILE))
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
     if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Introspectable", "Introspect")) {
@@ -616,47 +473,20 @@ static DBusHandlerResult profile_handler(DBusConnection *c, DBusMessage *m, void
     return DBUS_HANDLER_RESULT_HANDLED;
 }
 
-static void profile_init(pa_bluetooth_backend *b, pa_bluetooth_profile_t profile) {
+static void profile_init(pa_bluetooth_backend *b) {
     static const DBusObjectPathVTable vtable_profile = {
         .message_function = profile_handler,
     };
-    const char *object_name;
-    const char *uuid;
-
     pa_assert(b);
 
-    switch (profile) {
-        case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
-            object_name = HSP_AG_PROFILE;
-            uuid = PA_BLUETOOTH_UUID_HSP_AG;
-            break;
-        case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-            object_name = HSP_HS_PROFILE;
-            uuid = PA_BLUETOOTH_UUID_HSP_HS;
-            break;
-        default:
-            pa_assert_not_reached();
-            break;
-    }
-
-    pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), object_name, &vtable_profile, b));
-    register_profile(b, object_name, uuid);
+    pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE, &vtable_profile, b));
+    register_profile(b);
 }
 
-static void profile_done(pa_bluetooth_backend *b, pa_bluetooth_profile_t profile) {
+static void profile_done(pa_bluetooth_backend *b) {
     pa_assert(b);
 
-    switch (profile) {
-        case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
-            dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE);
-            break;
-        case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-            dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_HS_PROFILE);
-            break;
-        default:
-            pa_assert_not_reached();
-            break;
-    }
+    dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE);
 }
 
 void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *backend, bool enable) {
@@ -665,12 +495,10 @@ void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *backend, bool 
 
    if (enable) {
        pa_log_warn("Enabling legacy HSP backend");
-       profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
-       profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+       profile_init(backend);
    } else {
        pa_log_warn("Disabling legacy HSP backend");
-       profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
-       profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
+       profile_done(backend);
    }
 
    backend->enabled = enable;
@@ -694,10 +522,8 @@ pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetoo
     backend->discovery = y;
     backend->enabled = enable;
 
-    if (enable) {
-        profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
-        profile_init(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
-    }
+    if (enable)
+        profile_init(backend);
 
     return backend;
 }
@@ -707,10 +533,8 @@ void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *backend) {
 
     pa_dbus_free_pending_list(&backend->pending);
 
-    if (backend->enabled) {
-        profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY);
-        profile_done(backend, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT);
-    }
+    if (backend->enabled)
+        profile_done(backend);
 
     pa_dbus_connection_unref(backend->connection);
 
