@@ -40,6 +40,7 @@
 struct msbc_parser {
     size_t len;
     size_t frame_size;
+    uint64_t sum;
     uint8_t *buffer;
 };
 
@@ -70,6 +71,7 @@ struct msbc_info {
 static const char sntable[4] = { 0x08, 0x38, 0xC8, 0xF8 };
 /* Run from IO thread */
 static void msbc_parser_reset(struct msbc_parser *p) {
+    p->sum = 0;
     p->len = 0;
 }
 
@@ -105,10 +107,19 @@ static int msbc_state_machine(struct msbc_parser *p, uint8_t byte) {
     p->len = 0;
     return 0;
 copy:
+    p->sum += byte;
     p->buffer[p->len] = byte;
     p->len++;
 
     return p->len;
+}
+
+static int msbc_frame_complete(struct msbc_parser *p) {
+    return p->len == p->frame_size ? 1 : 0;
+}
+
+static int msbc_frame_valid(struct msbc_parser *p) {
+    return msbc_frame_complete(p) && p->sum > 0 ? 1 : 0;
 }
 
 
@@ -400,6 +411,10 @@ static size_t msbc_decode_buffer(void *codec_info, const uint8_t *input_buffer, 
     for (; input_ptr < input_end; input_ptr++) {
         if (msbc_state_machine(&msbc_info->parser, *input_ptr) !=
                 (int)msbc_info->parser.frame_size) {
+            continue;
+        } else if (PA_UNLIKELY(msbc_frame_valid(&msbc_info->parser) == 0)) {
+            pa_log_debug("Invalid/empty frame, resetting MSBC parser..\n");
+            msbc_parser_reset(&msbc_info->parser);
             continue;
         }
         pa_assert(output_ptr < output_end);
