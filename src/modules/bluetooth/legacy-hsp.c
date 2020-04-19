@@ -238,6 +238,17 @@ static void register_profile(pa_bluetooth_backend *b) {
     send_and_add_to_pending(b, m, register_profile_reply, NULL);
 }
 
+static void unregister_profile(pa_bluetooth_backend *b) {
+    DBusMessage *m;
+    const char *object = HSP_AG_PROFILE;
+
+    pa_log_debug("Unregistering HSP profile from BlueZ");
+
+    pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, "/org/bluez", BLUEZ_PROFILE_MANAGER_INTERFACE, "UnregisterProfile"));
+    pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_OBJECT_PATH, &object, DBUS_TYPE_INVALID));
+    pa_assert_se(dbus_connection_send(pa_dbus_connection_get(b->connection), m, NULL));
+}
+
 static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_io_event_flags_t events, void *userdata) {
     pa_bluetooth_transport *t = userdata;
 
@@ -489,6 +500,7 @@ static void profile_init(pa_bluetooth_backend *b) {
 static void profile_done(pa_bluetooth_backend *b) {
     pa_assert(b);
 
+    unregister_profile(b);
     dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE);
 }
 
