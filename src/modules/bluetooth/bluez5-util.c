@@ -210,13 +210,15 @@ static bool device_supports_profile(pa_bluetooth_device *device, pa_bluetooth_pr
     void *state;
 
     switch (profile) {
-        case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
+        case PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT:
             return !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS)
-                || !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS_ALT)
-                || !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HFP_HF);
-        case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-            return !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_AG)
-                || !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HFP_AG);
+                || !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS_ALT);
+        case PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT:
+            return !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HFP_HF);
+        case PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY:
+            return !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_AG);
+        case PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY:
+            return !!pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HFP_AG);
         case PA_BLUETOOTH_PROFILE_OFF:
             return true;
         default:
@@ -1838,10 +1840,14 @@ const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile) {
     bool is_a2dp_sink;
 
     switch(profile) {
-        case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
-            return "headset_head_unit";
-        case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-            return "headset_audio_gateway";
+        case PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT:
+            return "headset_head_unit"; /* For backward compatibility do not change this name */
+        case PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT:
+            return "hfp_head_unit";
+        case PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY:
+            return "headset_audio_gateway"; /* For backward compatibility do not change this name */
+        case PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY:
+            return "hfp_audio_gateway"; /* For backward compatibility do not change this name */
         case PA_BLUETOOTH_PROFILE_OFF:
             return "off";
         default:

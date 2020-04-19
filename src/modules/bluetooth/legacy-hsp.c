@@ -399,7 +399,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     sender = dbus_message_get_sender(m);
 
     pathfd = pa_sprintf_malloc ("%s/fd%d", path, fd);
-    t = pa_bluetooth_transport_new(d, sender, pathfd, PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT, NULL, 0);
+    t = pa_bluetooth_transport_new(d, sender, pathfd, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT, NULL, 0);
     pa_xfree(pathfd);
 
     t->acquire = sco_acquire_cb;

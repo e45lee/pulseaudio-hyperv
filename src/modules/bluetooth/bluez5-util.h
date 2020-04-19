@@ -58,9 +58,11 @@ typedef enum pa_bluetooth_hook {
  * All A2DP profiles have higher priority as all non-A2DP profiles.
  * And all A2DP sink profiles have higher priority as all A2DP source profiles. */
 #define PA_BLUETOOTH_PROFILE_OFF                    0
-#define PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY  1
-#define PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT      2
-#define PA_BLUETOOTH_PROFILE_A2DP_START_INDEX       3
+#define PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY      1
+#define PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY      2
+#define PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT          3
+#define PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT          4
+#define PA_BLUETOOTH_PROFILE_A2DP_START_INDEX       5
 typedef unsigned pa_bluetooth_profile_t;
 
 typedef enum pa_bluetooth_transport_state {
