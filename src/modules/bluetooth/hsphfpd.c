@@ -1165,9 +1165,10 @@ pa_bluetooth_backend *pa_bluetooth_hsphfpd_backend_new(pa_core *core, pa_bluetoo
 
     if (pa_dbus_add_matches(pa_dbus_connection_get(backend->connection), &err,
             "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='" HSPHFPD_SERVICE "'",
-            "type='signal',sender='" HSPHFPD_SERVICE "',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
-            "type='signal',sender='" HSPHFPD_SERVICE "',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
-            "type='signal',sender='" HSPHFPD_SERVICE "',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
+            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
+            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
+            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_ENDPOINT_INTERFACE "'",
+            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
             NULL) < 0) {
         pa_log_error("Failed to add hsphfpd D-Bus matches: %s", err.message);
         dbus_connection_remove_filter(pa_dbus_connection_get(backend->connection), filter_cb, backend);
@@ -1196,9 +1197,10 @@ void pa_bluetooth_hsphfpd_backend_free(pa_bluetooth_backend *backend) {
 
     pa_dbus_remove_matches(pa_dbus_connection_get(backend->connection),
             "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='" HSPHFPD_SERVICE "'",
-            "type='signal',sender='" HSPHFPD_SERVICE "',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
-            "type='signal',sender='" HSPHFPD_SERVICE "',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
-            "type='signal',sender='" HSPHFPD_SERVICE "',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
+            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
+            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
+            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_ENDPOINT_INTERFACE "'",
+            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
             NULL);
 
     dbus_connection_remove_filter(pa_dbus_connection_get(backend->connection), filter_cb, backend);
