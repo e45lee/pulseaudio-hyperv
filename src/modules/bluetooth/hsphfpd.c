@@ -574,7 +574,7 @@ static void hsphfpd_unregister_application(pa_bluetooth_backend *backend) {
     pa_bluetooth_discovery_legacy_hsp_backend_enable(backend->discovery, true);
 }
 
-static int hsphfpd_transport_acquire(pa_bluetooth_transport *transport, bool optional, size_t *imtu, size_t *omtu) {
+static int hsphfpd_transport_acquire(pa_bluetooth_transport *transport, size_t *imtu, size_t *omtu) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
     if (imtu) *imtu = transport_data->mtu;

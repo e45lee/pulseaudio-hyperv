@@ -153,7 +153,7 @@ fail_close:
     return -1;
 }
 
-static int sco_acquire_cb(pa_bluetooth_transport *t, bool optional, size_t *imtu, size_t *omtu) {
+static int sco_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu) {
     int sock;
     socklen_t len;
 

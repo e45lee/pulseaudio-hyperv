@@ -411,18 +411,17 @@ void pa_bluetooth_transport_free(pa_bluetooth_transport *t) {
     pa_xfree(t);
 }
 
-static int bluez5_transport_acquire_cb(pa_bluetooth_transport *t, bool optional, size_t *imtu, size_t *omtu) {
+static int bluez5_transport_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu) {
     DBusMessage *m, *r;
     DBusError err;
     int ret;
     uint16_t i, o;
-    const char *method = optional ? "TryAcquire" : "Acquire";
 
     pa_assert(t);
     pa_assert(t->device);
     pa_assert(t->device->discovery);
 
-    pa_assert_se(m = dbus_message_new_method_call(t->owner, t->path, BLUEZ_MEDIA_TRANSPORT_INTERFACE, method));
+    pa_assert_se(m = dbus_message_new_method_call(t->owner, t->path, BLUEZ_MEDIA_TRANSPORT_INTERFACE, "Acquire"));
 
     dbus_error_init(&err);
 
@@ -430,10 +429,7 @@ static int bluez5_transport_acquire_cb(pa_bluetooth_transport *t, bool optional,
     dbus_message_unref(m);
     m = NULL;
     if (!r) {
-        if (optional && pa_streq(err.name, "org.bluez.Error.NotAvailable"))
-            pa_log_info("Failed optional acquire of unavailable transport %s", t->path);
-        else
-            pa_log_error("Transport %s() failed for transport %s (%s)", method, t->path, err.message);
+        pa_log_error("Transport Acquire() failed for transport %s (%s)", t->path, err.message);
 
         dbus_error_free(&err);
         return -1;
@@ -441,7 +437,7 @@ static int bluez5_transport_acquire_cb(pa_bluetooth_transport *t, bool optional,
 
     if (!dbus_message_get_args(r, &err, DBUS_TYPE_UNIX_FD, &ret, DBUS_TYPE_UINT16, &i, DBUS_TYPE_UINT16, &o,
                                DBUS_TYPE_INVALID)) {
-        pa_log_error("Failed to parse %s() reply: %s", method, err.message);
+        pa_log_error("Failed to parse Acquire() reply: %s", err.message);
         dbus_error_free(&err);
         ret = -1;
         goto finish;

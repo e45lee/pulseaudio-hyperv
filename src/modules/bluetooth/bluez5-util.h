@@ -69,7 +69,7 @@ typedef enum pa_bluetooth_transport_state {
     PA_BLUETOOTH_TRANSPORT_STATE_PLAYING
 } pa_bluetooth_transport_state_t;
 
-typedef int (*pa_bluetooth_transport_acquire_cb)(pa_bluetooth_transport *t, bool optional, size_t *imtu, size_t *omtu);
+typedef int (*pa_bluetooth_transport_acquire_cb)(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu);
 typedef void (*pa_bluetooth_transport_release_cb)(pa_bluetooth_transport *t);
 typedef void (*pa_bluetooth_transport_destroy_cb)(pa_bluetooth_transport *t);
 typedef void (*pa_bluetooth_transport_set_speaker_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);

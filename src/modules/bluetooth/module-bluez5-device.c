@@ -702,7 +702,7 @@ static void teardown_stream(struct userdata *u) {
     u->stream_setup_done = false;
 }
 
-static int transport_acquire(struct userdata *u, bool optional) {
+static int transport_acquire(struct userdata *u) {
     pa_assert(u->transport);
 
     if (u->transport_acquired)
@@ -710,7 +710,7 @@ static int transport_acquire(struct userdata *u, bool optional) {
 
     pa_log_debug("Acquiring transport %s", u->transport->path);
 
-    u->stream_fd = u->transport->acquire(u->transport, optional, &u->read_link_mtu, &u->write_link_mtu);
+    u->stream_fd = u->transport->acquire(u->transport, &u->read_link_mtu, &u->write_link_mtu);
     if (u->stream_fd < 0)
         return u->stream_fd;
 
@@ -870,7 +870,7 @@ static int setup_stream(struct userdata *u) {
 static bool setup_transport_and_stream(struct userdata *u) {
     int transport_error;
 
-    transport_error = transport_acquire(u, false);
+    transport_error = transport_acquire(u);
     if (transport_error < 0) {
         if (transport_error != -EAGAIN)
             return false;
@@ -1033,20 +1033,8 @@ static int add_source(struct userdata *u) {
 
     connect_ports(u, &data, PA_DIRECTION_INPUT);
 
-    if (!u->transport_acquired) {
-        if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY || pa_bluetooth_profile_is_a2dp(u->profile)) {
-            data.suspend_cause = PA_SUSPEND_USER;
-        } else if (u->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT) {
-            /* u->stream_fd contains the error returned by the last transport_acquire()
-             * EAGAIN means we are waiting for a NewConnection signal */
-            if (u->stream_fd == -EAGAIN)
-                data.suspend_cause = PA_SUSPEND_USER;
-            else
-                pa_assert_not_reached();
-        } else {
-            pa_assert_not_reached();
-        }
-    }
+    if (!u->transport_acquired)
+        data.suspend_cause = PA_SUSPEND_USER;
 
     u->source = pa_source_new(u->core, &data, PA_SOURCE_HARDWARE|PA_SOURCE_LATENCY);
     pa_source_new_data_done(&data);
@@ -1218,23 +1206,7 @@ static int add_sink(struct userdata *u) {
     connect_ports(u, &data, PA_DIRECTION_OUTPUT);
 
     if (!u->transport_acquired)
-        switch (u->profile) {
-            case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-                data.suspend_cause = PA_SUSPEND_USER;
-                break;
-            case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
-                /* u->stream_fd contains the error returned by the last transport_acquire()
-                 * EAGAIN means we are waiting for a NewConnection signal */
-                if (u->stream_fd == -EAGAIN)
-                    data.suspend_cause = PA_SUSPEND_USER;
-                else
-                    pa_assert_not_reached();
-                break;
-            default:
-                /* Profile switch should have failed */
-                pa_assert_not_reached();
-                break;
-        }
+        data.suspend_cause = PA_SUSPEND_USER;
 
     u->sink = pa_sink_new(u->core, &data, PA_SINK_HARDWARE|PA_SINK_LATENCY);
     pa_sink_new_data_done(&data);
@@ -1336,6 +1308,7 @@ off:
 /* Run from main thread */
 static int setup_transport(struct userdata *u) {
     pa_bluetooth_transport *t;
+    int transport_error;
 
     pa_assert(u);
     pa_assert(!u->transport);
@@ -1356,15 +1329,10 @@ static int setup_transport(struct userdata *u) {
 
     u->transport = t;
 
-    if (pa_bluetooth_profile_is_a2dp_source(u->profile) || u->profile == PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY)
-        transport_acquire(u, true); /* In case of error, the sink/sources will be created suspended */
-    else {
-        int transport_error;
-
-        transport_error = transport_acquire(u, false);
-        if (transport_error < 0 && transport_error != -EAGAIN)
-            return -1; /* We need to fail here until the interactions with module-suspend-on-idle and alike get improved */
-    }
+    transport_error = transport_acquire(u);
+    if (transport_error < 0 && transport_error != -EAGAIN)
+        return -1; /* We need to fail here until the interactions with module-suspend-on-idle and alike get improved */
+    /* When transport_error is -EAGAIN then the sink/sources will be created suspended */
 
     return transport_config(u);
 }
@@ -2297,7 +2265,7 @@ static void handle_transport_state_change(struct userdata *u, struct pa_bluetoot
     acquire = (t->state == PA_BLUETOOTH_TRANSPORT_STATE_PLAYING && u->profile == t->profile);
     release = (oldavail != PA_AVAILABLE_NO && t->state != PA_BLUETOOTH_TRANSPORT_STATE_PLAYING && u->profile == t->profile);
 
-    if (acquire && transport_acquire(u, true) >= 0) {
+    if (acquire && transport_acquire(u) >= 0) {
         if (u->source) {
             pa_log_debug("Resuming source %s because its transport state changed to playing", u->source->name);
 
