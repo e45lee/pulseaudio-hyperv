@@ -210,7 +210,7 @@ static inline void set_speaker_gain_property(const struct hsphfpd_transport_data
     set_dbus_property(transport_data->backend, HSPHFPD_SERVICE, transport_data->transport_path, HSPHFPD_AUDIO_TRANSPORT_INTERFACE, "SpeakerGain", DBUS_TYPE_UINT16, &gain, pa_sprintf_malloc("Changing speaker gain to %u for transport %s failed", (unsigned)gain, transport_data->transport_path));
 }
 
-static void hsphfpd_transport_acquire_reply(DBusPendingCall *pending, void *userdata) {
+static void hsphfpd_transport_connect_audio_reply(DBusPendingCall *pending, void *userdata) {
     DBusMessage *r;
     DBusError error;
     pa_dbus_pending *p;
@@ -237,8 +237,10 @@ static void hsphfpd_transport_acquire_reply(DBusPendingCall *pending, void *user
 
     if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR) {
         error_name = dbus_message_get_error_name(r);
-        if (pa_safe_streq(error_name, HSPHFPD_SERVICE ".AlreadyConnected") || pa_safe_streq(error_name, HSPHFPD_SERVICE ".InProgress")) /* TODO: we should check that pulseaudio really get audio socket */
+        if (pa_safe_streq(error_name, HSPHFPD_SERVICE ".AlreadyConnected"))
             goto success;
+        if (pa_safe_streq(error_name, HSPHFPD_SERVICE ".InProgress"))
+            goto finish; /* Another ConnectAudio() call is in progress, so do not touch transport state */
         pa_log_warn(HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() failed: %s: %s", error_name, pa_dbus_get_error_message(r));
         goto failed;
     }
@@ -259,12 +261,17 @@ static void hsphfpd_transport_acquire_reply(DBusPendingCall *pending, void *user
     }
 
 success:
-    /* On success hsphfpd daemon asynchronously calls NewConnection() method which change transport state to playing */
-    goto finish;
+    /* On success hsphfpd daemon asynchronously should have called NewConnection() method
+     * prior sending reply for ConnectAudio() method. Our callback for NewConnection()
+     * changes transport state to playing on success, so check it if connection is really
+     * successfully established. */
+    transport = pa_bluetooth_transport_get(backend->discovery, endpoint_path);
+    if (transport && transport->state == PA_BLUETOOTH_TRANSPORT_STATE_PLAYING)
+        goto finish;
 
 failed:
     /* If transport state is idle switch it to disconnected state and then back to idle state
-     * so sinks and sources are properly released and connected attempt is marked as failed,
+     * so sinks and sources are properly released and connection attempt is marked as failed,
      * this also trigger profile change to off */
     transport = pa_bluetooth_transport_get(backend->discovery, endpoint_path);
     if (transport && transport->state == PA_BLUETOOTH_TRANSPORT_STATE_IDLE) {
@@ -282,18 +289,22 @@ finish:
     pa_dbus_pending_free(p);
 }
 
+static void hsphfpd_connect_audio(pa_bluetooth_backend *backend, const char *endpoint_path) {
+    /* TODO: support for choosing codec is not implemented yet */
+    const char *air_codec = "CVSD";
+    const char *agent_codec = "PCM_s16le_8kHz";
+    DBusMessage *m;
+
+    pa_assert_se(m = dbus_message_new_method_call(HSPHFPD_SERVICE, endpoint_path, HSPHFPD_ENDPOINT_INTERFACE, "ConnectAudio"));
+    pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_STRING, &air_codec, DBUS_TYPE_STRING, &agent_codec, DBUS_TYPE_INVALID));
+    send_and_add_to_pending(backend, m, hsphfpd_transport_connect_audio_reply, pa_xstrdup(endpoint_path));
+}
+
 static int hsphfpd_transport_acquire(pa_bluetooth_transport *transport, size_t *imtu, size_t *omtu) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
     if (transport_data->sco_fd < 0) {
-        /* TODO: support for choosing codec is not implemented yet */
-        const char *air_codec = "CVSD";
-        const char *agent_codec = "PCM_s16le_8kHz";
-        const char *endpoint_path = transport->path;
-        DBusMessage *m;
-        pa_assert_se(m = dbus_message_new_method_call(HSPHFPD_SERVICE, endpoint_path, HSPHFPD_ENDPOINT_INTERFACE, "ConnectAudio"));
-        pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_STRING, &air_codec, DBUS_TYPE_STRING, &agent_codec, DBUS_TYPE_INVALID));
-        send_and_add_to_pending(transport_data->backend, m, hsphfpd_transport_acquire_reply, pa_xstrdup(endpoint_path));
+        hsphfpd_connect_audio(transport_data->backend, transport->path);
         return -EAGAIN;
     }
 
