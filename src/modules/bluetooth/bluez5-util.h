@@ -154,7 +154,6 @@ pa_bluetooth_transport *pa_bluetooth_transport_new(pa_bluetooth_device *d, const
 void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_transport_state_t state);
 pa_bluetooth_transport *pa_bluetooth_transport_get(pa_bluetooth_discovery *y, const char *path);
 void pa_bluetooth_transport_put(pa_bluetooth_transport *t);
-void pa_bluetooth_transport_unlink(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t);
 
 size_t pa_bluetooth_device_find_a2dp_endpoints_for_codec(const pa_bluetooth_device *device, const pa_a2dp_codec *a2dp_codec, bool is_a2dp_sink, const char **endpoints, size_t endpoints_max_count);

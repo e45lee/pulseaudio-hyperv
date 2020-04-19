@@ -307,7 +307,6 @@ static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_i
     return;
 
 fail:
-    pa_bluetooth_transport_unlink(t);
     pa_bluetooth_transport_free(t);
 }
 

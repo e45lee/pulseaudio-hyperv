@@ -395,20 +395,15 @@ void pa_bluetooth_transport_put(pa_bluetooth_transport *t) {
     pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_IDLE);
 }
 
-void pa_bluetooth_transport_unlink(pa_bluetooth_transport *t) {
-    pa_assert(t);
-
-    pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
-    pa_hashmap_remove(t->device->discovery->transports, t->path);
-    t->device->transports[t->profile] = NULL;
-}
-
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t) {
     pa_assert(t);
 
     if (t->destroy)
         t->destroy(t);
-    pa_bluetooth_transport_unlink(t);
+
+    pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
+    pa_hashmap_remove(t->device->discovery->transports, t->path);
+    t->device->transports[t->profile] = NULL;
 
     pa_xfree(t->owner);
     pa_xfree(t->path);
