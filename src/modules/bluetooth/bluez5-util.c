@@ -389,6 +389,10 @@ pa_bluetooth_transport *pa_bluetooth_transport_get(pa_bluetooth_discovery *y, co
     return pa_hashmap_get(y->transports, path);
 }
 
+pa_hashmap *pa_bluetooth_transport_get_all(pa_bluetooth_discovery *y) {
+    return y->transports;
+}
+
 void pa_bluetooth_transport_put(pa_bluetooth_transport *t) {
     pa_assert(t);
 

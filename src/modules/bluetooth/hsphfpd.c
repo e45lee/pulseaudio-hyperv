@@ -33,8 +33,8 @@
 
 #define HSPHFPD_SERVICE "org.hsphfpd"
 #define HSPHFPD_APPLICATION_MANAGER_INTERFACE HSPHFPD_SERVICE ".ApplicationManager"
-#define HSPHFPD_AUDIO_TRANSPORT_INTERFACE HSPHFPD_SERVICE ".AudioTransport"
 #define HSPHFPD_ENDPOINT_INTERFACE HSPHFPD_SERVICE ".Endpoint"
+#define HSPHFPD_AUDIO_TRANSPORT_INTERFACE HSPHFPD_SERVICE ".AudioTransport"
 #define HSPHFPD_AUDIO_AGENT_INTERFACE HSPHFPD_SERVICE ".AudioAgent"
 
 #define APPLICATION_OBJECT_MANAGER_PATH "/SCOEndpoint"
@@ -110,13 +110,13 @@ enum hsphfpd_role {
 };
 
 struct hsphfpd_transport_data {
-    char *endpoint_path;
+    struct pa_bluetooth_backend *backend;
+    int sco_fd;
+    char *transport_path;
     char *agent_codec;
     char *air_codec;
     enum hsphfpd_volume_control volume_control;
     uint16_t mtu;
-    int sco_fd;
-    struct pa_bluetooth_backend *backend;
 };
 
 struct hsphfpd_endpoint {
@@ -198,19 +198,104 @@ static void set_dbus_property(pa_bluetooth_backend *backend, const char *service
     send_and_add_to_pending(backend, m, set_dbus_property_reply, error_message);
 }
 
-static inline void set_microphone_gain_property(pa_bluetooth_backend *backend, const char *path, uint16_t gain) {
-    set_dbus_property(backend, HSPHFPD_SERVICE, path, HSPHFPD_AUDIO_TRANSPORT_INTERFACE, "MicrophoneGain", DBUS_TYPE_UINT16, &gain, pa_sprintf_malloc("Changing microphone gain to %u for transport %s failed", (unsigned)gain, path));
+static inline void set_microphone_gain_property(const struct hsphfpd_transport_data *transport_data, uint16_t gain) {
+    if (transport_data->sco_fd < 0 || transport_data->volume_control <= HSPHFPD_VOLUME_CONTROL_NONE)
+        return;
+    set_dbus_property(transport_data->backend, HSPHFPD_SERVICE, transport_data->transport_path, HSPHFPD_AUDIO_TRANSPORT_INTERFACE, "MicrophoneGain", DBUS_TYPE_UINT16, &gain, pa_sprintf_malloc("Changing microphone gain to %u for transport %s failed", (unsigned)gain, transport_data->transport_path));
 }
 
-static inline void set_speaker_gain_property(pa_bluetooth_backend *backend, const char *path, uint16_t gain) {
-    set_dbus_property(backend, HSPHFPD_SERVICE, path, HSPHFPD_AUDIO_TRANSPORT_INTERFACE, "SpeakerGain", DBUS_TYPE_UINT16, &gain, pa_sprintf_malloc("Changing speaker gain to %u for transport %s failed", (unsigned)gain, path));
+static inline void set_speaker_gain_property(const struct hsphfpd_transport_data *transport_data, uint16_t gain) {
+    if (transport_data->sco_fd < 0 || transport_data->volume_control <= HSPHFPD_VOLUME_CONTROL_NONE)
+        return;
+    set_dbus_property(transport_data->backend, HSPHFPD_SERVICE, transport_data->transport_path, HSPHFPD_AUDIO_TRANSPORT_INTERFACE, "SpeakerGain", DBUS_TYPE_UINT16, &gain, pa_sprintf_malloc("Changing speaker gain to %u for transport %s failed", (unsigned)gain, transport_data->transport_path));
+}
+
+static void hsphfpd_transport_acquire_reply(DBusPendingCall *pending, void *userdata) {
+    DBusMessage *r;
+    DBusError error;
+    pa_dbus_pending *p;
+    pa_bluetooth_backend *backend;
+    pa_bluetooth_transport *transport;
+    const char *error_name;
+    char *endpoint_path;
+    const char *transport_path;
+    const char *service_id;
+    const char *agent_path;
+
+    pa_assert(pending);
+    pa_assert_se(p = userdata);
+    pa_assert_se(backend = p->context_data);
+    pa_assert_se(endpoint_path = p->call_data);
+    pa_assert_se(r = dbus_pending_call_steal_reply(pending));
+
+    dbus_error_init(&error);
+
+    if (!pa_safe_streq(dbus_message_get_sender(r), backend->hsphfpd_service_id)) {
+        pa_log_error("Reply for " HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() from invalid sender");
+        goto failed;
+    }
+
+    if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR) {
+        error_name = dbus_message_get_error_name(r);
+        if (pa_safe_streq(error_name, HSPHFPD_SERVICE ".AlreadyConnected") || pa_safe_streq(error_name, HSPHFPD_SERVICE ".InProgress")) /* TODO: we should check that pulseaudio really get audio socket */
+            goto success;
+        pa_log_warn(HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() failed: %s: %s", error_name, pa_dbus_get_error_message(r));
+        goto failed;
+    }
+
+    if (!pa_streq(dbus_message_get_signature(r), "oso")) {
+        pa_log_error("Invalid reply signature for " HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio()");
+        goto failed;
+    }
+
+    if (!dbus_message_get_args(r, &error, DBUS_TYPE_OBJECT_PATH, &transport_path, DBUS_TYPE_STRING, &service_id, DBUS_TYPE_OBJECT_PATH, &agent_path, DBUS_TYPE_INVALID) || dbus_error_is_set(&error)) {
+        pa_log_error("Failed to parse " HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() reply: %s", error.message);
+        goto failed;
+    }
+
+    if (!pa_safe_streq(service_id, dbus_bus_get_unique_name(pa_dbus_connection_get(backend->connection)))) {
+        pa_log_warn(HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() failed: Other audio application took audio socket");
+        goto failed;
+    }
+
+success:
+    /* On success hsphfpd daemon asynchronously calls NewConnection() method which change transport state to playing */
+    goto finish;
+
+failed:
+    /* If transport state is idle switch it to disconnected state and then back to idle state
+     * so sinks and sources are properly released and connected attempt is marked as failed,
+     * this also trigger profile change to off */
+    transport = pa_bluetooth_transport_get(backend->discovery, endpoint_path);
+    if (transport && transport->state == PA_BLUETOOTH_TRANSPORT_STATE_IDLE) {
+        pa_bluetooth_transport_set_state(transport, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
+        pa_bluetooth_transport_set_state(transport, PA_BLUETOOTH_TRANSPORT_STATE_IDLE);
+    }
+
+finish:
+    pa_xfree(endpoint_path);
+
+    dbus_error_free(&error);
+    dbus_message_unref(r);
+
+    PA_LLIST_REMOVE(pa_dbus_pending, backend->pending, p);
+    pa_dbus_pending_free(p);
 }
 
 static int hsphfpd_transport_acquire(pa_bluetooth_transport *transport, size_t *imtu, size_t *omtu) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
-    if (!transport_data)
+    if (transport_data->sco_fd < 0) {
+        /* TODO: support for choosing codec is not implemented yet */
+        const char *air_codec = "CVSD";
+        const char *agent_codec = "PCM_s16le_8kHz";
+        const char *endpoint_path = transport->path;
+        DBusMessage *m;
+        pa_assert_se(m = dbus_message_new_method_call(HSPHFPD_SERVICE, endpoint_path, HSPHFPD_ENDPOINT_INTERFACE, "ConnectAudio"));
+        pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_STRING, &air_codec, DBUS_TYPE_STRING, &agent_codec, DBUS_TYPE_INVALID));
+        send_and_add_to_pending(transport_data->backend, m, hsphfpd_transport_acquire_reply, pa_xstrdup(endpoint_path));
         return -EAGAIN;
+    }
 
     if (imtu) *imtu = transport_data->mtu;
     if (omtu) *omtu = transport_data->mtu;
@@ -220,23 +305,31 @@ static int hsphfpd_transport_acquire(pa_bluetooth_transport *transport, size_t *
 static void hsphfpd_transport_release(pa_bluetooth_transport *transport) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
-    if (!transport_data || transport_data->sco_fd < 0) {
-        pa_log_info("Transport %s already released", transport->path);
+    if (transport_data->sco_fd < 0) {
+        pa_log_info("Transport for endpoint %s already released", transport->path);
         return;
     }
 
     shutdown(transport_data->sco_fd, SHUT_RDWR);
     transport_data->sco_fd = -1;
     /* file descriptor is closed by teardown_stream() */
+
+    pa_xfree(transport_data->transport_path);
+    transport_data->transport_path = NULL;
+
+    pa_xfree(transport_data->agent_codec);
+    transport_data->agent_codec = NULL;
+
+    pa_xfree(transport_data->air_codec);
+    transport_data->air_codec = NULL;
+
+    transport_data->mtu = 0;
 }
 
 static void hsphfpd_transport_destroy(pa_bluetooth_transport *transport) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
-    if (!transport_data)
-        return;
-
-    pa_xfree(transport_data->endpoint_path);
+    pa_xfree(transport_data->transport_path);
     pa_xfree(transport_data->agent_codec);
     pa_xfree(transport_data->air_codec);
     pa_xfree(transport_data);
@@ -248,9 +341,7 @@ static void hsphfpd_transport_set_speaker_gain(pa_bluetooth_transport *transport
     if (transport->speaker_gain == gain)
         return;
 
-    if (transport_data && transport_data->volume_control != HSPHFPD_VOLUME_CONTROL_NONE)
-        set_speaker_gain_property(transport_data->backend, transport->path, gain);
-
+    set_speaker_gain_property(transport_data, gain);
     transport->speaker_gain = gain;
 }
 
@@ -260,9 +351,7 @@ static void hsphfpd_transport_set_microphone_gain(pa_bluetooth_transport *transp
     if (transport->microphone_gain == gain)
         return;
 
-    if (transport_data && transport_data->volume_control != HSPHFPD_VOLUME_CONTROL_NONE)
-        set_microphone_gain_property(transport_data->backend, transport->path, gain);
-
+    set_microphone_gain_property(transport_data, gain);
     transport->microphone_gain = gain;
 }
 
@@ -347,20 +436,20 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
     uint16_t speaker_gain = -1;
     uint16_t mtu = 0;
 
-    parse_transport_properties_values(transport_data->backend, transport->path, i, &endpoint_path, &air_codec, &volume_control, &microphone_gain, &speaker_gain, &mtu);
+    parse_transport_properties_values(transport_data->backend, transport_data->transport_path, i, &endpoint_path, &air_codec, &volume_control, &microphone_gain, &speaker_gain, &mtu);
 
     if (endpoint_path)
-        pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport->path, "Endpoint");
+        pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport_data->transport_path, "Endpoint");
 
     if (air_codec)
-        pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport->path, "AirCodec");
+        pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport_data->transport_path, "AirCodec");
 
     if (mtu)
-        pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport->path, "MTU");
+        pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport_data->transport_path, "MTU");
 
     if (volume_control) {
         if (!!transport->soft_volume != !!(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
-            pa_log_info("Transport %s changed soft volume from %s to %s", transport->path, pa_yes_no(transport->soft_volume), pa_yes_no(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
+            pa_log_info("Transport %s changed soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->soft_volume), pa_yes_no(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
             transport->soft_volume = (volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
             soft_volume_changed = true;
         }
@@ -372,7 +461,7 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
 
     if (microphone_gain != (uint16_t)-1) {
         if (transport->microphone_gain != microphone_gain) {
-            pa_log_info("Transport %s changed microphone gain from %u to %u", transport->path, (unsigned)transport->microphone_gain, (unsigned)microphone_gain);
+            pa_log_info("Transport %s changed microphone gain from %u to %u", transport_data->transport_path, (unsigned)transport->microphone_gain, (unsigned)microphone_gain);
             transport->microphone_gain = microphone_gain;
             microphone_gain_changed = true;
         }
@@ -380,23 +469,21 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
 
     if (speaker_gain != (uint16_t)-1) {
         if (transport->speaker_gain != speaker_gain) {
-            pa_log_info("Transport %s changed speaker gain from %u to %u", transport->path, (unsigned)transport->speaker_gain, (unsigned)speaker_gain);
+            pa_log_info("Transport %s changed speaker gain from %u to %u", transport_data->transport_path, (unsigned)transport->speaker_gain, (unsigned)speaker_gain);
             transport->speaker_gain = speaker_gain;
             speaker_gain_changed = true;
         }
     }
 
-    if (transport->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED) {
-        if (microphone_gain_changed || soft_volume_changed)
-            pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->backend->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), transport);
+    if (microphone_gain_changed || soft_volume_changed)
+        pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->backend->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), transport);
 
-        if (speaker_gain_changed || soft_volume_changed)
-            pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->backend->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), transport);
+    if (speaker_gain_changed || soft_volume_changed)
+        pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->backend->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), transport);
 
-        if (volume_control_changed && transport_data->volume_control != HSPHFPD_VOLUME_CONTROL_NONE) {
-            set_microphone_gain_property(transport_data->backend, transport->path, transport->microphone_gain);
-            set_speaker_gain_property(transport_data->backend, transport->path, transport->speaker_gain);
-        }
+    if (volume_control_changed) {
+        set_microphone_gain_property(transport_data, transport->microphone_gain);
+        set_speaker_gain_property(transport_data, transport->speaker_gain);
     }
 }
 
@@ -490,6 +577,7 @@ static void parse_endpoint_properties(pa_bluetooth_backend *backend, struct hsph
         endpoint->valid = true;
 
     if (endpoint->valid && endpoint->connected && !pa_bluetooth_transport_get(backend->discovery, endpoint->path)) {
+        struct hsphfpd_transport_data *transport_data;
         pa_bluetooth_transport *transport;
         pa_bluetooth_profile_t profile;
         pa_bluetooth_device *device = pa_bluetooth_discovery_get_device_by_address(backend->discovery, endpoint->remote_address, endpoint->local_address);
@@ -497,6 +585,7 @@ static void parse_endpoint_properties(pa_bluetooth_backend *backend, struct hsph
             pa_log_error("Device does not exist for endpoint %s (remote addresses %s, local address %s)", endpoint->path, endpoint->remote_address, endpoint->local_address);
         } else {
             pa_log_debug("Creating a new transport for endpoint %s", endpoint->path);
+
             if (endpoint->profile == HSPHFPD_PROFILE_HEADSET) {
                 if (endpoint->role == HSPHFPD_ROLE_CLIENT)
                     profile = PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT;
@@ -508,15 +597,20 @@ static void parse_endpoint_properties(pa_bluetooth_backend *backend, struct hsph
                 else
                     profile = PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY;
             }
+
+            transport_data = pa_xnew0(struct hsphfpd_transport_data, 1);
+            transport_data->backend = backend;
+            transport_data->sco_fd = -1;
+
             transport = pa_bluetooth_transport_new(device, backend->hsphfpd_service_id, endpoint->path, profile, NULL, 0);
             transport->acquire = hsphfpd_transport_acquire;
             transport->release = hsphfpd_transport_release;
             transport->destroy = hsphfpd_transport_destroy;
             transport->set_speaker_gain = hsphfpd_transport_set_speaker_gain;
             transport->set_microphone_gain = hsphfpd_transport_set_microphone_gain;
-            transport->userdata = NULL;
+            transport->userdata = transport_data;
+
             pa_bluetooth_transport_put(transport);
-            pa_bluetooth_transport_set_state(transport, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
         }
     }
 }
@@ -570,6 +664,7 @@ static void hsphfpd_get_endpoints_reply(DBusPendingCall *pending, void *userdata
     DBusMessage *r;
     DBusMessageIter arg_i, element_i;
 
+    pa_assert(pending);
     pa_assert_se(p = userdata);
     pa_assert_se(backend = p->context_data);
     pa_assert_se(r = dbus_pending_call_steal_reply(pending));
@@ -584,7 +679,7 @@ static void hsphfpd_get_endpoints_reply(DBusPendingCall *pending, void *userdata
         goto finish;
     }
 
-    if (!backend->hsphfpd_service_id || !pa_safe_streq(dbus_message_get_sender(r), backend->hsphfpd_service_id)) {
+    if (!pa_safe_streq(dbus_message_get_sender(r), backend->hsphfpd_service_id)) {
         pa_log_error("Reply for GetManagedObjects() from invalid sender");
         goto finish;
     }
@@ -797,27 +892,24 @@ static DBusMessage *hsphfpd_new_connection(pa_bluetooth_backend *backend, DBusMe
         return r;
     }
 
-    if (transport->userdata) {
+    transport_data = transport->userdata;
+    if (transport_data->sco_fd >= 0) {
         close(sco_fd);
         pa_log_error("Endpoint %s has already active transport", endpoint_path);
         pa_assert_se(r = dbus_message_new_error_printf(m, "org.hsphfpd.Error.Rejected", "Endpoint %s has already active transport", endpoint_path));
         return r;
     }
 
-    transport_data = pa_xnew0(struct hsphfpd_transport_data, 1);
-    transport_data->endpoint_path = pa_xstrdup(endpoint_path);
+    transport_data->transport_path = pa_xstrdup(transport_path);
     transport_data->agent_codec = pa_xstrdup("PCM_s16le_8kHz");
     transport_data->air_codec = pa_xstrdup(air_codec);
     transport_data->volume_control = volume_control;
     transport_data->mtu = mtu;
     transport_data->sco_fd = sco_fd;
-    transport_data->backend = backend;
-
-    transport->userdata = transport_data;
 
     pa_bluetooth_transport_set_state(transport, PA_BLUETOOTH_TRANSPORT_STATE_PLAYING);
 
-    pa_log_debug("Transport %s with agent codec %s and air codec %s is active for profile %s", transport->path, transport_data->agent_codec, transport_data->air_codec, pa_bluetooth_profile_to_string(transport->profile));
+    pa_log_debug("Transport %s with agent codec %s and air codec %s is active for profile %s on endpoint %s", transport_data->transport_path, transport_data->agent_codec, transport_data->air_codec, pa_bluetooth_profile_to_string(transport->profile), endpoint_path);
 
     pa_assert_se(r = dbus_message_new_method_return(m));
     return r;
@@ -845,7 +937,8 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
                                        DBUS_TYPE_STRING, &name,
                                        DBUS_TYPE_STRING, &old_owner,
                                        DBUS_TYPE_STRING, &new_owner,
-                                       DBUS_TYPE_INVALID)) {
+                                       DBUS_TYPE_INVALID)
+                  || dbus_error_is_set(&err)) {
                 pa_log_error("Failed to parse org.freedesktop.DBus.NameOwnerChanged: %s", err.message);
                 goto finish;
             }
@@ -944,11 +1037,28 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
                 pa_log_debug("Properties changed on endpoint %s", path);
                 parse_endpoint_properties(backend, endpoint, &arg_i);
             } else if (pa_streq(iface, HSPHFPD_AUDIO_TRANSPORT_INTERFACE)) {
-                pa_bluetooth_transport *transport = pa_bluetooth_transport_get(backend->discovery, path);
-                if (!transport || !transport->userdata) {
+                pa_hashmap *transports = pa_bluetooth_transport_get_all(backend->discovery);
+                pa_bluetooth_transport *transport;
+                struct hsphfpd_transport_data *transport_data;
+                void *state;
+
+                /* Find pa_bluetooth_transport which belongs to hsphfpd transport path
+                 * pa_hashmap_get() search transports by hsphfpd endpoint path and
+                 * not by hsphfpd transport path, so do search routine manually */
+                PA_HASHMAP_FOREACH(transport, transports, state) {
+                    if (!transport->owner || !pa_safe_streq(transport->owner, backend->hsphfpd_service_id))
+                        continue;
+                    transport_data = transport->userdata;
+                    if (transport_data->sco_fd <= 0 || !pa_safe_streq(transport_data->transport_path, path))
+                        continue;
+                    break;
+                }
+
+                if (!transport) {
                     pa_log_warn("Properties changed on unknown transport %s", path);
                     goto finish;
                 }
+
                 pa_log_debug("Properties changed on transport %s", path);
                 parse_transport_properties(transport, &arg_i);
             }

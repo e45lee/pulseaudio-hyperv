@@ -155,6 +155,7 @@ pa_bluetooth_transport *pa_bluetooth_transport_new(pa_bluetooth_device *d, const
 
 void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_transport_state_t state);
 pa_bluetooth_transport *pa_bluetooth_transport_get(pa_bluetooth_discovery *y, const char *path);
+pa_hashmap *pa_bluetooth_transport_get_all(pa_bluetooth_discovery *y);
 void pa_bluetooth_transport_put(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t);
 
