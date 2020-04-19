@@ -454,6 +454,9 @@ static DBusHandlerResult profile_handler(DBusConnection *c, DBusMessage *m, void
 
     pa_assert(b);
 
+    if (!b->enabled)
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+
     path = dbus_message_get_path(m);
     interface = dbus_message_get_interface(m);
     member = dbus_message_get_member(m);
