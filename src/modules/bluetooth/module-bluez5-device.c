@@ -1494,6 +1494,12 @@ static void thread_func(void *userdata) {
                         bytes_to_write += n_read;
                         blocks_to_write += bytes_to_write / u->write_block_size;
                         bytes_to_write = bytes_to_write % u->write_block_size;
+
+                        /* SCO is synchronous socket, ensure that we do not send more bytes than we received */
+                        if (u->write_block_size != (size_t) n_read && (size_t) n_read <= u->write_link_mtu) {
+                            u->write_block_size = (size_t) n_read;
+                            handle_sink_block_size_change(u);
+                        }
                     }
                 }
             }
