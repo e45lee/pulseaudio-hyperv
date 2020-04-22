@@ -48,6 +48,8 @@ struct pa_bluetooth_backend {
 struct transport_data {
     int rfcomm_fd;
     pa_io_event *rfcomm_io;
+    int sco_fd;
+    pa_io_event *sco_connect_io;
     pa_mainloop_api *mainloop;
 };
 
@@ -101,7 +103,53 @@ static pa_dbus_pending* send_and_add_to_pending(pa_bluetooth_backend *backend, D
     return p;
 }
 
+static void sco_connect_callback(pa_mainloop_api *mainloop, pa_io_event *sco_connect_io, int sco_fd, pa_io_event_flags_t events, void *userdata) {
+    pa_bluetooth_transport *t = userdata;
+    struct transport_data *trd = t->userdata;
+    socklen_t len;
+    int error;
+
+    trd->mainloop->io_free(trd->sco_connect_io);
+    trd->sco_connect_io = NULL;
+
+    if (events & (PA_IO_EVENT_HANGUP|PA_IO_EVENT_ERROR)) {
+        error = errno;
+        pa_log_error("connect() to %s failed: %s", t->device->address, pa_cstrerror(error));
+        goto failed;
+    }
+
+    error = 0;
+    len = sizeof(error);
+    if (getsockopt(trd->sco_fd, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || len != sizeof(error)) {
+        error = errno;
+        pa_log_error("getsockopt() failed: %s", pa_cstrerror(error));
+        goto failed;
+    }
+
+    if (error) {
+        pa_log_error("connect() to %s failed: %s", t->device->address, pa_cstrerror(error));
+        goto failed;
+    }
+
+    pa_log_info("connect() to %s successful", t->device->address);
+    pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_PLAYING);
+    return;
+
+failed:
+    close(trd->sco_fd);
+    trd->sco_fd = -error;
+
+    /* If transport state is idle switch it to disconnected state and then back to idle state
+     * so sinks and sources are properly released and connection attempt is marked as failed,
+     * this also trigger profile change to off */
+    if (t->state == PA_BLUETOOTH_TRANSPORT_STATE_IDLE) {
+        pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
+        pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_IDLE);
+    }
+}
+
 static int sco_do_connect(pa_bluetooth_transport *t) {
+    struct transport_data *trd = t->userdata;
     pa_bluetooth_device *d = t->device;
     struct sockaddr_sco addr;
     socklen_t len;
@@ -120,7 +168,7 @@ static int sco_do_connect(pa_bluetooth_transport *t) {
     for (i = 5; i >= 0; i--, dst_addr += 3)
         dst.b[i] = strtol(dst_addr, NULL, 16);
 
-    sock = socket(PF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_SCO);
+    sock = socket(PF_BLUETOOTH, SOCK_SEQPACKET | SOCK_NONBLOCK, BTPROTO_SCO);
     if (sock < 0) {
         pa_log_error("socket(SEQPACKET, SCO) %s", pa_cstrerror(errno));
         return -1;
@@ -140,13 +188,18 @@ static int sco_do_connect(pa_bluetooth_transport *t) {
     addr.sco_family = AF_BLUETOOTH;
     bacpy(&addr.sco_bdaddr, &dst);
 
-    pa_log_info("doing connect");
-    err = connect(sock, (struct sockaddr *) &addr, len);
-    if (err < 0 && !(errno == EAGAIN || errno == EINPROGRESS)) {
+    pa_log_info("calling connect() to %s", d->address);
+    do {
+        err = connect(sock, (struct sockaddr *) &addr, len);
+    } while (err < 0 && errno == EINTR);
+    if (err < 0 && errno != EINPROGRESS) {
         pa_log_error("connect(): %s", pa_cstrerror(errno));
         goto fail_close;
     }
-    return sock;
+
+    trd->sco_fd = sock;
+    trd->sco_connect_io = trd->mainloop->io_new(trd->mainloop, trd->sco_fd, PA_IO_EVENT_OUTPUT, sco_connect_callback, t);
+    return 0;
 
 fail_close:
     close(sock);
@@ -154,23 +207,34 @@ fail_close:
 }
 
 static int sco_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu) {
-    int sock;
+    struct transport_data *trd = t->userdata;
+    struct sco_options sco_opt;
     socklen_t len;
+    int ret;
 
-    sock = sco_do_connect(t);
-    if (sock < 0)
-        goto fail;
+    if (trd->sco_connect_io)
+        return -EAGAIN;
+
+    if (trd->sco_fd < 0) {
+        if (trd->sco_fd == -EAGAIN) {
+            ret = sco_do_connect(t);
+            if (ret == 0)
+                ret = -EAGAIN;
+        } else {
+            ret = trd->sco_fd;
+            trd->sco_fd = -EAGAIN;
+        }
+        return ret;
+    }
 
     if (imtu) *imtu = 48;
     if (omtu) *omtu = 48;
 
     if (t->device->autodetect_mtu) {
-        struct sco_options sco_opt;
-
         len = sizeof(sco_opt);
         memset(&sco_opt, 0, len);
 
-        if (getsockopt(sock, SOL_SCO, SCO_OPTIONS, &sco_opt, &len) < 0)
+        if (getsockopt(trd->sco_fd, SOL_SCO, SCO_OPTIONS, &sco_opt, &len) < 0)
             pa_log_warn("getsockopt(SCO_OPTIONS) failed, loading defaults");
         else {
             pa_log_debug("autodetected imtu = omtu = %u", sco_opt.mtu);
@@ -179,14 +243,16 @@ static int sco_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu)
         }
     }
 
-    return sock;
-
-fail:
-    return -1;
+    return trd->sco_fd;
 }
 
 static void sco_release_cb(pa_bluetooth_transport *t) {
+    struct transport_data *trd = t->userdata;
+
     pa_log_info("Transport %s released", t->path);
+
+    shutdown(trd->sco_fd, SHUT_RDWR);
+    trd->sco_fd = -EAGAIN;
     /* device will close the SCO socket for us */
 }
 
@@ -324,6 +390,12 @@ fail:
 static void transport_destroy(pa_bluetooth_transport *t) {
     struct transport_data *trd = t->userdata;
 
+    if (trd->sco_connect_io) {
+        trd->mainloop->io_free(trd->sco_connect_io);
+        shutdown(trd->sco_fd, SHUT_RDWR);
+        close(trd->sco_fd);
+    }
+
     trd->mainloop->io_free(trd->rfcomm_io);
     shutdown(trd->rfcomm_fd, SHUT_RDWR);
     close (trd->rfcomm_fd);
@@ -424,6 +496,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     trd->mainloop = b->core->mainloop;
     trd->rfcomm_io = trd->mainloop->io_new(b->core->mainloop, fd, PA_IO_EVENT_INPUT,
         rfcomm_io_callback, t);
+    trd->sco_fd = -EAGAIN;
     t->userdata =  trd;
 
     pa_bluetooth_transport_put(t);
