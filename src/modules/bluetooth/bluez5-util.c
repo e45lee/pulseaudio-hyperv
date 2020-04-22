@@ -22,6 +22,8 @@
 #include <config.h>
 #endif
 
+#include <errno.h>
+
 #include <pulse/rtclock.h>
 #include <pulse/timeval.h>
 #include <pulse/xmalloc.h>
@@ -116,11 +118,19 @@ struct pa_bluetooth_discovery {
     pa_hashmap *adapters;
     pa_hashmap *devices;
     pa_hashmap *transports;
+    pa_hashmap *pending_transport_fds;
 
     int headset_backend;
     pa_bluetooth_backend *hsphfpd_backend;
     pa_bluetooth_backend *legacy_hsp_backend;
     PA_LLIST_HEAD(pa_dbus_pending, pending);
+};
+
+struct pending_transport_fd {
+    pa_bluetooth_discovery *discovery;
+    char *path;
+    size_t imtu, omtu;
+    int fd;
 };
 
 struct a2dp_codec_capabilities {
@@ -417,58 +427,115 @@ void pa_bluetooth_transport_free(pa_bluetooth_transport *t) {
     pa_xfree(t);
 }
 
-static int bluez5_transport_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu) {
-    DBusMessage *m, *r;
+static void bluez5_transport_acquire_reply(DBusPendingCall *pending, void *userdata) {
+    DBusMessage *r;
     DBusError err;
-    int ret;
+    pa_dbus_pending *p;
+    pa_bluetooth_discovery *y;
+    pa_bluetooth_transport *t;
+    struct pending_transport_fd *pending_transport_fd;
+    char *path;
+    int fd;
     uint16_t i, o;
+
+    pa_assert(pending);
+    pa_assert_se(p = userdata);
+    pa_assert_se(y = p->context_data);
+    pa_assert_se(path = p->call_data);
+    pa_assert_se(r = dbus_pending_call_steal_reply(pending));
+
+    dbus_error_init(&err);
+
+    if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR) {
+        pa_log_error("Transport Acquire() failed for transport %s (%s)", path, pa_dbus_get_error_message(r));
+        goto failed;
+    }
+
+    if (!dbus_message_get_args(r, &err, DBUS_TYPE_UNIX_FD, &fd, DBUS_TYPE_UINT16, &i, DBUS_TYPE_UINT16, &o, DBUS_TYPE_INVALID)) {
+        pa_log_error("Failed to parse Acquire() reply: %s", err.message);
+        goto failed;
+    }
+
+    pa_log_info("Transport %s acquired", path);
+    goto success;
+
+failed:
+    /* If transport state is not disconnected then switch it to disconnected state and
+     * then to idle state so sinks and sources are properly released and connection
+     * attempt is marked as failed, this also trigger profile change to off */
+    t = pa_bluetooth_transport_get(y, path);
+    if (t && t->state > PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED) {
+        pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
+        pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_IDLE);
+    }
+
+    fd = -1;
+    i = 0;
+    o = 0;
+    /* fall through, we need to put failure into pending_transport_fds hashmap */
+
+success:
+    pending_transport_fd = pa_hashmap_get(y->pending_transport_fds, path);
+    if (!pending_transport_fd) {
+        pending_transport_fd = pa_xnew0(struct pending_transport_fd, 1);
+        pending_transport_fd->discovery = y;
+        pending_transport_fd->path = pa_xstrdup(path);
+        pa_hashmap_put(y->pending_transport_fds, pending_transport_fd->path, pending_transport_fd);
+    } else if (pending_transport_fd->fd != fd) {
+        pa_log_info("Closing staled pending fd %d for transport %s", pending_transport_fd->fd, path);
+        close(pending_transport_fd->fd);
+    }
+
+    pending_transport_fd->fd = fd;
+    pending_transport_fd->imtu = i;
+    pending_transport_fd->omtu = o;
+
+/* finish: */
+    dbus_error_free(&err);
+    dbus_message_unref(r);
+
+    PA_LLIST_REMOVE(pa_dbus_pending, y->pending, p);
+    pa_dbus_pending_free(p);
+
+    pa_xfree(path);
+}
+
+static int bluez5_transport_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu) {
+    struct pending_transport_fd *pending_transport_fd;
+    DBusMessage *m;
+    int fd;
 
     pa_assert(t);
     pa_assert(t->device);
     pa_assert(t->device->discovery);
 
-    pa_assert_se(m = dbus_message_new_method_call(t->owner, t->path, BLUEZ_MEDIA_TRANSPORT_INTERFACE, "Acquire"));
-
-    dbus_error_init(&err);
-
-    r = dbus_connection_send_with_reply_and_block(pa_dbus_connection_get(t->device->discovery->connection), m, -1, &err);
-    dbus_message_unref(m);
-    m = NULL;
-    if (!r) {
-        pa_log_error("Transport Acquire() failed for transport %s (%s)", t->path, err.message);
-
-        dbus_error_free(&err);
-        return -1;
+    pending_transport_fd = pa_hashmap_remove(t->device->discovery->pending_transport_fds, t->path);
+    if (!pending_transport_fd) {
+        pa_assert_se(m = dbus_message_new_method_call(t->owner, t->path, BLUEZ_MEDIA_TRANSPORT_INTERFACE, "Acquire"));
+        send_and_add_to_pending(t->device->discovery, m, bluez5_transport_acquire_reply, pa_xstrdup(t->path));
+        return -EAGAIN;
     }
 
-    if (!dbus_message_get_args(r, &err, DBUS_TYPE_UNIX_FD, &ret, DBUS_TYPE_UINT16, &i, DBUS_TYPE_UINT16, &o,
-                               DBUS_TYPE_INVALID)) {
-        pa_log_error("Failed to parse Acquire() reply: %s", err.message);
-        dbus_error_free(&err);
-        ret = -1;
-        goto finish;
-    }
+    fd = pending_transport_fd->fd;
 
     if (imtu)
-        *imtu = i;
+        *imtu = pending_transport_fd->imtu;
 
     if (omtu)
-        *omtu = o;
+        *omtu = pending_transport_fd->omtu;
 
-finish:
-    dbus_message_unref(r);
-    return ret;
+    pa_xfree(pending_transport_fd->path);
+    pa_xfree(pending_transport_fd);
+
+    return fd;
 }
 
 static void bluez5_transport_release_cb(pa_bluetooth_transport *t) {
-    DBusMessage *m, *r;
-    DBusError err;
+    DBusMessage *m;
 
     pa_assert(t);
     pa_assert(t->device);
     pa_assert(t->device->discovery);
-
-    dbus_error_init(&err);
 
     if (t->state <= PA_BLUETOOTH_TRANSPORT_STATE_IDLE) {
         pa_log_info("Transport %s auto-released by BlueZ or already released", t->path);
@@ -476,19 +543,26 @@ static void bluez5_transport_release_cb(pa_bluetooth_transport *t) {
     }
 
     pa_assert_se(m = dbus_message_new_method_call(t->owner, t->path, BLUEZ_MEDIA_TRANSPORT_INTERFACE, "Release"));
-    r = dbus_connection_send_with_reply_and_block(pa_dbus_connection_get(t->device->discovery->connection), m, -1, &err);
-    dbus_message_unref(m);
-    m = NULL;
-    if (r) {
-        dbus_message_unref(r);
-        r = NULL;
-    }
+    pa_assert_se(dbus_connection_send(pa_dbus_connection_get(t->device->discovery->connection), m, NULL));
+    pa_log_info("Transport %s released", t->path);
+}
 
-    if (dbus_error_is_set(&err)) {
-        pa_log_error("Failed to release transport %s: %s", t->path, err.message);
-        dbus_error_free(&err);
-    } else
-        pa_log_info("Transport %s released", t->path);
+static void bluez5_transport_release_staled_pending_fd(struct pending_transport_fd *pending_transport_fd) {
+    pa_bluetooth_transport *t;
+
+    pa_assert(pending_transport_fd);
+    pa_assert(pending_transport_fd->discovery);
+
+    pa_log_info("Releasing staled pending transport %s", pending_transport_fd->path);
+
+    t = pa_hashmap_get(pending_transport_fd->discovery->transports, pending_transport_fd->path);
+    if (t)
+        bluez5_transport_release_cb(t);
+
+    close(pending_transport_fd->fd);
+
+    pa_xfree(pending_transport_fd->path);
+    pa_xfree(pending_transport_fd);
 }
 
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d) {
@@ -2328,6 +2402,8 @@ pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *c, int headset_backe
     y->devices = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL,
                                      (pa_free_cb_t) device_free);
     y->transports = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+    y->pending_transport_fds = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func,
+                                                   NULL, (pa_free_cb_t) bluez5_transport_release_staled_pending_fd);
     PA_LLIST_HEAD_INIT(pa_dbus_pending, y->pending);
 
     for (i = 0; i < PA_BLUETOOTH_HOOK_MAX; i++)
@@ -2424,6 +2500,9 @@ void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
 
     if (y->legacy_hsp_backend)
         pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);
+
+    if (y->pending_transport_fds)
+        pa_hashmap_free(y->pending_transport_fds);
 
     if (y->adapters)
         pa_hashmap_free(y->adapters);
