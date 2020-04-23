@@ -737,8 +737,11 @@ static void hsphfpd_register_application_reply(DBusPendingCall *pending, void *u
     if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR) {
         pa_log_warn(HSPHFPD_APPLICATION_MANAGER_INTERFACE ".RegisterApplication() failed: %s: %s",
                     dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
-        if (dbus_message_is_error(r, DBUS_ERROR_SERVICE_UNKNOWN))
+        if (dbus_message_is_error(r, DBUS_ERROR_SERVICE_UNKNOWN)) {
+            pa_log_warn("hsphfpd daemon is not running!");
+            pa_log_warn("It is needed for HSP and HFP profile support");
             pa_bluetooth_discovery_legacy_hsp_backend_enable(backend->discovery, true);
+        }
         goto finish;
     }
 
