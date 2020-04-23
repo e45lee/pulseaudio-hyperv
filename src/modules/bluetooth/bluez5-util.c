@@ -1746,7 +1746,6 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
     struct change_a2dp_profile_data *data;
-    bool success;
 
     pa_assert(pending);
     pa_assert_se(p = userdata);
@@ -1754,14 +1753,11 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
     pa_assert_se(data = p->call_data);
     pa_assert_se(r = dbus_pending_call_steal_reply(pending));
 
-    success = (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR);
-    dbus_message_unref(r);
-
     PA_LLIST_REMOVE(pa_dbus_pending, y->pending, p);
     pa_dbus_pending_free(p);
     pa_xfree(data->pa_endpoint);
 
-    if (success) {
+    if (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR) {
         pa_log_info("Changing a2dp profile for %s to %s via endpoint %s succeeded", data->device->path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1]);
         data->device->change_a2dp_profile_in_progress = false;
         data->cb(true, data->userdata);
@@ -1771,6 +1767,7 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
         change_a2dp_profile_next(data->device, data->profile, data->codec_endpoints, data->codec_endpoints_i, data->codec_endpoints_count, true, data->cb, data->userdata);
     }
 
+    dbus_message_unref(r);
     pa_xfree(data);
 }
 
