@@ -62,8 +62,6 @@ PA_MODULE_USAGE("path=<device object path>"
 #define FIXED_LATENCY_RECORD_A2DP   (25 * PA_USEC_PER_MSEC)
 #define FIXED_LATENCY_RECORD_SCO    (25 * PA_USEC_PER_MSEC)
 
-#define HSP_MAX_GAIN 15
-
 static const char* const valid_modargs[] = {
     "path",
     "autodetect_mtu",
@@ -994,12 +992,12 @@ static void source_set_volume_cb(pa_source *s) {
     if (u->transport->set_microphone_gain == NULL)
       return;
 
-    gain = (pa_cvolume_max(&s->real_volume) * HSP_MAX_GAIN) / PA_VOLUME_NORM;
+    gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_microphone_gain) / PA_VOLUME_NORM;
 
-    if (gain > HSP_MAX_GAIN)
-        gain = HSP_MAX_GAIN;
+    if (gain > u->transport->max_microphone_gain)
+        gain = u->transport->max_microphone_gain;
 
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / HSP_MAX_GAIN);
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / u->transport->max_microphone_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -1007,13 +1005,12 @@ static void source_set_volume_cb(pa_source *s) {
 
     pa_cvolume_set(&s->real_volume, u->decoder_sample_spec.channels, volume);
 
-    /* Set soft volume when in headset role */
-    if (u->profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY || u->profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY)
+    /* Set soft volume when transport requires it, otherwise reset soft volume to default */
+    if (u->transport->microphone_soft_volume)
         pa_cvolume_set(&s->soft_volume, u->decoder_sample_spec.channels, volume);
+    else
+        pa_cvolume_reset(&s->soft_volume, u->decoder_sample_spec.channels);
 
-    /* If we are in the AG role, we send a command to the head set to change
-     * the microphone gain. In the HS role, source and sink are swapped, so
-     * in this case we notify the AG that the speaker gain has changed */
     u->transport->set_microphone_gain(u->transport, gain);
 }
 
@@ -1054,13 +1051,8 @@ static int add_source(struct userdata *u) {
     u->source->parent.process_msg = source_process_msg;
     u->source->set_state_in_io_thread = source_set_state_in_io_thread_cb;
 
-    if (u->profile == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT ||
-        u->profile == PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT ||
-        u->profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY ||
-        u->profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY) {
-        pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
-        u->source->n_volume_steps = 16;
-    }
+    pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
+    u->source->n_volume_steps = u->transport->max_microphone_gain + 1;
     return 0;
 }
 
@@ -1169,12 +1161,12 @@ static void sink_set_volume_cb(pa_sink *s) {
     if (u->transport->set_speaker_gain == NULL)
       return;
 
-    gain = (pa_cvolume_max(&s->real_volume) * HSP_MAX_GAIN) / PA_VOLUME_NORM;
+    gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_speaker_gain) / PA_VOLUME_NORM;
 
-    if (gain > HSP_MAX_GAIN)
-        gain = HSP_MAX_GAIN;
+    if (gain > u->transport->max_speaker_gain)
+        gain = u->transport->max_speaker_gain;
 
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / HSP_MAX_GAIN);
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / u->transport->max_speaker_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -1182,13 +1174,12 @@ static void sink_set_volume_cb(pa_sink *s) {
 
     pa_cvolume_set(&s->real_volume, u->encoder_sample_spec.channels, volume);
 
-    /* Set soft volume when in headset role */
-    if (u->profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY || u->profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY)
+    /* Set soft volume when transport requires it, otherwise reset soft volume to default */
+    if (u->transport->speaker_soft_volume)
         pa_cvolume_set(&s->soft_volume, u->encoder_sample_spec.channels, volume);
+    else
+        pa_cvolume_reset(&s->soft_volume, u->encoder_sample_spec.channels);
 
-    /* If we are in the AG role, we send a command to the head set to change
-     * the speaker gain. In the HS role, source and sink are swapped, so
-     * in this case we notify the AG that the microphone gain has changed */
     u->transport->set_speaker_gain(u->transport, gain);
 }
 
@@ -1229,13 +1220,8 @@ static int add_sink(struct userdata *u) {
     u->sink->parent.process_msg = sink_process_msg;
     u->sink->set_state_in_io_thread = sink_set_state_in_io_thread_cb;
 
-    if (u->profile == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT ||
-        u->profile == PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT ||
-        u->profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY ||
-        u->profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY) {
-        pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
-        u->sink->n_volume_steps = 16;
-    }
+    pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
+    u->sink->n_volume_steps = u->transport->max_speaker_gain + 1;
     return 0;
 }
 
@@ -2387,14 +2373,15 @@ static pa_hook_result_t transport_speaker_gain_changed_cb(pa_bluetooth_discovery
       return PA_HOOK_OK;
 
     gain = t->speaker_gain;
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / HSP_MAX_GAIN);
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / t->max_speaker_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
         volume++;
 
     pa_cvolume_set(&v, u->encoder_sample_spec.channels, volume);
-    if (t->profile == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT || t->profile == PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT)
+
+    if (!t->speaker_soft_volume)
         pa_sink_volume_changed(u->sink, &v);
     else
         pa_sink_set_volume(u->sink, &v, true, true);
@@ -2414,7 +2401,7 @@ static pa_hook_result_t transport_microphone_gain_changed_cb(pa_bluetooth_discov
       return PA_HOOK_OK;
 
     gain = t->microphone_gain;
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / HSP_MAX_GAIN);
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / t->max_microphone_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -2422,7 +2409,7 @@ static pa_hook_result_t transport_microphone_gain_changed_cb(pa_bluetooth_discov
 
     pa_cvolume_set(&v, u->decoder_sample_spec.channels, volume);
 
-    if (t->profile == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT || t->profile == PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT)
+    if (!t->microphone_soft_volume)
         pa_source_volume_changed(u->source, &v);
     else
         pa_source_set_volume(u->source, &v, true, true);

@@ -87,9 +87,12 @@ struct pa_bluetooth_transport {
     uint8_t *config;
     size_t config_size;
 
-    bool soft_volume;
-    uint16_t microphone_gain;
-    uint16_t speaker_gain;
+    bool microphone_soft_volume;
+    bool speaker_soft_volume;
+    pa_volume_t microphone_gain;
+    pa_volume_t speaker_gain;
+    pa_volume_t max_microphone_gain;
+    pa_volume_t max_speaker_gain;
 
     pa_bluetooth_transport_state_t state;
 

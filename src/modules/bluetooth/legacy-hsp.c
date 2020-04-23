@@ -485,6 +485,12 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     t = pa_bluetooth_transport_new(d, sender, pathfd, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT, NULL, 0);
     pa_xfree(pathfd);
 
+    /* Expects that remote HSP headset supports volume control and we do not need to use local softvol */
+    t->microphone_soft_volume = false;
+    t->speaker_soft_volume = false;
+    t->max_microphone_gain = 15;
+    t->max_speaker_gain = 15;
+
     t->acquire = sco_acquire_cb;
     t->release = sco_release_cb;
     t->destroy = transport_destroy;

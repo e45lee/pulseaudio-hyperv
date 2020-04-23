@@ -459,9 +459,10 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
         pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport_data->transport_path, "MTU");
 
     if (volume_control) {
-        if (!!transport->soft_volume != !!(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
-            pa_log_info("Transport %s changed soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->soft_volume), pa_yes_no(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
-            transport->soft_volume = (volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
+        if (!!transport->microphone_soft_volume != !!(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
+            pa_log_info("Transport %s changed soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->microphone_soft_volume), pa_yes_no(volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
+            transport->microphone_soft_volume = (volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
+            transport->speaker_soft_volume = transport->microphone_soft_volume;
             soft_volume_changed = true;
         }
         if (transport_data->volume_control != volume_control) {
@@ -613,7 +614,13 @@ static void parse_endpoint_properties(pa_bluetooth_backend *backend, struct hsph
             transport_data->backend = backend;
             transport_data->sco_fd = -1;
 
+            /* By default we do not know if remote device supports hw volume control
+             * So use local softvol filter until remote device announce volume control support */
             transport = pa_bluetooth_transport_new(device, backend->hsphfpd_service_id, endpoint->path, profile, NULL, 0);
+            transport->microphone_soft_volume = true;
+            transport->speaker_soft_volume = true;
+            transport->max_microphone_gain = 15;
+            transport->max_speaker_gain = 15;
             transport->acquire = hsphfpd_transport_acquire;
             transport->release = hsphfpd_transport_release;
             transport->destroy = hsphfpd_transport_destroy;

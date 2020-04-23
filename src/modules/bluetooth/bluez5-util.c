@@ -2093,6 +2093,11 @@ static DBusMessage *endpoint_set_configuration(DBusConnection *conn, DBusMessage
     dbus_message_unref(r);
 
     t = pa_bluetooth_transport_new(d, sender, path, p, config, size);
+    /* We do not support AVRCP Absolute Volume yet, so use softvol */
+    t->microphone_soft_volume = true;
+    t->speaker_soft_volume = true;
+    t->max_microphone_gain = PA_VOLUME_NORM;
+    t->max_speaker_gain = PA_VOLUME_NORM;
     t->acquire = bluez5_transport_acquire_cb;
     t->release = bluez5_transport_release_cb;
     pa_bluetooth_transport_put(t);
