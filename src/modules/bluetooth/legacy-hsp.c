@@ -454,13 +454,15 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
 
     if (!dbus_message_iter_init(m, &arg_i) || !pa_streq(dbus_message_get_signature(m), "oha{sv}")) {
         pa_log_error("Invalid signature found in NewConnection");
-        goto fail;
+        pa_assert_se(r = dbus_message_new_error(m, "org.bluez.Error.InvalidArguments", "Invalid signature"));
+        return r;
     }
 
     handler = dbus_message_get_path(m);
     if (!pa_streq(handler, HSP_AG_PROFILE)) {
         pa_log_error("Invalid handler");
-        goto fail;
+        pa_assert_se(r = dbus_message_new_error(m, "org.bluez.Error.InvalidArguments", "Invalid handler"));
+        return r;
     }
 
     pa_assert(dbus_message_iter_get_arg_type(&arg_i) == DBUS_TYPE_OBJECT_PATH);
@@ -469,7 +471,8 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     d = pa_bluetooth_discovery_get_device_by_path(b->discovery, path);
     if (d == NULL) {
         pa_log_error("Device doesnt exist for %s", path);
-        goto fail;
+        pa_assert_se(r = dbus_message_new_error_printf(m, "org.bluez.Error.InvalidArguments", "Device doesnt exist for %s", path));
+        return r;
     }
 
     pa_assert_se(dbus_message_iter_next(&arg_i));
@@ -510,11 +513,6 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     pa_log_debug("Transport %s available for profile %s", t->path, pa_bluetooth_profile_to_string(t->profile));
 
     pa_assert_se(r = dbus_message_new_method_return(m));
-
-    return r;
-
-fail:
-    pa_assert_se(r = dbus_message_new_error(m, "org.bluez.Error.InvalidArguments", "Unable to handle new connection"));
     return r;
 }
 
