@@ -1235,7 +1235,7 @@ static void parse_adapter_properties(pa_bluetooth_adapter *a, DBusMessageIter *i
     }
 }
 
-static void register_endpoint_reply(DBusPendingCall *pending, void *userdata) {
+static void register_legacy_sbc_endpoint_reply(DBusPendingCall *pending, void *userdata) {
     DBusMessage *r;
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
@@ -1248,7 +1248,7 @@ static void register_endpoint_reply(DBusPendingCall *pending, void *userdata) {
     pa_assert_se(r = dbus_pending_call_steal_reply(pending));
 
     if (dbus_message_is_error(r, BLUEZ_ERROR_NOT_SUPPORTED)) {
-        pa_log_info("Couldn't register endpoint %s because it is disabled in BlueZ", endpoint);
+        pa_log_info("Couldn't register legacy sbc endpoint %s because it is disabled in BlueZ", endpoint);
         goto finish;
     }
 
@@ -1267,17 +1267,24 @@ finish:
     pa_xfree(endpoint);
 }
 
-static void register_endpoint(pa_bluetooth_discovery *y, const pa_a2dp_codec *a2dp_codec, const char *path, const char *endpoint, const char *uuid) {
+static void register_legacy_sbc_endpoint(pa_bluetooth_discovery *y, const char *path, bool is_sink) {
     DBusMessage *m;
     DBusMessageIter i, d;
-    uint8_t capabilities[MAX_A2DP_CAPS_SIZE];
-    size_t capabilities_size;
+    const pa_a2dp_codec *a2dp_codec_sbc;
+    const char *endpoint;
+    const char *uuid;
     uint8_t codec_id;
+    uint8_t capabilities_size;
+    uint8_t capabilities[MAX_A2DP_CAPS_SIZE];
 
-    pa_log_debug("Registering %s on adapter %s", endpoint, path);
+    pa_assert_se(a2dp_codec_sbc = pa_bluetooth_get_a2dp_codec("sbc"));
+    uuid = is_sink ? PA_BLUETOOTH_UUID_A2DP_SINK : PA_BLUETOOTH_UUID_A2DP_SOURCE;
+    endpoint = is_sink ? A2DP_SINK_ENDPOINT "/sbc" : A2DP_SOURCE_ENDPOINT "/sbc";
 
-    codec_id = a2dp_codec->id.codec_id;
-    capabilities_size = a2dp_codec->fill_capabilities(capabilities);
+    pa_log_debug("Registering legacy sbc endpoint %s on adapter %s", endpoint, path);
+
+    codec_id = a2dp_codec_sbc->id.codec_id;
+    capabilities_size = a2dp_codec_sbc->fill_capabilities(capabilities);
     pa_assert(capabilities_size != 0);
 
     pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, path, BLUEZ_MEDIA_INTERFACE, "RegisterEndpoint"));
@@ -1292,7 +1299,7 @@ static void register_endpoint(pa_bluetooth_discovery *y, const pa_a2dp_codec *a2
 
     dbus_message_iter_close_container(&i, &d);
 
-    send_and_add_to_pending(y, m, register_endpoint_reply, pa_xstrdup(endpoint));
+    send_and_add_to_pending(y, m, register_legacy_sbc_endpoint_reply, pa_xstrdup(endpoint));
 }
 
 static void register_application_reply(DBusPendingCall *pending, void *userdata) {
@@ -1338,11 +1345,9 @@ finish:
     pa_dbus_pending_free(p);
 
     if (fallback) {
-        /* If bluez does not support RegisterApplication, fallback to old API with just one SBC codec */
-        const pa_a2dp_codec *a2dp_codec_sbc = pa_bluetooth_get_a2dp_codec("sbc");
-        pa_assert(a2dp_codec_sbc);
-        register_endpoint(y, a2dp_codec_sbc, path, A2DP_SINK_ENDPOINT "/sbc", PA_BLUETOOTH_UUID_A2DP_SINK);
-        register_endpoint(y, a2dp_codec_sbc, path, A2DP_SOURCE_ENDPOINT "/sbc", PA_BLUETOOTH_UUID_A2DP_SOURCE);
+        /* If bluez does not support RegisterApplication, fallback to old legacy API with just one SBC codec */
+        register_legacy_sbc_endpoint(y, path, true);
+        register_legacy_sbc_endpoint(y, path, false);
         pa_log_warn("Only SBC codec is available for A2DP profiles");
     }
 
@@ -2301,7 +2306,7 @@ static void endpoint_done(pa_bluetooth_discovery *y, const char *endpoint) {
     dbus_connection_unregister_object_path(pa_dbus_connection_get(y->connection), endpoint);
 }
 
-static void append_a2dp_object(DBusMessageIter *iter, const char *endpoint, const char *uuid, uint8_t codec_id, uint8_t *capabilities, size_t capabilities_size) {
+static void append_a2dp_object(DBusMessageIter *iter, const char *endpoint, const char *uuid, uint8_t codec_id, uint8_t *capabilities, uint8_t capabilities_size) {
     const char *interface_name = BLUEZ_MEDIA_ENDPOINT_INTERFACE;
     DBusMessageIter object, array, entry, dict;
 
@@ -2383,7 +2388,7 @@ static DBusHandlerResult object_manager_handler(DBusConnection *c, DBusMessage *
         for (a2dp_codec_i = pa_bluetooth_a2dp_codec_count(); a2dp_codec_i > 0; a2dp_codec_i--) {
             const pa_a2dp_codec *a2dp_codec;
             uint8_t capabilities[MAX_A2DP_CAPS_SIZE];
-            size_t capabilities_size;
+            uint8_t capabilities_size;
             uint8_t codec_id;
             char *endpoint;
 
