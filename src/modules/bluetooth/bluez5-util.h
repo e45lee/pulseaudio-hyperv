@@ -166,6 +166,8 @@ size_t pa_bluetooth_device_find_a2dp_endpoints_for_codec(const pa_bluetooth_devi
 bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *d, pa_bluetooth_profile_t profile, void (*cb)(bool, void *), void *userdata);
 
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d);
+bool pa_bluetooth_device_a2dp_sink_transport_connected(const pa_bluetooth_device *d);
+bool pa_bluetooth_device_a2dp_source_transport_connected(const pa_bluetooth_device *d);
 
 pa_bluetooth_device* pa_bluetooth_discovery_get_device_by_path(pa_bluetooth_discovery *y, const char *path);
 pa_bluetooth_device* pa_bluetooth_discovery_get_device_by_address(pa_bluetooth_discovery *y, const char *remote, const char *local);

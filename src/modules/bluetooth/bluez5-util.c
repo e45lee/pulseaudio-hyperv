@@ -266,19 +266,25 @@ static bool device_is_profile_connected(pa_bluetooth_device *device, pa_bluetoot
         return false;
 }
 
-static unsigned device_count_disconnected_profiles(pa_bluetooth_device *device) {
+static unsigned device_count_disconnected_profile_uuids(pa_bluetooth_device *device) {
     pa_bluetooth_profile_t profile;
     unsigned bluetooth_profile_count;
     unsigned count = 0;
 
     bluetooth_profile_count = pa_bluetooth_profile_count();
     for (profile = 0; profile < bluetooth_profile_count; profile++) {
-        if (!device_supports_profile(device, profile))
+        if (!device_supports_profile(device, profile) || pa_bluetooth_profile_is_a2dp(profile))
             continue;
 
         if (!device_is_profile_connected(device, profile))
             count++;
     }
+
+    if (pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_A2DP_SINK) && !pa_bluetooth_device_a2dp_sink_transport_connected(device))
+        count++;
+
+    if (pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_A2DP_SOURCE) && !pa_bluetooth_device_a2dp_source_transport_connected(device))
+        count++;
 
     return count;
 }
@@ -335,7 +341,7 @@ static void device_start_waiting_for_profiles(pa_bluetooth_device *device) {
 
 void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_transport_state_t state) {
     bool old_any_connected;
-    unsigned n_disconnected_profiles;
+    unsigned n_disconnected_profile_uuids;
     bool new_device_appeared;
     bool device_disconnected;
 
@@ -361,13 +367,13 @@ void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_tr
      * which would prevent module-card-restore from restoring the initial
      * profile properly. */
 
-    n_disconnected_profiles = device_count_disconnected_profiles(t->device);
+    n_disconnected_profile_uuids = device_count_disconnected_profile_uuids(t->device);
 
     new_device_appeared = !old_any_connected && pa_bluetooth_device_any_transport_connected(t->device);
     device_disconnected = old_any_connected && !pa_bluetooth_device_any_transport_connected(t->device);
 
     if (new_device_appeared) {
-        if (n_disconnected_profiles > 0)
+        if (n_disconnected_profile_uuids > 0)
             device_start_waiting_for_profiles(t->device);
         else
             pa_hook_fire(&t->device->discovery->hooks[PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED], t->device);
@@ -386,7 +392,7 @@ void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_tr
         return;
     }
 
-    if (n_disconnected_profiles == 0 && t->device->wait_for_profiles_timer) {
+    if (n_disconnected_profile_uuids == 0 && t->device->wait_for_profiles_timer) {
         /* All profiles are now connected, so we can stop the wait timer and
          * send a notification of the new device. */
         device_stop_waiting_for_profiles(t->device);
@@ -576,6 +582,38 @@ bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d) {
     bluetooth_profile_count = pa_bluetooth_profile_count();
     for (i = 0; i < bluetooth_profile_count; i++)
         if (d->transports[i] && d->transports[i]->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+            return true;
+
+    return false;
+}
+
+bool pa_bluetooth_device_a2dp_sink_transport_connected(const pa_bluetooth_device *d) {
+    unsigned i, bluetooth_profile_count;
+
+    pa_assert(d);
+
+    if (!d->valid)
+        return false;
+
+    bluetooth_profile_count = pa_bluetooth_profile_count();
+    for (i = 0; i < bluetooth_profile_count; i++)
+        if (pa_bluetooth_profile_is_a2dp_sink(i) && d->transports[i] && d->transports[i]->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+            return true;
+
+    return false;
+}
+
+bool pa_bluetooth_device_a2dp_source_transport_connected(const pa_bluetooth_device *d) {
+    unsigned i, bluetooth_profile_count;
+
+    pa_assert(d);
+
+    if (!d->valid)
+        return false;
+
+    bluetooth_profile_count = pa_bluetooth_profile_count();
+    for (i = 0; i < bluetooth_profile_count; i++)
+        if (pa_bluetooth_profile_is_a2dp_source(i) && d->transports[i] && d->transports[i]->state != PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
             return true;
 
     return false;
