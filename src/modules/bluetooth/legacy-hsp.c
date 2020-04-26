@@ -530,10 +530,35 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
 }
 
 static DBusMessage *profile_request_disconnection(DBusConnection *conn, DBusMessage *m, void *userdata) {
+    pa_bluetooth_backend *b = userdata;
     DBusMessage *r;
+    DBusError error;
+    const char *path;
+    pa_bluetooth_transport *t;
+
+    dbus_error_init(&error);
+
+    if (!dbus_message_get_args(m, &error, DBUS_TYPE_OBJECT_PATH, &path, DBUS_TYPE_INVALID) || dbus_error_is_set(&error)) {
+        pa_log_error("Invalid parameters found in RequestDisconnection: %s", error.message);
+        pa_assert_se(r = dbus_message_new_error_printf(m, "org.bluez.Error.InvalidArguments", "Invalid parameters: %s", error.message));
+        dbus_error_free(&error);
+        return r;
+    }
+
+    dbus_error_free(&error);
+
+    pa_log_debug("dbus: RequestDisconnection path=%s", path);
+
+    t = pa_bluetooth_transport_get(b->discovery, path);
+    if (!t || !pa_safe_streq(dbus_message_get_sender(m), t->owner) || t->profile != PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT) {
+        pa_log_error("RequestDisconnection failed: Endpoint %s is not connected", path);
+        pa_assert_se(r = dbus_message_new_error_printf(m, "org.bluez.Error.InvalidArguments", "Endpoint %s is not connected", path));
+        return r;
+    }
+
+    pa_bluetooth_transport_free(t);
 
     pa_assert_se(r = dbus_message_new_method_return(m));
-
     return r;
 }
 
