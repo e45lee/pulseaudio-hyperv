@@ -1773,7 +1773,7 @@ size_t pa_bluetooth_device_find_a2dp_endpoints_for_codec(const pa_bluetooth_devi
 
 struct change_a2dp_profile_data {
     char *pa_endpoint;
-    pa_bluetooth_device *device;
+    char *device_path;
     pa_bluetooth_profile_t profile;
     const char **codec_endpoints;
     size_t codec_endpoints_i;
@@ -1788,6 +1788,7 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
     DBusMessage *r;
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
+    pa_bluetooth_device *device;
     struct change_a2dp_profile_data *data;
 
     pa_assert(pending);
@@ -1798,19 +1799,26 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
 
     PA_LLIST_REMOVE(pa_dbus_pending, y->pending, p);
     pa_dbus_pending_free(p);
-    pa_xfree(data->pa_endpoint);
 
-    if (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR) {
-        pa_log_info("Changing a2dp profile for %s to %s via endpoint %s succeeded", data->device->path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1]);
+    device = pa_hashmap_get(y->devices, data->device_path);
+
+    if (!device) {
+        pa_log_error("Changing a2dp profile for %s to %s failed: Device is not connected anymore", data->device_path, pa_bluetooth_profile_to_string(data->profile));
+        pa_xfree(data->codec_endpoints);
+    } else if (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR) {
+        pa_log_info("Changing a2dp profile for %s to %s via endpoint %s succeeded", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1]);
         data->device->change_a2dp_profile_in_progress = false;
         data->cb(true, data->userdata);
         pa_xfree(data->codec_endpoints);
     } else {
-        pa_log_warn("Changing a2dp profile for %s to %s via endpoint %s failed: %s: %s", data->device->path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1], dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
-        change_a2dp_profile_next(data->device, data->profile, data->codec_endpoints, data->codec_endpoints_i, data->codec_endpoints_count, true, data->cb, data->userdata);
+        pa_log_warn("Changing a2dp profile for %s to %s via endpoint %s failed: %s: %s", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1], dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
+        change_a2dp_profile_next(device, data->profile, data->codec_endpoints, data->codec_endpoints_i, data->codec_endpoints_count, true, data->cb, data->userdata);
     }
 
     dbus_message_unref(r);
+
+    pa_xfree(data->pa_endpoint);
+    pa_xfree(data->device_path);
     pa_xfree(data);
 }
 
@@ -1867,7 +1875,7 @@ next:
 
     data = pa_xnew0(struct change_a2dp_profile_data, 1);
     data->pa_endpoint = pa_endpoint;
-    data->device = device;
+    data->device_path = pa_xstrdup(device->path);
     data->profile = profile;
     data->codec_endpoints = codec_endpoints;
     data->codec_endpoints_i = codec_endpoints_i;
