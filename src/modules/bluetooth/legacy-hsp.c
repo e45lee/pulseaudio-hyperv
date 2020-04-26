@@ -41,6 +41,7 @@ struct pa_bluetooth_backend {
   pa_dbus_connection *connection;
   pa_bluetooth_discovery *discovery;
   bool enabled;
+  char *service_id;
 
   PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
@@ -277,6 +278,8 @@ static void register_profile_reply(DBusPendingCall *pending, void *userdata) {
         goto finish;
     }
 
+    b->service_id = pa_xstrdup(dbus_message_get_sender(r));
+
 finish:
     dbus_message_unref(r);
 
@@ -307,12 +310,25 @@ static void register_profile(pa_bluetooth_backend *b) {
 static void unregister_profile(pa_bluetooth_backend *b) {
     DBusMessage *m;
     const char *object = HSP_AG_PROFILE;
+    pa_hashmap *transports;
+    pa_bluetooth_transport *t;
+    void *state;
 
     pa_log_debug("Unregistering HSP profile from BlueZ");
 
     pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, "/org/bluez", BLUEZ_PROFILE_MANAGER_INTERFACE, "UnregisterProfile"));
     pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_OBJECT_PATH, &object, DBUS_TYPE_INVALID));
     pa_assert_se(dbus_connection_send(pa_dbus_connection_get(b->connection), m, NULL));
+
+    pa_assert_se(transports = pa_bluetooth_transport_get_all(b->discovery));
+    PA_HASHMAP_FOREACH(t, transports, state) {
+        /* owner for legacy HSP and A2DP is same bluez, so we need to check also for provide */
+        if (!t->owner || !pa_safe_streq(t->owner, b->service_id) || t->profile != PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT)
+            continue;
+        /* Function pa_bluetooth_transport_free() is safe as it just calls pa_hashmap_remove()
+         * on current iterator entry and this is by pulseaudio hashmap structure allowed */
+        pa_bluetooth_transport_free(t);
+    }
 }
 
 static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_io_event_flags_t events, void *userdata) {
@@ -449,7 +465,6 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     int fd;
     const char *sender, *path, PA_UNUSED *handler;
     DBusMessageIter arg_i;
-    char *pathfd;
     struct transport_data *trd;
 
     if (!dbus_message_iter_init(m, &arg_i) || !pa_streq(dbus_message_get_signature(m), "oha{sv}")) {
@@ -484,9 +499,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
 
     sender = dbus_message_get_sender(m);
 
-    pathfd = pa_sprintf_malloc ("%s/fd%d", path, fd);
-    t = pa_bluetooth_transport_new(d, sender, pathfd, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT, NULL, 0);
-    pa_xfree(pathfd);
+    t = pa_bluetooth_transport_new(d, sender, path, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT, NULL, 0);
 
     /* Expects that remote HSP headset supports volume control and we do not need to use local softvol */
     t->microphone_soft_volume = false;
@@ -581,6 +594,8 @@ static void profile_done(pa_bluetooth_backend *b) {
     pa_assert(b);
 
     unregister_profile(b);
+    pa_xfree(b->service_id);
+    b->service_id = NULL;
     dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE);
 }
 
