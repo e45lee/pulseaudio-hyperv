@@ -2176,7 +2176,7 @@ static int add_card(struct userdata *u) {
     }
 
     if (have_a2dp_sink || have_a2dp_source) {
-        if (!d->adapter->media_application_registered || (pa_hashmap_isempty(d->a2dp_sink_endpoints) && have_a2dp_sink) || (pa_hashmap_isempty(d->a2dp_source_endpoints) && have_a2dp_source)) {
+        if (!d->adapter->media_application_registered) {
             /*
              * We are running old version of bluez which does not announce supported codecs
              * by remote device nor does not support codec switching. Pulseaudio already
