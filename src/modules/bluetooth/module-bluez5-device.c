@@ -2083,7 +2083,7 @@ static void choose_initial_profile(struct userdata *u) {
             continue;
 
         /* Ignore non-A2DP profiles */
-        if (!pa_startswith(iter_profile->name, "a2dp_"))
+        if (!pa_bluetooth_profile_is_a2dp(transport->profile))
             continue;
 
         pa_log_debug("%s has active bluez transport", iter_profile->name);
