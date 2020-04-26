@@ -1778,11 +1778,9 @@ struct change_a2dp_profile_data {
     const char **codec_endpoints;
     size_t codec_endpoints_i;
     size_t codec_endpoints_count;
-    void (*cb)(bool, void *);
-    void *userdata;
 };
 
-static bool change_a2dp_profile_next(pa_bluetooth_device *device, pa_bluetooth_profile_t profile, const char **codec_endpoints, size_t codec_endpoints_i, size_t codec_endpoints_count, bool from_cb, void (*cb)(bool, void *), void *userdata);
+static bool change_a2dp_profile_next(pa_bluetooth_device *device, pa_bluetooth_profile_t profile, const char **codec_endpoints, size_t codec_endpoints_i, size_t codec_endpoints_count);
 
 static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) {
     DBusMessage *r;
@@ -1807,12 +1805,11 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
         pa_xfree(data->codec_endpoints);
     } else if (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR) {
         pa_log_info("Changing a2dp profile for %s to %s via endpoint %s succeeded", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1]);
-        data->device->change_a2dp_profile_in_progress = false;
-        data->cb(true, data->userdata);
+        pa_hook_fire(&y->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, data->profile });
         pa_xfree(data->codec_endpoints);
     } else {
         pa_log_warn("Changing a2dp profile for %s to %s via endpoint %s failed: %s: %s", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1], dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
-        change_a2dp_profile_next(device, data->profile, data->codec_endpoints, data->codec_endpoints_i, data->codec_endpoints_count, true, data->cb, data->userdata);
+        change_a2dp_profile_next(device, data->profile, data->codec_endpoints, data->codec_endpoints_i, data->codec_endpoints_count);
     }
 
     dbus_message_unref(r);
@@ -1822,7 +1819,7 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
     pa_xfree(data);
 }
 
-static bool change_a2dp_profile_next(pa_bluetooth_device *device, pa_bluetooth_profile_t profile, const char **codec_endpoints, size_t codec_endpoints_i, size_t codec_endpoints_count, bool from_cb, void (*cb)(bool, void *), void *userdata) {
+static bool change_a2dp_profile_next(pa_bluetooth_device *device, pa_bluetooth_profile_t profile, const char **codec_endpoints, size_t codec_endpoints_i, size_t codec_endpoints_count) {
     const pa_a2dp_codec *a2dp_codec;
     bool is_a2dp_sink;
     const char *endpoint;
@@ -1843,10 +1840,7 @@ static bool change_a2dp_profile_next(pa_bluetooth_device *device, pa_bluetooth_p
 next:
     if (codec_endpoints_i >= codec_endpoints_count) {
         pa_log_error("Changing a2dp profile for %s to %s failed: No endpoint accepted connection", device->path, pa_bluetooth_profile_to_string(profile));
-        if (from_cb) {
-            device->change_a2dp_profile_in_progress = false;
-            cb(false, userdata);
-        }
+        pa_hook_fire(&device->discovery->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, profile });
         pa_xfree(codec_endpoints);
         return false;
     }
@@ -1869,8 +1863,6 @@ next:
     pa_dbus_append_basic_array_variant_dict_entry(&dict, "Capabilities", DBUS_TYPE_BYTE, &config, config_size);
     dbus_message_iter_close_container(&iter, &dict);
 
-    device->change_a2dp_profile_in_progress = true;
-
     pa_log_debug("Changing a2dp profile for %s to %s via endpoint %s with codec %s using local endpoint %s", device->path, pa_bluetooth_profile_to_string(profile), endpoint, a2dp_codec->name, pa_endpoint);
 
     data = pa_xnew0(struct change_a2dp_profile_data, 1);
@@ -1880,22 +1872,15 @@ next:
     data->codec_endpoints = codec_endpoints;
     data->codec_endpoints_i = codec_endpoints_i;
     data->codec_endpoints_count = codec_endpoints_count;
-    data->cb = cb;
-    data->userdata = userdata;
     send_and_add_to_pending(device->discovery, m, change_a2dp_profile_reply, data);
     return true;
 }
 
-bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *device, pa_bluetooth_profile_t profile, void (*cb)(bool, void *), void *userdata) {
+bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *device, pa_bluetooth_profile_t profile) {
     const pa_a2dp_codec *a2dp_codec;
     bool is_a2dp_sink;
     size_t codec_endpoints_count;
     const char **codec_endpoints;
-
-    if (device->change_a2dp_profile_in_progress) {
-        pa_log_error("Changing a2dp profile for %s to %s failed: Operation already in progress", device->path, pa_bluetooth_profile_to_string(profile));
-        return false;
-    }
 
     a2dp_codec = pa_bluetooth_profile_to_a2dp_codec(profile);
     is_a2dp_sink = pa_bluetooth_profile_is_a2dp_sink(profile);
@@ -1908,7 +1893,141 @@ bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *device, pa_blu
 
     codec_endpoints = pa_xnew0(const char *, codec_endpoints_count);
     pa_assert_se(pa_bluetooth_device_find_a2dp_endpoints_for_codec(device, a2dp_codec, is_a2dp_sink, codec_endpoints, codec_endpoints_count) == codec_endpoints_count);
-    return change_a2dp_profile_next(device, profile, codec_endpoints, 0, codec_endpoints_count, false, cb, userdata);
+    return change_a2dp_profile_next(device, profile, codec_endpoints, 0, codec_endpoints_count);
+}
+
+static const char *pa_bluetooth_profile_to_uuid(pa_bluetooth_device *device, pa_bluetooth_profile_t profile) {
+    if (profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY)
+        return PA_BLUETOOTH_UUID_HSP_AG;
+    else if (profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY)
+        return PA_BLUETOOTH_UUID_HFP_AG;
+    else if (profile == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT)
+        return pa_hashmap_get(device->uuids, PA_BLUETOOTH_UUID_HSP_HS_ALT) ? PA_BLUETOOTH_UUID_HSP_HS_ALT : PA_BLUETOOTH_UUID_HSP_HS;
+    else if (profile == PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT)
+        return PA_BLUETOOTH_UUID_HFP_HF;
+    else if (pa_bluetooth_profile_is_a2dp_sink(profile))
+        return PA_BLUETOOTH_UUID_A2DP_SINK;
+    else if (pa_bluetooth_profile_is_a2dp_source(profile))
+        return PA_BLUETOOTH_UUID_A2DP_SOURCE;
+    else
+        pa_assert_not_reached();
+}
+
+struct connect_profile_data {
+    char *device_path;
+    const char *profile_uuid;
+    pa_bluetooth_profile_t profile;
+};
+
+static void pa_bluetooth_device_connect_profile_reply(DBusPendingCall *pending, void *userdata) {
+    DBusMessage *r;
+    pa_dbus_pending *p;
+    pa_bluetooth_discovery *y;
+    pa_bluetooth_device *device;
+    struct connect_profile_data *data;
+
+    pa_assert(pending);
+    pa_assert_se(p = userdata);
+    pa_assert_se(y = p->context_data);
+    pa_assert_se(data = p->call_data);
+    pa_assert_se(r = dbus_pending_call_steal_reply(pending));
+
+    device = pa_hashmap_get(y->devices, data->device_path);
+    if (!device)
+        pa_log_warn("Connecting device %s to profile %s (%s) failed: Device is not connected anymore", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->profile_uuid);
+    else if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR)
+        pa_log_warn("Connecting device %s to profile %s (%s) failed: %s: %s", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->profile_uuid, dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
+    else
+        pa_log_info("Connecting device %s to profile %s (%s) succeeded", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->profile_uuid);
+
+    if (device)
+        pa_hook_fire(&y->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, data->profile });
+
+    dbus_message_unref(r);
+
+    PA_LLIST_REMOVE(pa_dbus_pending, y->pending, p);
+    pa_dbus_pending_free(p);
+
+    pa_xfree(data->device_path);
+    pa_xfree(data);
+}
+
+void pa_bluetooth_device_connect_profile(pa_bluetooth_device *device, pa_bluetooth_profile_t profile) {
+    DBusMessage *m;
+    const char *profile_uuid;
+    struct connect_profile_data *data;
+
+    profile_uuid = pa_bluetooth_profile_to_uuid(device, profile);
+
+    pa_log_info("Connecting device %s to profile %s (%s)", device->path, pa_bluetooth_profile_to_string(profile), profile_uuid);
+
+    pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, device->path, BLUEZ_DEVICE_INTERFACE, "ConnectProfile"));
+    pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_STRING, &profile_uuid, DBUS_TYPE_INVALID));
+
+    data = pa_xnew0(struct connect_profile_data, 1);
+    data->device_path = pa_xstrdup(device->path);
+    data->profile_uuid = profile_uuid;
+    data->profile = profile;
+    send_and_add_to_pending(device->discovery, m, pa_bluetooth_device_connect_profile_reply, data);
+}
+
+struct connect_and_disconnect_profile_data {
+    char *device_path;
+    const char *disconnect_uuid;
+    pa_bluetooth_profile_t disconnect_profile;
+    pa_bluetooth_profile_t connect_profile;
+};
+
+static void pa_bluetooth_device_disconnect_profile_reply(DBusPendingCall *pending, void *userdata) {
+    DBusMessage *r;
+    pa_dbus_pending *p;
+    pa_bluetooth_discovery *y;
+    pa_bluetooth_device *device;
+    struct connect_and_disconnect_profile_data *data;
+
+    pa_assert(pending);
+    pa_assert_se(p = userdata);
+    pa_assert_se(y = p->context_data);
+    pa_assert_se(data = p->call_data);
+    pa_assert_se(r = dbus_pending_call_steal_reply(pending));
+
+    device = pa_hashmap_get(y->devices, data->device_path);
+    if (!device)
+        pa_log_warn("Disconnecting device %s from profile %s (%s) failed: Device is not connected anymore", data->device_path, pa_bluetooth_profile_to_string(data->disconnect_profile), data->disconnect_uuid);
+    else if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR)
+        pa_log_warn("Disconnecting device %s from profile %s (%s) failed: %s: %s", data->device_path, pa_bluetooth_profile_to_string(data->disconnect_profile), data->disconnect_uuid, dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
+    else {
+        pa_log_info("Disconnecting device %s from profile %s (%s) succeeded", data->device_path, pa_bluetooth_profile_to_string(data->disconnect_profile), data->disconnect_uuid);
+        pa_bluetooth_device_connect_profile(device, data->connect_profile);
+    }
+
+    dbus_message_unref(r);
+
+    PA_LLIST_REMOVE(pa_dbus_pending, y->pending, p);
+    pa_dbus_pending_free(p);
+
+    pa_xfree(data->device_path);
+    pa_xfree(data);
+}
+
+void pa_bluetooth_device_disconnect_and_connect_profile(pa_bluetooth_device *device, pa_bluetooth_profile_t disconnect_profile, pa_bluetooth_profile_t connect_profile) {
+    DBusMessage *m;
+    const char *disconnect_uuid;
+    struct connect_and_disconnect_profile_data *data;
+
+    disconnect_uuid = pa_bluetooth_profile_to_uuid(device, disconnect_profile);
+
+    pa_log_info("Disconnecting device %s from profile %s (%s)", device->path, pa_bluetooth_profile_to_string(disconnect_profile), disconnect_uuid);
+
+    pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, device->path, BLUEZ_DEVICE_INTERFACE, "DisconnectProfile"));
+    pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_STRING, &disconnect_uuid, DBUS_TYPE_INVALID));
+
+    data = pa_xnew0(struct connect_and_disconnect_profile_data, 1);
+    data->device_path = pa_xstrdup(device->path);
+    data->disconnect_uuid = disconnect_uuid;
+    data->disconnect_profile = disconnect_profile;
+    data->connect_profile = connect_profile;
+    send_and_add_to_pending(device->discovery, m, pa_bluetooth_device_disconnect_profile_reply, data);
 }
 
 unsigned pa_bluetooth_profile_count(void) {

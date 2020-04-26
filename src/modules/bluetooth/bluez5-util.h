@@ -47,6 +47,7 @@ typedef struct pa_bluetooth_backend pa_bluetooth_backend;
 
 typedef enum pa_bluetooth_hook {
     PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED,          /* Call data: pa_bluetooth_device */
+    PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED,         /* Call data: pa_bluetooth_device_and_profile */
     PA_BLUETOOTH_HOOK_DEVICE_UNLINK,                      /* Call data: pa_bluetooth_device */
     PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED,            /* Call data: pa_bluetooth_transport */
     PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED,  /* Call data: pa_bluetooth_transport */
@@ -64,6 +65,11 @@ typedef enum pa_bluetooth_hook {
 #define PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT          4
 #define PA_BLUETOOTH_PROFILE_A2DP_START_INDEX       5
 typedef unsigned pa_bluetooth_profile_t;
+
+struct pa_bluetooth_device_and_profile {
+    pa_bluetooth_device *device;
+    pa_bluetooth_profile_t profile;
+};
 
 typedef enum pa_bluetooth_transport_state {
     PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED,
@@ -112,7 +118,7 @@ struct pa_bluetooth_device {
     bool tried_to_link_with_adapter;
     bool valid;
     bool autodetect_mtu;
-    bool change_a2dp_profile_in_progress;
+    pa_bluetooth_profile_t new_profile_in_progress;
 
     /* Device information */
     char *path;
@@ -163,7 +169,10 @@ void pa_bluetooth_transport_put(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t);
 
 size_t pa_bluetooth_device_find_a2dp_endpoints_for_codec(const pa_bluetooth_device *device, const pa_a2dp_codec *a2dp_codec, bool is_a2dp_sink, const char **endpoints, size_t endpoints_max_count);
-bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *d, pa_bluetooth_profile_t profile, void (*cb)(bool, void *), void *userdata);
+bool pa_bluetooth_device_change_a2dp_profile(pa_bluetooth_device *d, pa_bluetooth_profile_t profile);
+
+void pa_bluetooth_device_connect_profile(pa_bluetooth_device *device, pa_bluetooth_profile_t profile);
+void pa_bluetooth_device_disconnect_and_connect_profile(pa_bluetooth_device *device, pa_bluetooth_profile_t disconnect_profile, pa_bluetooth_profile_t connect_profile);
 
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d);
 bool pa_bluetooth_device_a2dp_sink_transport_connected(const pa_bluetooth_device *d);

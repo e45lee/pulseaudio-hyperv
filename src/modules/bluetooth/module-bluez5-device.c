@@ -95,6 +95,7 @@ struct userdata {
     pa_core *core;
 
     pa_hook_slot *device_connection_changed_slot;
+    pa_hook_slot *profile_connection_changed_slot;
     pa_hook_slot *transport_state_changed_slot;
     pa_hook_slot *transport_speaker_gain_changed_slot;
     pa_hook_slot *transport_microphone_gain_changed_slot;
@@ -1282,31 +1283,6 @@ static int transport_config(struct userdata *u) {
     }
 }
 
-static int init_profile(struct userdata *u);
-static int start_thread(struct userdata *u);
-static void stop_thread(struct userdata *u);
-
-static void change_a2dp_profile_cb(bool success, void *userdata) {
-    struct userdata *u = (struct userdata *) userdata;
-
-    if (!success)
-        goto off;
-
-    if (u->profile != PA_BLUETOOTH_PROFILE_OFF)
-        if (init_profile(u) < 0)
-            goto off;
-
-    if (u->sink || u->source)
-        if (start_thread(u) < 0)
-            goto off;
-
-    return;
-
-off:
-    stop_thread(u);
-    pa_assert_se(pa_card_set_profile(u->card, pa_hashmap_get(u->card->profiles, "off"), false) >= 0);
-}
-
 /* Run from main thread */
 static int setup_transport(struct userdata *u) {
     pa_bluetooth_transport *t;
@@ -1319,14 +1295,8 @@ static int setup_transport(struct userdata *u) {
     /* check if profile has a transport */
     t = u->device->transports[u->profile];
     if (!t || t->state <= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED) {
-        if (!pa_bluetooth_profile_is_a2dp(u->profile) || !u->support_a2dp_codec_switch) {
-            pa_log_warn("Profile %s has no transport", pa_bluetooth_profile_to_string(u->profile));
-            return -1;
-        }
-        if (!pa_bluetooth_device_change_a2dp_profile(u->device, u->profile, change_a2dp_profile_cb, u))
-            return -1;
-        /* Changing A2DP endpoint is now in progress and callback will be called after operation finish */
-        return -EINPROGRESS;
+        pa_log_warn("Profile %s has no transport", pa_bluetooth_profile_to_string(u->profile));
+        return -1;
     }
 
     u->transport = t;
@@ -1369,9 +1339,7 @@ static int init_profile(struct userdata *u) {
     pa_assert(u->profile != PA_BLUETOOTH_PROFILE_OFF);
 
     r = setup_transport(u);
-    if (r == -EINPROGRESS)
-        return 0;
-    else if (r < 0)
+    if (r < 0)
         return -1;
 
     pa_assert(u->transport);
@@ -2006,7 +1974,10 @@ static pa_card_profile *create_card_profile(struct userdata *u, pa_bluetooth_pro
     else
         cp->available = PA_AVAILABLE_NO;
 
-    if (cp->available == PA_AVAILABLE_NO && u->support_a2dp_codec_switch && pa_bluetooth_profile_is_a2dp(profile))
+    if (cp->available == PA_AVAILABLE_NO && u->support_a2dp_codec_switch &&
+        (u->device->new_profile_in_progress ||
+         (pa_bluetooth_profile_is_a2dp_sink(profile) && pa_bluetooth_device_a2dp_sink_transport_connected(u->device)) ||
+         (pa_bluetooth_profile_is_a2dp_source(profile) && pa_bluetooth_device_a2dp_source_transport_connected(u->device))))
         cp->available = PA_AVAILABLE_UNKNOWN;
 
     return cp;
@@ -2024,10 +1995,27 @@ static int set_profile_cb(pa_card *c, pa_card_profile *new_profile) {
     p = PA_CARD_PROFILE_DATA(new_profile);
 
     if (*p != PA_BLUETOOTH_PROFILE_OFF) {
-        const pa_bluetooth_device *d = u->device;
+        pa_bluetooth_device *d = u->device;
 
-        if ((!d->transports[*p] || d->transports[*p]->state <= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED) && (!pa_bluetooth_profile_is_a2dp(*p) || !u->support_a2dp_codec_switch)) {
-            pa_log_warn("Refused to switch profile to %s: Not connected", new_profile->name);
+        d->new_profile_in_progress = 0;
+
+        if (!d->transports[*p] || d->transports[*p]->state <= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED) {
+            if (pa_bluetooth_profile_is_a2dp(*p) && u->support_a2dp_codec_switch) {
+                if ((pa_bluetooth_profile_is_a2dp_sink(*p) && pa_bluetooth_device_a2dp_sink_transport_connected(d)) ||
+                    (pa_bluetooth_profile_is_a2dp_source(*p) && pa_bluetooth_device_a2dp_source_transport_connected(d))) {
+                    pa_log_info("Profile with different A2DP codec is in use, trying to asynchronously change it");
+                    if (!pa_bluetooth_device_change_a2dp_profile(d, *p))
+                        return -PA_ERR_IO;
+                    d->new_profile_in_progress = *p;
+                    /* profile changing is in progress now, return error from callback as new profile is not active yet */
+                    return -PA_ERR_IO;
+                }
+            }
+
+            pa_log_info("Profile %s is not connected yet, trying to asynchronously connect it", new_profile->name);
+            pa_bluetooth_device_connect_profile(d, *p);
+            d->new_profile_in_progress = *p;
+            /* profile changing is in progress now, return error from callback as new profile is not active yet */
             return -PA_ERR_IO;
         }
     }
@@ -2065,7 +2053,7 @@ static void add_card_profile(pa_bluetooth_profile_t profile, pa_card_new_data *d
 }
 
 static void choose_initial_profile(struct userdata *u) {
-    struct pa_bluetooth_transport *transport;
+    pa_bluetooth_transport *transport;
     pa_card_profile *iter_profile;
     pa_card_profile *profile;
     void *state;
@@ -2265,8 +2253,32 @@ static void handle_transport_state_change(struct userdata *u, struct pa_bluetoot
     oldavail = cp->available;
 
     newavail = transport_state_to_availability(t->state);
-    if (newavail == PA_AVAILABLE_NO && u->support_a2dp_codec_switch && pa_bluetooth_profile_is_a2dp(t->profile))
-        newavail = PA_AVAILABLE_UNKNOWN;
+
+    if (u->support_a2dp_codec_switch && pa_bluetooth_profile_is_a2dp(t->profile)) {
+        pa_card_profile *iter_cp;
+        void *state;
+
+        if (newavail == PA_AVAILABLE_NO &&
+            (u->device->new_profile_in_progress ||
+             (pa_bluetooth_profile_is_a2dp_sink(t->profile) && pa_bluetooth_device_a2dp_sink_transport_connected(u->device)) ||
+             (pa_bluetooth_profile_is_a2dp_source(t->profile) && pa_bluetooth_device_a2dp_source_transport_connected(u->device)))) {
+            newavail = PA_AVAILABLE_UNKNOWN;
+        }
+
+        /* Change availability for other profiles (except current) in same A2DP category (sink / source) */
+        PA_HASHMAP_FOREACH(iter_cp, u->card->profiles, state) {
+            if (cp == iter_cp)
+                continue;
+            if (!pa_startswith(iter_cp->name, "a2dp_"))
+                continue;
+            if (pa_bluetooth_profile_is_a2dp_sink(t->profile) && !pa_startswith(iter_cp->name, "a2dp_sink"))
+                continue;
+            if (pa_bluetooth_profile_is_a2dp_source(t->profile) && !pa_startswith(iter_cp->name, "a2dp_source"))
+                continue;
+            /* Do not set PA_AVAILABLE_YES for other profiles */
+            pa_card_profile_set_available(iter_cp, (newavail == PA_AVAILABLE_YES) ? PA_AVAILABLE_UNKNOWN : newavail);
+        }
+    }
 
     pa_card_profile_set_available(cp, newavail);
 
@@ -2338,11 +2350,65 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
     pa_assert(d);
     pa_assert(u);
 
-    if (d != u->device || pa_bluetooth_device_any_transport_connected(d) || d->change_a2dp_profile_in_progress)
+    if (d != u->device || pa_bluetooth_device_any_transport_connected(d) || d->new_profile_in_progress)
         return PA_HOOK_OK;
 
     pa_log_debug("Unloading module for device %s", d->path);
     pa_module_unload(u->module, true);
+
+    return PA_HOOK_OK;
+}
+
+/* Run from main thread */
+static pa_hook_result_t profile_connection_changed_cb(pa_bluetooth_discovery *y, const struct pa_bluetooth_device_and_profile *device_and_profile, struct userdata *u) {
+    const pa_bluetooth_device *d = device_and_profile->device;
+    pa_bluetooth_profile_t p = device_and_profile->profile;
+    pa_bluetooth_transport *t;
+    pa_card_profile *cp;
+
+    pa_assert(d);
+    pa_assert(p);
+    pa_assert(u);
+
+    pa_log_debug("profile_connection_changed_cb d=%p p=%d u->device=%p u->device->new_profile_in_progress=%d", d, p, u->device, u->device->new_profile_in_progress);
+
+    if (d != u->device || !u->device->new_profile_in_progress)
+        return PA_HOOK_OK;
+
+    pa_assert(p != PA_BLUETOOTH_PROFILE_OFF);
+
+    if (p == u->device->new_profile_in_progress ||
+        (u->support_a2dp_codec_switch &&
+         ((pa_bluetooth_profile_is_a2dp_sink(p) && pa_bluetooth_profile_is_a2dp_sink(u->device->new_profile_in_progress)) ||
+          (pa_bluetooth_profile_is_a2dp_source(p) && pa_bluetooth_profile_is_a2dp_source(u->device->new_profile_in_progress))))) {
+
+        /* Asynchronous operation for profile change finished */
+        u->device->new_profile_in_progress = 0;
+
+        t = u->device->transports[p];
+        if ((t && t->state > PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED) ||
+            (u->support_a2dp_codec_switch &&
+             ((pa_bluetooth_profile_is_a2dp_sink(p) && pa_bluetooth_device_a2dp_sink_transport_connected(u->device)) ||
+              (pa_bluetooth_profile_is_a2dp_source(p) && pa_bluetooth_device_a2dp_source_transport_connected(u->device))))) {
+            /* Activate newly connected profile */
+            pa_assert_se(cp = pa_hashmap_get(u->card->profiles, pa_bluetooth_profile_to_string(p)));
+            pa_card_set_profile(u->card, cp, true);
+        } else {
+            /* Some bluetooth headsets do not allow connecting both HSP and HFP profile at the same time
+             * Try to first disconnect one profile and then connect second profile */
+            u->device->new_profile_in_progress = p;
+            if (p == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT && u->device->transports[PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT] && u->device->transports[PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT]->state >= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+                pa_bluetooth_device_disconnect_and_connect_profile(u->device, PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT);
+            else if (p == PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT && u->device->transports[PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT] && u->device->transports[PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT]->state >= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+                pa_bluetooth_device_disconnect_and_connect_profile(u->device, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT, PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT);
+            else if (p == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY && u->device->transports[PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY] && u->device->transports[PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY]->state >= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+                pa_bluetooth_device_disconnect_and_connect_profile(u->device, PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY, PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY);
+            else if (p == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY && u->device->transports[PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY] && u->device->transports[PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY]->state >= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
+                pa_bluetooth_device_disconnect_and_connect_profile(u->device, PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY, PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY);
+            else
+                u->device->new_profile_in_progress = 0;
+        }
+    }
 
     return PA_HOOK_OK;
 }
@@ -2497,6 +2563,10 @@ int pa__init(pa_module* m) {
         pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED),
                         PA_HOOK_NORMAL, (pa_hook_cb_t) device_connection_changed_cb, u);
 
+    u->profile_connection_changed_slot =
+        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED),
+                        PA_HOOK_NORMAL, (pa_hook_cb_t) profile_connection_changed_cb, u);
+
     u->transport_state_changed_slot =
         pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED),
                         PA_HOOK_NORMAL, (pa_hook_cb_t) transport_state_changed_cb, u);
@@ -2558,6 +2628,9 @@ void pa__done(pa_module *m) {
 
     if (u->device_connection_changed_slot)
         pa_hook_slot_free(u->device_connection_changed_slot);
+
+    if (u->profile_connection_changed_slot)
+        pa_hook_slot_free(u->profile_connection_changed_slot);
 
     if (u->transport_state_changed_slot)
         pa_hook_slot_free(u->transport_state_changed_slot);
