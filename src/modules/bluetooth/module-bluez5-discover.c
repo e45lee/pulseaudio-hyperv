@@ -35,12 +35,10 @@ PA_MODULE_DESCRIPTION("Detect available BlueZ 5 Bluetooth audio devices and load
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE(
-    "headset=auto|hsphfpd|legacy_hsp"
     "autodetect_mtu=<boolean>"
 );
 
 static const char* const valid_modargs[] = {
-    "headset",
     "autodetect_mtu",
     NULL
 };
@@ -95,33 +93,12 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
 int pa__init(pa_module *m) {
     struct userdata *u;
     pa_modargs *ma;
-    const char *headset_str;
-    int headset_backend;
     bool autodetect_mtu;
 
     pa_assert(m);
 
     if (!(ma = pa_modargs_new(m->argument, valid_modargs))) {
         pa_log("failed to parse module arguments.");
-        goto fail;
-    }
-
-    pa_assert_se(headset_str = pa_modargs_get_value(ma, "headset", "auto"));
-    if (pa_streq(headset_str, "hsphfpd"))
-        headset_backend = HEADSET_BACKEND_HSPHFPD;
-#ifdef HAVE_BLUEZ_5_LEGACY_HSP
-    /* For backward compatibility we also support "native" as alias for "legacy_hsp" */
-    else if (pa_streq(headset_str, "native") || pa_streq(headset_str, "legacy_hsp"))
-        headset_backend = HEADSET_BACKEND_LEGACY_HSP;
-#endif
-    else if (pa_streq(headset_str, "auto"))
-        headset_backend = HEADSET_BACKEND_AUTO;
-    else {
-        pa_log("headset parameter must be either hsphfpd"
-#ifdef HAVE_BLUEZ_5_LEGACY_HSP
-               ", legacy_hsp"
-#endif
-               " or auto (found %s)", headset_str);
         goto fail;
     }
 
@@ -137,7 +114,7 @@ int pa__init(pa_module *m) {
     u->autodetect_mtu = autodetect_mtu;
     u->loaded_device_paths = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
 
-    if (!(u->discovery = pa_bluetooth_discovery_get(u->core, headset_backend)))
+    if (!(u->discovery = pa_bluetooth_discovery_get(u->core)))
         goto fail;
 
     u->device_connection_changed_slot =

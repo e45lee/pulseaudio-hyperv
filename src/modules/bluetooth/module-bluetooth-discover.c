@@ -30,7 +30,6 @@ PA_MODULE_DESCRIPTION("Detect available Bluetooth daemon and load the correspond
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE(
-    "headset=auto|hsphfpd|legacy_hsp"
     "autodetect_mtu=<boolean>"
 );
 

@@ -40,6 +40,7 @@
 #include "a2dp-codecs.h"
 
 #include "bluez5-util.h"
+#include "hsphfpd-util.h"
 
 #define WAIT_FOR_PROFILES_TIMEOUT_USEC (3 * PA_USEC_PER_SEC)
 
@@ -119,10 +120,7 @@ struct pa_bluetooth_discovery {
     pa_hashmap *devices;
     pa_hashmap *transports;
     pa_hashmap *pending_transport_fds;
-
-    int headset_backend;
-    pa_bluetooth_backend *hsphfpd_backend;
-    pa_bluetooth_backend *legacy_hsp_backend;
+    pa_bluetooth_hsphfpd *hsphfpd;
     PA_LLIST_HEAD(pa_dbus_pending, pending);
 };
 
@@ -1456,13 +1454,6 @@ static void parse_interfaces_and_properties(pa_bluetooth_discovery *y, DBusMessa
     return;
 }
 
-/* This function may be called only by hsphfpd backend.
-   Legacy HSP backend may be enabled only when hsphfpd daemon is not running. */
-void pa_bluetooth_discovery_legacy_hsp_backend_enable(pa_bluetooth_discovery *y, bool enable) {
-    if (y->legacy_hsp_backend)
-        pa_bluetooth_legacy_hsp_backend_enable(y->legacy_hsp_backend, enable);
-}
-
 static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) {
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
@@ -1501,11 +1492,8 @@ static void get_managed_objects_reply(DBusPendingCall *pending, void *userdata) 
 
     y->objects_listed = true;
 
-    if (!y->legacy_hsp_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_LEGACY_HSP))
-        y->legacy_hsp_backend = pa_bluetooth_legacy_hsp_backend_new(y->core, y, (y->headset_backend == HEADSET_BACKEND_LEGACY_HSP));
-
-    if (!y->hsphfpd_backend && (y->headset_backend == HEADSET_BACKEND_AUTO || y->headset_backend == HEADSET_BACKEND_HSPHFPD))
-        y->hsphfpd_backend = pa_bluetooth_hsphfpd_backend_new(y->core, y);
+    if (!y->hsphfpd)
+        y->hsphfpd = pa_bluetooth_hsphfpd_new(y->core, y);
 
 finish:
     dbus_message_unref(r);
@@ -1559,13 +1547,9 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *us
                 pa_hashmap_remove_all(y->devices);
                 pa_hashmap_remove_all(y->adapters);
                 y->objects_listed = false;
-                if (y->hsphfpd_backend) {
-                    pa_bluetooth_hsphfpd_backend_free(y->hsphfpd_backend);
-                    y->hsphfpd_backend = NULL;
-                }
-                if (y->legacy_hsp_backend) {
-                    pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);
-                    y->legacy_hsp_backend = NULL;
+                if (y->hsphfpd) {
+                    pa_bluetooth_hsphfpd_free(y->hsphfpd);
+                    y->hsphfpd = NULL;
                 }
             }
 
@@ -2557,7 +2541,7 @@ static void object_manager_done(pa_bluetooth_discovery *y) {
     dbus_connection_unregister_object_path(pa_dbus_connection_get(y->connection), A2DP_OBJECT_MANAGER_PATH);
 }
 
-pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *c, int headset_backend) {
+pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *c) {
     pa_bluetooth_discovery *y;
     DBusError err;
     DBusConnection *conn;
@@ -2568,7 +2552,6 @@ pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *c, int headset_backe
     y = pa_xnew0(pa_bluetooth_discovery, 1);
     PA_REFCNT_INIT(y);
     y->core = c;
-    y->headset_backend = headset_backend;
     y->adapters = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL,
                                       (pa_free_cb_t) adapter_free);
     y->devices = pa_hashmap_new_full(pa_idxset_string_hash_func, pa_idxset_string_compare_func, NULL,
@@ -2667,11 +2650,8 @@ void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y) {
 
     pa_dbus_free_pending_list(&y->pending);
 
-    if (y->hsphfpd_backend)
-        pa_bluetooth_hsphfpd_backend_free(y->hsphfpd_backend);
-
-    if (y->legacy_hsp_backend)
-        pa_bluetooth_legacy_hsp_backend_free(y->legacy_hsp_backend);
+    if (y->hsphfpd)
+        pa_bluetooth_hsphfpd_free(y->hsphfpd);
 
     if (y->pending_transport_fds)
         pa_hashmap_free(y->pending_transport_fds);

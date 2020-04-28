@@ -11,6 +11,8 @@ libbluez5_util_headers = [
   'a2dp-codecs.h',
   'a2dp-codec-util.h',
   'bluez5-util.h',
+  'hsphfpd-util.h',
+  'legacy-hsp.h',
   'rtp.h',
 ]
 

@@ -35,12 +35,12 @@
 #include <bluetooth/sco.h>
 
 #include "bluez5-util.h"
+#include "legacy-hsp.h"
 
-struct pa_bluetooth_backend {
+struct pa_bluetooth_legacy_hsp {
   pa_core *core;
   pa_dbus_connection *connection;
   pa_bluetooth_discovery *discovery;
-  bool enabled;
   char *service_id;
 
   PA_LLIST_HEAD(pa_dbus_pending, pending);
@@ -86,19 +86,19 @@ struct transport_data {
     " </interface>"                                                     \
     "</node>"
 
-static pa_dbus_pending* send_and_add_to_pending(pa_bluetooth_backend *backend, DBusMessage *m,
+static pa_dbus_pending* send_and_add_to_pending(pa_bluetooth_legacy_hsp *hsp, DBusMessage *m,
         DBusPendingCallNotifyFunction func, void *call_data) {
 
     pa_dbus_pending *p;
     DBusPendingCall *call;
 
-    pa_assert(backend);
+    pa_assert(hsp);
     pa_assert(m);
 
-    pa_assert_se(dbus_connection_send_with_reply(pa_dbus_connection_get(backend->connection), m, &call, -1));
+    pa_assert_se(dbus_connection_send_with_reply(pa_dbus_connection_get(hsp->connection), m, &call, -1));
 
-    p = pa_dbus_pending_new(pa_dbus_connection_get(backend->connection), m, call, backend, call_data);
-    PA_LLIST_PREPEND(pa_dbus_pending, backend->pending, p);
+    p = pa_dbus_pending_new(pa_dbus_connection_get(hsp->connection), m, call, hsp, call_data);
+    PA_LLIST_PREPEND(pa_dbus_pending, hsp->pending, p);
     dbus_pending_call_set_notify(call, func, p, NULL);
 
     return p;
@@ -260,11 +260,11 @@ static void sco_release_cb(pa_bluetooth_transport *t) {
 static void register_profile_reply(DBusPendingCall *pending, void *userdata) {
     DBusMessage *r;
     pa_dbus_pending *p;
-    pa_bluetooth_backend *b;
+    pa_bluetooth_legacy_hsp *hsp;
 
     pa_assert(pending);
     pa_assert_se(p = userdata);
-    pa_assert_se(b = p->context_data);
+    pa_assert_se(hsp = p->context_data);
     pa_assert_se(r = dbus_pending_call_steal_reply(pending));
 
     if (dbus_message_is_error(r, BLUEZ_ERROR_NOT_SUPPORTED)) {
@@ -278,16 +278,16 @@ static void register_profile_reply(DBusPendingCall *pending, void *userdata) {
         goto finish;
     }
 
-    b->service_id = pa_xstrdup(dbus_message_get_sender(r));
+    hsp->service_id = pa_xstrdup(dbus_message_get_sender(r));
 
 finish:
     dbus_message_unref(r);
 
-    PA_LLIST_REMOVE(pa_dbus_pending, b->pending, p);
+    PA_LLIST_REMOVE(pa_dbus_pending, hsp->pending, p);
     pa_dbus_pending_free(p);
 }
 
-static void register_profile(pa_bluetooth_backend *b) {
+static void register_profile(pa_bluetooth_legacy_hsp *hsp) {
     DBusMessage *m;
     DBusMessageIter i, d;
     const char *object = HSP_AG_PROFILE;
@@ -304,10 +304,10 @@ static void register_profile(pa_bluetooth_backend *b) {
             DBUS_TYPE_VARIANT_AS_STRING DBUS_DICT_ENTRY_END_CHAR_AS_STRING, &d);
     dbus_message_iter_close_container(&i, &d);
 
-    send_and_add_to_pending(b, m, register_profile_reply, NULL);
+    send_and_add_to_pending(hsp, m, register_profile_reply, NULL);
 }
 
-static void unregister_profile(pa_bluetooth_backend *b) {
+static void unregister_profile(pa_bluetooth_legacy_hsp *hsp) {
     DBusMessage *m;
     const char *object = HSP_AG_PROFILE;
     pa_hashmap *transports;
@@ -318,12 +318,12 @@ static void unregister_profile(pa_bluetooth_backend *b) {
 
     pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, "/org/bluez", BLUEZ_PROFILE_MANAGER_INTERFACE, "UnregisterProfile"));
     pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_OBJECT_PATH, &object, DBUS_TYPE_INVALID));
-    pa_assert_se(dbus_connection_send(pa_dbus_connection_get(b->connection), m, NULL));
+    pa_assert_se(dbus_connection_send(pa_dbus_connection_get(hsp->connection), m, NULL));
 
-    pa_assert_se(transports = pa_bluetooth_transport_get_all(b->discovery));
+    pa_assert_se(transports = pa_bluetooth_transport_get_all(hsp->discovery));
     PA_HASHMAP_FOREACH(t, transports, state) {
         /* owner for legacy HSP and A2DP is same bluez, so we need to check also for provide */
-        if (!t->owner || !pa_safe_streq(t->owner, b->service_id) || t->profile != PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT)
+        if (!t->owner || !pa_safe_streq(t->owner, hsp->service_id) || t->profile != PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT)
             continue;
         /* Function pa_bluetooth_transport_free() is safe as it just calls pa_hashmap_remove()
          * on current iterator entry and this is by pulseaudio hashmap structure allowed */
@@ -458,7 +458,7 @@ static void set_microphone_gain(pa_bluetooth_transport *t, uint16_t gain) {
 }
 
 static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m, void *userdata) {
-    pa_bluetooth_backend *b = userdata;
+    pa_bluetooth_legacy_hsp *hsp = userdata;
     pa_bluetooth_device *d;
     pa_bluetooth_transport *t;
     DBusMessage *r;
@@ -483,7 +483,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     pa_assert(dbus_message_iter_get_arg_type(&arg_i) == DBUS_TYPE_OBJECT_PATH);
     dbus_message_iter_get_basic(&arg_i, &path);
 
-    d = pa_bluetooth_discovery_get_device_by_path(b->discovery, path);
+    d = pa_bluetooth_discovery_get_device_by_path(hsp->discovery, path);
     if (d == NULL) {
         pa_log_error("Device doesnt exist for %s", path);
         pa_assert_se(r = dbus_message_new_error_printf(m, "org.bluez.Error.InvalidArguments", "Device doesnt exist for %s", path));
@@ -515,8 +515,8 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
 
     trd = pa_xnew0(struct transport_data, 1);
     trd->rfcomm_fd = fd;
-    trd->mainloop = b->core->mainloop;
-    trd->rfcomm_io = trd->mainloop->io_new(b->core->mainloop, fd, PA_IO_EVENT_INPUT,
+    trd->mainloop = hsp->core->mainloop;
+    trd->rfcomm_io = trd->mainloop->io_new(hsp->core->mainloop, fd, PA_IO_EVENT_INPUT,
         rfcomm_io_callback, t);
     trd->sco_fd = -EAGAIN;
     t->userdata =  trd;
@@ -530,7 +530,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
 }
 
 static DBusMessage *profile_request_disconnection(DBusConnection *conn, DBusMessage *m, void *userdata) {
-    pa_bluetooth_backend *b = userdata;
+    pa_bluetooth_legacy_hsp *hsp = userdata;
     DBusMessage *r;
     DBusError error;
     const char *path;
@@ -549,7 +549,7 @@ static DBusMessage *profile_request_disconnection(DBusConnection *conn, DBusMess
 
     pa_log_debug("dbus: RequestDisconnection path=%s", path);
 
-    t = pa_bluetooth_transport_get(b->discovery, path);
+    t = pa_bluetooth_transport_get(hsp->discovery, path);
     if (!t || !pa_safe_streq(dbus_message_get_sender(m), t->owner) || t->profile != PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT) {
         pa_log_error("RequestDisconnection failed: Endpoint %s is not connected", path);
         pa_assert_se(r = dbus_message_new_error_printf(m, "org.bluez.Error.InvalidArguments", "Endpoint %s is not connected", path));
@@ -563,14 +563,11 @@ static DBusMessage *profile_request_disconnection(DBusConnection *conn, DBusMess
 }
 
 static DBusHandlerResult profile_handler(DBusConnection *c, DBusMessage *m, void *userdata) {
-    pa_bluetooth_backend *b = userdata;
+    pa_bluetooth_legacy_hsp *hsp = userdata;
     DBusMessage *r = NULL;
     const char *path, *interface, *member;
 
-    pa_assert(b);
-
-    if (!b->enabled)
-        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
+    pa_assert(hsp);
 
     path = dbus_message_get_path(m);
     interface = dbus_message_get_interface(m);
@@ -598,80 +595,52 @@ static DBusHandlerResult profile_handler(DBusConnection *c, DBusMessage *m, void
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
     if (r) {
-        pa_assert_se(dbus_connection_send(pa_dbus_connection_get(b->connection), r, NULL));
+        pa_assert_se(dbus_connection_send(pa_dbus_connection_get(hsp->connection), r, NULL));
         dbus_message_unref(r);
     }
 
     return DBUS_HANDLER_RESULT_HANDLED;
 }
 
-static void profile_init(pa_bluetooth_backend *b) {
+pa_bluetooth_legacy_hsp *pa_bluetooth_legacy_hsp_register(pa_core *c, pa_bluetooth_discovery *y) {
     static const DBusObjectPathVTable vtable_profile = {
         .message_function = profile_handler,
     };
-    pa_assert(b);
 
-    pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE, &vtable_profile, b));
-    register_profile(b);
-}
-
-static void profile_done(pa_bluetooth_backend *b) {
-    pa_assert(b);
-
-    unregister_profile(b);
-    pa_xfree(b->service_id);
-    b->service_id = NULL;
-    dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE);
-}
-
-void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *backend, bool enable) {
-   if (enable == backend->enabled)
-       return;
-
-   if (enable) {
-       pa_log_warn("Enabling legacy HSP backend");
-       profile_init(backend);
-   } else {
-       pa_log_warn("Disabling legacy HSP backend");
-       profile_done(backend);
-   }
-
-   backend->enabled = enable;
-}
-
-pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable) {
-    pa_bluetooth_backend *backend;
+    pa_bluetooth_legacy_hsp *hsp;
     DBusError err;
 
-    backend = pa_xnew0(pa_bluetooth_backend, 1);
-    backend->core = c;
+    pa_log_warn("Enabling legacy HSP profile");
+
+    hsp = pa_xnew0(pa_bluetooth_legacy_hsp, 1);
+    hsp->core = c;
 
     dbus_error_init(&err);
-    if (!(backend->connection = pa_dbus_bus_get(c, DBUS_BUS_SYSTEM, &err))) {
+    if (!(hsp->connection = pa_dbus_bus_get(c, DBUS_BUS_SYSTEM, &err))) {
         pa_log("Failed to get D-Bus connection: %s", err.message);
         dbus_error_free(&err);
-        pa_xfree(backend);
+        pa_xfree(hsp);
         return NULL;
     }
 
-    backend->discovery = y;
-    backend->enabled = enable;
+    hsp->discovery = y;
 
-    if (enable)
-        profile_init(backend);
-
-    return backend;
+    pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(hsp->connection), HSP_AG_PROFILE, &vtable_profile, hsp));
+    register_profile(hsp);
+    return hsp;
 }
 
-void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *backend) {
-    pa_assert(backend);
+void pa_bluetooth_legacy_hsp_unregister(pa_bluetooth_legacy_hsp *hsp) {
+    pa_assert(hsp);
 
-    pa_dbus_free_pending_list(&backend->pending);
+    pa_log_warn("Disabling legacy HSP profile");
 
-    if (backend->enabled)
-        profile_done(backend);
+    pa_dbus_free_pending_list(&hsp->pending);
 
-    pa_dbus_connection_unref(backend->connection);
+    unregister_profile(hsp);
+    dbus_connection_unregister_object_path(pa_dbus_connection_get(hsp->connection), HSP_AG_PROFILE);
+    pa_dbus_connection_unref(hsp->connection);
 
-    pa_xfree(backend);
+    pa_xfree(hsp->service_id);
+    pa_xfree(hsp);
 }

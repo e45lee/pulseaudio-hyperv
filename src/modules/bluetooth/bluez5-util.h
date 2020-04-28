@@ -43,7 +43,6 @@ typedef struct pa_bluetooth_transport pa_bluetooth_transport;
 typedef struct pa_bluetooth_device pa_bluetooth_device;
 typedef struct pa_bluetooth_adapter pa_bluetooth_adapter;
 typedef struct pa_bluetooth_discovery pa_bluetooth_discovery;
-typedef struct pa_bluetooth_backend pa_bluetooth_backend;
 
 typedef enum pa_bluetooth_hook {
     PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED,          /* Call data: pa_bluetooth_device */
@@ -144,21 +143,6 @@ struct pa_bluetooth_adapter {
     bool media_application_registered;
 };
 
-pa_bluetooth_backend *pa_bluetooth_hsphfpd_backend_new(pa_core *c, pa_bluetooth_discovery *y);
-void pa_bluetooth_hsphfpd_backend_free(pa_bluetooth_backend *b);
-
-#ifdef HAVE_BLUEZ_5_LEGACY_HSP
-pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable);
-void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *b);
-void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *b, bool enable);
-#else
-static inline pa_bluetooth_backend *pa_bluetooth_legacy_hsp_backend_new(pa_core *c, pa_bluetooth_discovery *y, bool enable) {
-    return NULL;
-}
-static inline void pa_bluetooth_legacy_hsp_backend_free(pa_bluetooth_backend *b) {}
-static inline void pa_bluetooth_legacy_hsp_backend_enable(pa_bluetooth_backend *b, bool enable) {}
-#endif
-
 pa_bluetooth_transport *pa_bluetooth_transport_new(pa_bluetooth_device *d, const char *owner, const char *path,
                                                    pa_bluetooth_profile_t p, const uint8_t *config, size_t size);
 
@@ -202,12 +186,7 @@ static inline bool pa_bluetooth_uuid_is_hsp_hs(const char *uuid) {
     return pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS) || pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS_ALT);
 }
 
-#define HEADSET_BACKEND_HSPHFPD 0
-#define HEADSET_BACKEND_LEGACY_HSP 1
-#define HEADSET_BACKEND_AUTO 2
-
-pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *core, int headset_backend);
+pa_bluetooth_discovery* pa_bluetooth_discovery_get(pa_core *core);
 pa_bluetooth_discovery* pa_bluetooth_discovery_ref(pa_bluetooth_discovery *y);
 void pa_bluetooth_discovery_unref(pa_bluetooth_discovery *y);
-void pa_bluetooth_discovery_legacy_hsp_backend_enable(pa_bluetooth_discovery *y, bool enable);
 #endif
