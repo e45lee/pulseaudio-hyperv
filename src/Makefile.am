@@ -2147,7 +2147,7 @@ module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_bluet
 
 # Bluetooth BlueZ 5 sink / source
 libbluez5_util_la_SOURCES = \
-		modules/bluetooth/hsphfpd.c \
+		modules/bluetooth/hsphfpd-util.c \
 		modules/bluetooth/bluez5-util.c \
 		modules/bluetooth/bluez5-util.h \
 		modules/bluetooth/a2dp-codec-api.h \
