@@ -29,9 +29,6 @@ PA_MODULE_AUTHOR("João Paulo Rechi Vita");
 PA_MODULE_DESCRIPTION("Detect available Bluetooth daemon and load the corresponding discovery module");
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
-PA_MODULE_USAGE(
-    "autodetect_mtu=<boolean>"
-);
 
 struct userdata {
     uint32_t bluez5_module_idx;

@@ -34,14 +34,6 @@ PA_MODULE_AUTHOR("João Paulo Rechi Vita");
 PA_MODULE_DESCRIPTION("Detect available BlueZ 5 Bluetooth audio devices and load BlueZ 5 Bluetooth audio drivers");
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
-PA_MODULE_USAGE(
-    "autodetect_mtu=<boolean>"
-);
-
-static const char* const valid_modargs[] = {
-    "autodetect_mtu",
-    NULL
-};
 
 struct userdata {
     pa_module *module;
@@ -49,7 +41,6 @@ struct userdata {
     pa_hashmap *loaded_device_paths;
     pa_hook_slot *device_connection_changed_slot;
     pa_bluetooth_discovery *discovery;
-    bool autodetect_mtu;
 };
 
 static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, const pa_bluetooth_device *d, struct userdata *u) {
@@ -71,7 +62,7 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
     if (!module_loaded && pa_bluetooth_device_any_transport_connected(d)) {
         /* a new device has been connected */
         pa_module *m;
-        char *args = pa_sprintf_malloc("path=%s autodetect_mtu=%i", d->path, (int)u->autodetect_mtu);
+        char *args = pa_sprintf_malloc("path=%s", d->path);
 
         pa_log_debug("Loading module-bluez5-device %s", args);
         pa_module_load(&m, u->module->core, "module-bluez5-device", args);
@@ -93,25 +84,17 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
 int pa__init(pa_module *m) {
     struct userdata *u;
     pa_modargs *ma;
-    bool autodetect_mtu;
 
     pa_assert(m);
 
-    if (!(ma = pa_modargs_new(m->argument, valid_modargs))) {
+    if (!(ma = pa_modargs_new(m->argument, NULL))) {
         pa_log("failed to parse module arguments.");
-        goto fail;
-    }
-
-    autodetect_mtu = false;
-    if (pa_modargs_get_value_boolean(ma, "autodetect_mtu", &autodetect_mtu) < 0) {
-        pa_log("Invalid boolean value for autodetect_mtu parameter");
         goto fail;
     }
 
     m->userdata = u = pa_xnew0(struct userdata, 1);
     u->module = m;
     u->core = m->core;
-    u->autodetect_mtu = autodetect_mtu;
     u->loaded_device_paths = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
 
     if (!(u->discovery = pa_bluetooth_discovery_get(u->core)))

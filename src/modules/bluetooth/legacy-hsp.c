@@ -209,8 +209,6 @@ fail_close:
 
 static int sco_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu) {
     struct transport_data *trd = t->userdata;
-    struct sco_options sco_opt;
-    socklen_t len;
     int ret;
 
     if (trd->sco_connect_io)
@@ -228,21 +226,10 @@ static int sco_acquire_cb(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu)
         return ret;
     }
 
+    /* Legacy HSP profile implementation supports only CVSD air codec with
+     * PCM s16le 8kHz local codec which requies 48 bytes length packet size */
     if (imtu) *imtu = 48;
     if (omtu) *omtu = 48;
-
-    if (t->device->autodetect_mtu) {
-        len = sizeof(sco_opt);
-        memset(&sco_opt, 0, len);
-
-        if (getsockopt(trd->sco_fd, SOL_SCO, SCO_OPTIONS, &sco_opt, &len) < 0)
-            pa_log_warn("getsockopt(SCO_OPTIONS) failed, loading defaults");
-        else {
-            pa_log_debug("autodetected imtu = omtu = %u", sco_opt.mtu);
-            if (imtu) *imtu = sco_opt.mtu;
-            if (omtu) *omtu = sco_opt.mtu;
-        }
-    }
 
     return trd->sco_fd;
 }
