@@ -36,9 +36,9 @@ PA_MODULE_DESCRIPTION("Policy module to make using bluetooth devices out-of-the-
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE(
-        "auto_switch=<Switch between hsp and a2dp profile? (0 - never, 1 - media.role=phone, 2 - heuristic> "
-        "a2dp_source=<Handle a2dp_source card profile (sink role)?> "
-        "ag=<Handle headset_audio_gateway card profile (headset role)?> ");
+        "auto_switch=<Switch between head unit and a2dp profile? (0 - never, 1 - media.role=phone, 2 - heuristic> "
+        "a2dp_source=<Handle a2dp source card profiles?> "
+        "ag=<Handle audio gateway card profiles?> ");
 
 static const char* const valid_modargs[] = {
     "auto_switch",
@@ -92,7 +92,7 @@ static pa_hook_result_t source_put_hook_callback(pa_core *c, pa_source *source, 
 
     if (u->enable_a2dp_source && pa_startswith(s, "a2dp_source"))
         role = "music";
-    else if (u->enable_ag && pa_streq(s, "headset_audio_gateway"))
+    else if (u->enable_ag && (pa_streq(s, "headset_audio_gateway") || pa_streq(s, "handsfree_audio_gateway")))
         role = "phone";
     else {
         pa_log_debug("Profile %s cannot be selected for loopback", s);
@@ -133,7 +133,7 @@ static pa_hook_result_t sink_put_hook_callback(pa_core *c, pa_sink *sink, void *
 
     if (u->enable_a2dp_source && pa_startswith(s, "a2dp_source")) /* A2DP source with microphone backchannel */
         role = "music";
-    else if (u->enable_ag && pa_streq(s, "headset_audio_gateway"))
+    else if (u->enable_ag && (pa_streq(s, "headset_audio_gateway") || pa_streq(s, "handsfree_audio_gateway")))
         role = "phone";
     else {
         pa_log_debug("Profile %s cannot be selected for loopback", s);
@@ -366,7 +366,7 @@ static pa_hook_result_t profile_available_hook_callback(pa_core *c, pa_card_prof
         return PA_HOOK_OK;
 
     /* Only consider A2DP sources and auto gateways */
-    if (!pa_startswith(profile->name, "a2dp_source") && !pa_streq(s, "headset_audio_gateway"))
+    if (!pa_startswith(profile->name, "a2dp_source") && !pa_streq(s, "headset_audio_gateway") && !pa_streq(s, "handsfree_audio_gateway"))
         return PA_HOOK_OK;
 
     is_active_profile = card->active_profile == profile;
