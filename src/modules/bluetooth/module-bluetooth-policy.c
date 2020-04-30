@@ -267,6 +267,8 @@ static unsigned source_output_count(pa_core *c, void *userdata) {
         if (!ignore_output(source_output, userdata))
             ++count;
 
+    pa_log_debug("source_output_count=%u", count);
+
     return count;
 }
 
@@ -284,6 +286,8 @@ static pa_hook_result_t source_output_put_hook_callback(pa_core *c, pa_source_ou
     pa_assert(c);
     pa_assert(source_output);
 
+    pa_log_debug("source_output_put_hook_callback called");
+
     if (ignore_output(source_output, userdata))
         return PA_HOOK_OK;
 
@@ -299,6 +303,8 @@ static pa_hook_result_t source_output_put_hook_callback(pa_core *c, pa_source_ou
 static pa_hook_result_t source_output_unlink_hook_callback(pa_core *c, pa_source_output *source_output, void *userdata) {
     pa_assert(c);
     pa_assert(source_output);
+
+    pa_log_debug("source_output_unlink_hook_callback called");
 
     if (ignore_output(source_output, userdata))
         return PA_HOOK_OK;
