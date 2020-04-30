@@ -2070,13 +2070,13 @@ const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile) {
 
     switch(profile) {
         case PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT:
-            return "headset_head_unit"; /* For backward compatibility do not change this name */
+            return "headset_head_unit";
         case PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT:
-            return "hfp_head_unit";
+            return "handsfree_head_unit";
         case PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY:
-            return "headset_audio_gateway"; /* For backward compatibility do not change this name */
+            return "headset_audio_gateway";
         case PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY:
-            return "hfp_audio_gateway"; /* For backward compatibility do not change this name */
+            return "handsfree_audio_gateway";
         case PA_BLUETOOTH_PROFILE_OFF:
             return "off";
         default:
