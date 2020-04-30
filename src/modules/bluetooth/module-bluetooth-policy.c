@@ -180,10 +180,7 @@ static void card_set_profile(struct userdata *u, pa_card *card, const char *reve
 
     pa_log_debug("Setting card '%s' from profile '%s' to profile '%s'", card->name, old_profile_name, profile->name);
 
-    if (pa_card_set_profile(card, profile, false) != 0) {
-        pa_log_warn("Could not set profile '%s'", profile->name);
-        return;
-    }
+    pa_card_set_profile(card, profile, false);
 
     /* When not reverting, store data for future reverting */
     if (!revert_to_profile_name) {
@@ -397,8 +394,7 @@ static pa_hook_result_t profile_available_hook_callback(pa_core *c, pa_card_prof
 
     pa_log_debug("Setting card '%s' to profile '%s'", card->name, selected_profile->name);
 
-    if (pa_card_set_profile(card, selected_profile, false) != 0)
-        pa_log_warn("Could not set profile '%s'", selected_profile->name);
+    pa_card_set_profile(card, selected_profile, false);
 
     return PA_HOOK_OK;
 }
