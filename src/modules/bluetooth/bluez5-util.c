@@ -52,6 +52,7 @@
 #define BLUEZ_MEDIA_TRANSPORT_INTERFACE BLUEZ_SERVICE ".MediaTransport1"
 
 #define BLUEZ_ERROR_NOT_SUPPORTED "org.bluez.Error.NotSupported"
+#define BLUEZ_ERROR_NOT_AVAILABLE "org.bluez.Error.NotAvailable"
 
 #define A2DP_OBJECT_MANAGER_PATH "/A2DPEndpoint"
 #define A2DP_SOURCE_ENDPOINT A2DP_OBJECT_MANAGER_PATH "/Source"
@@ -1789,7 +1790,7 @@ static void change_a2dp_profile_reply(DBusPendingCall *pending, void *userdata) 
         pa_xfree(data->codec_endpoints);
     } else if (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR) {
         pa_log_info("Changing a2dp profile for %s to %s via endpoint %s succeeded", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1]);
-        pa_hook_fire(&y->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, data->profile });
+        pa_hook_fire(&y->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, data->profile, PA_BLUETOOTH_STATUS_SUCCESS });
         pa_xfree(data->codec_endpoints);
     } else {
         pa_log_warn("Changing a2dp profile for %s to %s via endpoint %s failed: %s: %s", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->codec_endpoints[data->codec_endpoints_i-1], dbus_message_get_error_name(r), pa_dbus_get_error_message(r));
@@ -1824,7 +1825,7 @@ static bool change_a2dp_profile_next(pa_bluetooth_device *device, pa_bluetooth_p
 next:
     if (codec_endpoints_i >= codec_endpoints_count) {
         pa_log_error("Changing a2dp profile for %s to %s failed: No endpoint accepted connection", device->path, pa_bluetooth_profile_to_string(profile));
-        pa_hook_fire(&device->discovery->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, profile });
+        pa_hook_fire(&device->discovery->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, profile, PA_BLUETOOTH_STATUS_NOTAVAILABLE });
         pa_xfree(codec_endpoints);
         return false;
     }
@@ -1908,6 +1909,7 @@ static void pa_bluetooth_device_connect_profile_reply(DBusPendingCall *pending, 
     pa_dbus_pending *p;
     pa_bluetooth_discovery *y;
     pa_bluetooth_device *device;
+    pa_bluetooth_status status;
     struct connect_profile_data *data;
 
     pa_assert(pending);
@@ -1924,8 +1926,15 @@ static void pa_bluetooth_device_connect_profile_reply(DBusPendingCall *pending, 
     else
         pa_log_info("Connecting device %s to profile %s (%s) succeeded", data->device_path, pa_bluetooth_profile_to_string(data->profile), data->profile_uuid);
 
-    if (device)
-        pa_hook_fire(&y->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, data->profile });
+    if (device) {
+        if (dbus_message_get_type(r) != DBUS_MESSAGE_TYPE_ERROR)
+            status = PA_BLUETOOTH_STATUS_SUCCESS;
+        else if (dbus_message_is_error(r, BLUEZ_ERROR_NOT_AVAILABLE))
+            status = PA_BLUETOOTH_STATUS_NOTAVAILABLE;
+        else
+            status = PA_BLUETOOTH_STATUS_FAILED;
+        pa_hook_fire(&y->hooks[PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED], &(struct pa_bluetooth_device_and_profile){ device, data->profile, status });
+    }
 
     dbus_message_unref(r);
 

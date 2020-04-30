@@ -2361,14 +2361,13 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
 static pa_hook_result_t profile_connection_changed_cb(pa_bluetooth_discovery *y, const struct pa_bluetooth_device_and_profile *device_and_profile, struct userdata *u) {
     const pa_bluetooth_device *d = device_and_profile->device;
     pa_bluetooth_profile_t p = device_and_profile->profile;
+    pa_bluetooth_status s = device_and_profile->status;
     pa_bluetooth_transport *t;
     pa_card_profile *cp;
 
     pa_assert(d);
     pa_assert(p);
     pa_assert(u);
-
-    pa_log_debug("profile_connection_changed_cb d=%p p=%d u->device=%p u->device->new_profile_in_progress=%d", d, p, u->device, u->device->new_profile_in_progress);
 
     if (d != u->device || !u->device->new_profile_in_progress)
         return PA_HOOK_OK;
@@ -2391,9 +2390,10 @@ static pa_hook_result_t profile_connection_changed_cb(pa_bluetooth_discovery *y,
             /* Activate newly connected profile */
             pa_assert_se(cp = pa_hashmap_get(u->card->profiles, pa_bluetooth_profile_to_string(p)));
             pa_card_set_profile(u->card, cp, true);
-        } else {
+        } else if (s != PA_BLUETOOTH_STATUS_NOTAVAILABLE) {
             /* Some bluetooth headsets do not allow connecting both HSP and HFP profile at the same time
-             * Try to first disconnect one profile and then connect second profile */
+             * Try to first disconnect one profile and then connect second profile
+             * But do not try it when previous attempt failed with error "NotAvailable", it means hsphfpd or pulseaudio cannot handle that profile */
             u->device->new_profile_in_progress = p;
             if (p == PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT && u->device->transports[PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT] && u->device->transports[PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT]->state >= PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED)
                 pa_bluetooth_device_disconnect_and_connect_profile(u->device, PA_BLUETOOTH_PROFILE_HFP_HEAD_UNIT, PA_BLUETOOTH_PROFILE_HSP_HEAD_UNIT);

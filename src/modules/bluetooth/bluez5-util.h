@@ -65,9 +65,16 @@ typedef enum pa_bluetooth_hook {
 #define PA_BLUETOOTH_PROFILE_A2DP_START_INDEX       5
 typedef unsigned pa_bluetooth_profile_t;
 
+typedef enum {
+    PA_BLUETOOTH_STATUS_SUCCESS,
+    PA_BLUETOOTH_STATUS_FAILED,
+    PA_BLUETOOTH_STATUS_NOTAVAILABLE,
+} pa_bluetooth_status;
+
 struct pa_bluetooth_device_and_profile {
     pa_bluetooth_device *device;
     pa_bluetooth_profile_t profile;
+    pa_bluetooth_status status;
 };
 
 typedef enum pa_bluetooth_transport_state {
