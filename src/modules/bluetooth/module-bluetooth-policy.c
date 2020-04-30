@@ -131,7 +131,9 @@ static pa_hook_result_t sink_put_hook_callback(pa_core *c, pa_sink *sink, void *
     if (!s)
         return PA_HOOK_OK;
 
-    if (u->enable_ag && pa_streq(s, "headset_audio_gateway"))
+    if (u->enable_a2dp_source && pa_startswith(s, "a2dp_source")) /* A2DP source with microphone backchannel */
+        role = "music";
+    else if (u->enable_ag && pa_streq(s, "headset_audio_gateway"))
         role = "phone";
     else {
         pa_log_debug("Profile %s cannot be selected for loopback", s);
@@ -277,12 +279,16 @@ static void switch_profile_all(pa_idxset *cards, bool revert, void *userdata) {
         switch_profile(card, revert, userdata);
 }
 
-/* When a source output is created, switch profile to some which has both sink and source */
+/* When the first source output is created, switch profile to some which has both sink and source */
 static pa_hook_result_t source_output_put_hook_callback(pa_core *c, pa_source_output *source_output, void *userdata) {
     pa_assert(c);
     pa_assert(source_output);
 
     if (ignore_output(source_output, userdata))
+        return PA_HOOK_OK;
+
+    /* If there already were source outputs do nothing */
+    if (source_output_count(c, userdata) > 1)
         return PA_HOOK_OK;
 
     switch_profile_all(c->cards, false, userdata);
@@ -309,7 +315,7 @@ static pa_hook_result_t card_init_profile_hook_callback(pa_core *c, pa_card *car
     pa_assert(c);
     pa_assert(card);
 
-    /* If there are not some source outputs do nothing */
+    /* If there are no source outputs do nothing */
     if (source_output_count(c, userdata) == 0)
         return PA_HOOK_OK;
 
@@ -359,8 +365,8 @@ static pa_hook_result_t profile_available_hook_callback(pa_core *c, pa_card_prof
     if (!s || !pa_streq(s, "bluetooth"))
         return PA_HOOK_OK;
 
-    /* Do not automatically switch profiles for headsets, just in case */
-    if (pa_startswith(profile->name, "a2dp_sink") || pa_streq(profile->name, "headset_head_unit"))
+    /* Only consider A2DP sources and auto gateways */
+    if (!pa_startswith(profile->name, "a2dp_source") && !pa_streq(s, "headset_audio_gateway"))
         return PA_HOOK_OK;
 
     is_active_profile = card->active_profile == profile;
