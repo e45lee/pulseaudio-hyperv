@@ -204,6 +204,15 @@ static void switch_profile(pa_card *card, bool revert, void *userdata) {
     if (!s || !pa_streq(s, "bluetooth"))
         return;
 
+    s = pa_proplist_gets(card->proplist, "bluetooth.protocol");
+    if (!s)
+        return;
+
+    /* Skip card if is already managed by loopback module loaded from source_put_hook_callback() */
+    if ((u->enable_a2dp_source && pa_startswith(s, "a2dp_source")) || /* A2DP source with microphone backchannel */
+        (u->enable_ag && (pa_streq(s, "headset_audio_gateway") || pa_streq(s, "handsfree_audio_gateway"))))
+        return;
+
     if (revert) {
         /* In revert phase only consider cards which switched profile */
         if (!(ps = pa_hashmap_remove(u->profile_switch_map, card)))
@@ -250,6 +259,9 @@ static bool ignore_output(pa_source_output *source_output, void *userdata) {
 
     /* Ignore if recording from monitor of sink */
     if (source_output->direct_on_input)
+
+    /* Ignore if source output is not movable */
+    if (source_output->flags & PA_SOURCE_OUTPUT_DONT_MOVE)
         return true;
 
     return false;
