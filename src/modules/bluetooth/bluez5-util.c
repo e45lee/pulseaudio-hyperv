@@ -425,10 +425,11 @@ void pa_bluetooth_transport_put(pa_bluetooth_transport *t) {
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t) {
     pa_assert(t);
 
+    pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
+
     if (t->destroy)
         t->destroy(t);
 
-    pa_bluetooth_transport_set_state(t, PA_BLUETOOTH_TRANSPORT_STATE_DISCONNECTED);
     pa_hashmap_remove(t->device->discovery->transports, t->path);
     t->device->transports[t->profile] = NULL;
 
