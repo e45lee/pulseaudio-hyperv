@@ -49,8 +49,8 @@ typedef enum pa_bluetooth_hook {
     PA_BLUETOOTH_HOOK_PROFILE_CONNECTION_CHANGED,         /* Call data: pa_bluetooth_device_and_profile */
     PA_BLUETOOTH_HOOK_DEVICE_UNLINK,                      /* Call data: pa_bluetooth_device */
     PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED,            /* Call data: pa_bluetooth_transport */
-    PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED,  /* Call data: pa_bluetooth_transport */
-    PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED,     /* Call data: pa_bluetooth_transport */
+    PA_BLUETOOTH_HOOK_TRANSPORT_RX_VOLUME_GAIN_CHANGED,   /* Call data: pa_bluetooth_transport */
+    PA_BLUETOOTH_HOOK_TRANSPORT_TX_VOLUME_GAIN_CHANGED,   /* Call data: pa_bluetooth_transport */
     PA_BLUETOOTH_HOOK_MAX
 } pa_bluetooth_hook_t;
 
@@ -86,8 +86,8 @@ typedef enum pa_bluetooth_transport_state {
 typedef int (*pa_bluetooth_transport_acquire_cb)(pa_bluetooth_transport *t, size_t *imtu, size_t *omtu);
 typedef void (*pa_bluetooth_transport_release_cb)(pa_bluetooth_transport *t);
 typedef void (*pa_bluetooth_transport_destroy_cb)(pa_bluetooth_transport *t);
-typedef void (*pa_bluetooth_transport_set_speaker_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);
-typedef void (*pa_bluetooth_transport_set_microphone_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);
+typedef void (*pa_bluetooth_transport_set_rx_volume_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);
+typedef void (*pa_bluetooth_transport_set_tx_volume_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);
 
 struct pa_bluetooth_transport {
     pa_bluetooth_device *device;
@@ -99,20 +99,20 @@ struct pa_bluetooth_transport {
     uint8_t *config;
     size_t config_size;
 
-    bool microphone_soft_volume;
-    bool speaker_soft_volume;
-    pa_volume_t microphone_gain;
-    pa_volume_t speaker_gain;
-    pa_volume_t max_microphone_gain;
-    pa_volume_t max_speaker_gain;
+    bool rx_soft_volume;
+    bool tx_soft_volume;
+    pa_volume_t rx_volume_gain;
+    pa_volume_t tx_volume_gain;
+    pa_volume_t max_rx_volume_gain;
+    pa_volume_t max_tx_volume_gain;
 
     pa_bluetooth_transport_state_t state;
 
     pa_bluetooth_transport_acquire_cb acquire;
     pa_bluetooth_transport_release_cb release;
     pa_bluetooth_transport_destroy_cb destroy;
-    pa_bluetooth_transport_set_speaker_gain_cb set_speaker_gain;
-    pa_bluetooth_transport_set_microphone_gain_cb set_microphone_gain;
+    pa_bluetooth_transport_set_rx_volume_gain_cb set_rx_volume_gain;
+    pa_bluetooth_transport_set_tx_volume_gain_cb set_tx_volume_gain;
     void *userdata;
 };
 

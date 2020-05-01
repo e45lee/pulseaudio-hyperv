@@ -350,24 +350,24 @@ static void hsphfpd_transport_destroy(pa_bluetooth_transport *transport) {
     pa_xfree(transport_data);
 }
 
-static void hsphfpd_transport_set_speaker_gain(pa_bluetooth_transport *transport, uint16_t gain) {
+static void hsphfpd_transport_set_tx_volume_gain(pa_bluetooth_transport *transport, uint16_t gain) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
-    if (transport->speaker_gain == gain)
+    if (transport->tx_volume_gain == gain)
         return;
 
     set_tx_volume_gain_property(transport_data, gain);
-    transport->speaker_gain = gain;
+    transport->tx_volume_gain = gain;
 }
 
-static void hsphfpd_transport_set_microphone_gain(pa_bluetooth_transport *transport, uint16_t gain) {
+static void hsphfpd_transport_set_rx_volume_gain(pa_bluetooth_transport *transport, uint16_t gain) {
     struct hsphfpd_transport_data *transport_data = transport->userdata;
 
-    if (transport->microphone_gain == gain)
+    if (transport->rx_volume_gain == gain)
         return;
 
     set_rx_volume_gain_property(transport_data, gain);
-    transport->microphone_gain = gain;
+    transport->rx_volume_gain = gain;
 }
 
 static void parse_transport_properties_values(pa_bluetooth_hsphfpd *hsphfpd, const char *transport_path, DBusMessageIter *i, const char **endpoint_path, const char **air_codec, enum hsphfpd_volume_control *rx_volume_control, enum hsphfpd_volume_control *tx_volume_control, uint16_t *rx_volume_gain, uint16_t *tx_volume_gain, uint16_t *mtu) {
@@ -475,9 +475,9 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
         pa_log_warn("Transport %s received a duplicate '%s' property, ignoring", transport_data->transport_path, "MTU");
 
     if (rx_volume_control) {
-        if (!!transport->microphone_soft_volume != !!(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
-            pa_log_info("Transport %s changed rx soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->microphone_soft_volume), pa_yes_no(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
-            transport->microphone_soft_volume = (rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
+        if (!!transport->rx_soft_volume != !!(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
+            pa_log_info("Transport %s changed rx soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->rx_soft_volume), pa_yes_no(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
+            transport->rx_soft_volume = (rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
             rx_soft_volume_changed = true;
         }
         if (transport_data->rx_volume_control != rx_volume_control) {
@@ -487,9 +487,9 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
     }
 
     if (tx_volume_control) {
-        if (!!transport->speaker_soft_volume != !!(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
-            pa_log_info("Transport %s changed tx soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->speaker_soft_volume), pa_yes_no(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
-            transport->speaker_soft_volume = (rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
+        if (!!transport->tx_soft_volume != !!(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE)) {
+            pa_log_info("Transport %s changed tx soft volume from %s to %s", transport_data->transport_path, pa_yes_no(transport->rx_soft_volume), pa_yes_no(rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE));
+            transport->tx_soft_volume = (rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
             tx_soft_volume_changed = true;
         }
         if (transport_data->rx_volume_control != rx_volume_control) {
@@ -499,32 +499,32 @@ static void parse_transport_properties(pa_bluetooth_transport *transport, DBusMe
     }
 
     if (rx_volume_gain != (uint16_t)-1) {
-        if (transport->microphone_gain != rx_volume_gain) {
-            pa_log_info("Transport %s changed microphone gain from %u to %u", transport_data->transport_path, (unsigned)transport->microphone_gain, (unsigned)rx_volume_gain);
-            transport->microphone_gain = rx_volume_gain;
+        if (transport->rx_volume_gain != rx_volume_gain) {
+            pa_log_info("Transport %s changed rx volume gain from %u to %u", transport_data->transport_path, (unsigned)transport->rx_volume_gain, (unsigned)rx_volume_gain);
+            transport->rx_volume_gain = rx_volume_gain;
             rx_volume_gain_changed = true;
         }
     }
 
     if (tx_volume_gain != (uint16_t)-1) {
-        if (transport->speaker_gain != tx_volume_gain) {
-            pa_log_info("Transport %s changed speaker gain from %u to %u", transport_data->transport_path, (unsigned)transport->speaker_gain, (unsigned)tx_volume_gain);
-            transport->speaker_gain = tx_volume_gain;
+        if (transport->tx_volume_gain != tx_volume_gain) {
+            pa_log_info("Transport %s changed tx volume gain from %u to %u", transport_data->transport_path, (unsigned)transport->tx_volume_gain, (unsigned)tx_volume_gain);
+            transport->tx_volume_gain = tx_volume_gain;
             tx_volume_gain_changed = true;
         }
     }
 
     if (rx_volume_gain_changed || rx_soft_volume_changed)
-        pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), transport);
+        pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_RX_VOLUME_GAIN_CHANGED), transport);
 
     if (tx_volume_gain_changed || tx_soft_volume_changed)
-        pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), transport);
+        pa_hook_fire(pa_bluetooth_discovery_hook(transport_data->hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_TX_VOLUME_GAIN_CHANGED), transport);
 
     if (rx_volume_control_changed)
-        set_rx_volume_gain_property(transport_data, transport->microphone_gain);
+        set_rx_volume_gain_property(transport_data, transport->rx_volume_gain);
 
     if (tx_volume_control_changed)
-        set_tx_volume_gain_property(transport_data, transport->speaker_gain);
+        set_tx_volume_gain_property(transport_data, transport->tx_volume_gain);
 }
 
 static void parse_endpoint_properties(pa_bluetooth_hsphfpd *hsphfpd, struct hsphfpd_endpoint *endpoint, DBusMessageIter *i) {
@@ -645,15 +645,15 @@ static void parse_endpoint_properties(pa_bluetooth_hsphfpd *hsphfpd, struct hsph
             /* By default we do not know if remote device supports hw volume control
              * So use local softvol filter until remote device announce volume control support */
             transport = pa_bluetooth_transport_new(device, hsphfpd->hsphfpd_service_id, endpoint->path, profile, NULL, 0);
-            transport->microphone_soft_volume = true;
-            transport->speaker_soft_volume = true;
-            transport->max_microphone_gain = 15;
-            transport->max_speaker_gain = 15;
+            transport->rx_soft_volume = true;
+            transport->tx_soft_volume = true;
+            transport->max_rx_volume_gain = 15;
+            transport->max_tx_volume_gain = 15;
             transport->acquire = hsphfpd_transport_acquire;
             transport->release = hsphfpd_transport_release;
             transport->destroy = hsphfpd_transport_destroy;
-            transport->set_speaker_gain = hsphfpd_transport_set_speaker_gain;
-            transport->set_microphone_gain = hsphfpd_transport_set_microphone_gain;
+            transport->set_rx_volume_gain = hsphfpd_transport_set_rx_volume_gain;
+            transport->set_tx_volume_gain = hsphfpd_transport_set_tx_volume_gain;
             transport->userdata = transport_data;
 
             pa_bluetooth_transport_put(transport);
@@ -960,13 +960,13 @@ static DBusMessage *hsphfpd_new_connection(pa_bluetooth_hsphfpd *hsphfpd, DBusMe
         return r;
     }
 
-    transport->microphone_soft_volume = (rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
-    transport->speaker_soft_volume = (tx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
-    transport->microphone_gain = rx_volume_gain;
-    transport->speaker_gain = tx_volume_gain;
+    transport->rx_soft_volume = (rx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
+    transport->tx_soft_volume = (tx_volume_control != HSPHFPD_VOLUME_CONTROL_REMOTE);
+    transport->rx_volume_gain = rx_volume_gain;
+    transport->tx_volume_gain = tx_volume_gain;
 
-    pa_hook_fire(pa_bluetooth_discovery_hook(hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), transport);
-    pa_hook_fire(pa_bluetooth_discovery_hook(hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), transport);
+    pa_hook_fire(pa_bluetooth_discovery_hook(hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_RX_VOLUME_GAIN_CHANGED), transport);
+    pa_hook_fire(pa_bluetooth_discovery_hook(hsphfpd->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_TX_VOLUME_GAIN_CHANGED), transport);
 
     transport_data->transport_path = pa_xstrdup(transport_path);
     transport_data->agent_codec = pa_xstrdup("PCM_s16le_8kHz");

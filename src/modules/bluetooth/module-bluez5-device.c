@@ -95,8 +95,8 @@ struct userdata {
     pa_hook_slot *device_connection_changed_slot;
     pa_hook_slot *profile_connection_changed_slot;
     pa_hook_slot *transport_state_changed_slot;
-    pa_hook_slot *transport_speaker_gain_changed_slot;
-    pa_hook_slot *transport_microphone_gain_changed_slot;
+    pa_hook_slot *transport_rx_volume_gain_changed_slot;
+    pa_hook_slot *transport_tx_volume_gain_changed_slot;
 
     pa_bluetooth_discovery *discovery;
     pa_bluetooth_device *device;
@@ -988,15 +988,15 @@ static void source_set_volume_cb(pa_source *s) {
     pa_assert(u);
     pa_assert(u->source == s);
 
-    if (u->transport->set_microphone_gain == NULL)
+    if (u->transport->set_rx_volume_gain == NULL)
       return;
 
-    gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_microphone_gain) / PA_VOLUME_NORM;
+    gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_rx_volume_gain) / PA_VOLUME_NORM;
 
-    if (gain > u->transport->max_microphone_gain)
-        gain = u->transport->max_microphone_gain;
+    if (gain > u->transport->max_rx_volume_gain)
+        gain = u->transport->max_rx_volume_gain;
 
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / u->transport->max_microphone_gain);
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / u->transport->max_rx_volume_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -1005,12 +1005,12 @@ static void source_set_volume_cb(pa_source *s) {
     pa_cvolume_set(&s->real_volume, u->decoder_sample_spec.channels, volume);
 
     /* Set soft volume when transport requires it, otherwise reset soft volume to default */
-    if (u->transport->microphone_soft_volume)
+    if (u->transport->rx_soft_volume)
         pa_cvolume_set(&s->soft_volume, u->decoder_sample_spec.channels, volume);
     else
         pa_cvolume_reset(&s->soft_volume, u->decoder_sample_spec.channels);
 
-    u->transport->set_microphone_gain(u->transport, gain);
+    u->transport->set_rx_volume_gain(u->transport, gain);
 }
 
 /* Run from main thread */
@@ -1051,7 +1051,7 @@ static int add_source(struct userdata *u) {
     u->source->set_state_in_io_thread = source_set_state_in_io_thread_cb;
 
     pa_source_set_set_volume_callback(u->source, source_set_volume_cb);
-    u->source->n_volume_steps = u->transport->max_microphone_gain + 1;
+    u->source->n_volume_steps = u->transport->max_rx_volume_gain + 1;
     return 0;
 }
 
@@ -1157,15 +1157,15 @@ static void sink_set_volume_cb(pa_sink *s) {
     pa_assert(u);
     pa_assert(u->sink == s);
 
-    if (u->transport->set_speaker_gain == NULL)
+    if (u->transport->set_tx_volume_gain == NULL)
       return;
 
-    gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_speaker_gain) / PA_VOLUME_NORM;
+    gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_tx_volume_gain) / PA_VOLUME_NORM;
 
-    if (gain > u->transport->max_speaker_gain)
-        gain = u->transport->max_speaker_gain;
+    if (gain > u->transport->max_tx_volume_gain)
+        gain = u->transport->max_tx_volume_gain;
 
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / u->transport->max_speaker_gain);
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / u->transport->max_tx_volume_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -1174,12 +1174,12 @@ static void sink_set_volume_cb(pa_sink *s) {
     pa_cvolume_set(&s->real_volume, u->encoder_sample_spec.channels, volume);
 
     /* Set soft volume when transport requires it, otherwise reset soft volume to default */
-    if (u->transport->speaker_soft_volume)
+    if (u->transport->tx_soft_volume)
         pa_cvolume_set(&s->soft_volume, u->encoder_sample_spec.channels, volume);
     else
         pa_cvolume_reset(&s->soft_volume, u->encoder_sample_spec.channels);
 
-    u->transport->set_speaker_gain(u->transport, gain);
+    u->transport->set_tx_volume_gain(u->transport, gain);
 }
 
 /* Run from main thread */
@@ -1220,7 +1220,7 @@ static int add_sink(struct userdata *u) {
     u->sink->set_state_in_io_thread = sink_set_state_in_io_thread_cb;
 
     pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
-    u->sink->n_volume_steps = u->transport->max_speaker_gain + 1;
+    u->sink->n_volume_steps = u->transport->max_tx_volume_gain + 1;
     return 0;
 }
 
@@ -2425,7 +2425,7 @@ static pa_hook_result_t transport_state_changed_cb(pa_bluetooth_discovery *y, pa
     return PA_HOOK_OK;
 }
 
-static pa_hook_result_t transport_speaker_gain_changed_cb(pa_bluetooth_discovery *y, pa_bluetooth_transport *t, struct userdata *u) {
+static pa_hook_result_t transport_tx_volume_gain_changed_cb(pa_bluetooth_discovery *y, pa_bluetooth_transport *t, struct userdata *u) {
     pa_volume_t volume;
     pa_cvolume v;
     uint16_t gain;
@@ -2436,8 +2436,8 @@ static pa_hook_result_t transport_speaker_gain_changed_cb(pa_bluetooth_discovery
     if (t != u->transport)
       return PA_HOOK_OK;
 
-    gain = t->speaker_gain;
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / t->max_speaker_gain);
+    gain = t->tx_volume_gain;
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / t->max_tx_volume_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -2445,7 +2445,7 @@ static pa_hook_result_t transport_speaker_gain_changed_cb(pa_bluetooth_discovery
 
     pa_cvolume_set(&v, u->encoder_sample_spec.channels, volume);
 
-    if (!t->speaker_soft_volume)
+    if (!t->tx_soft_volume)
         pa_sink_volume_changed(u->sink, &v);
     else
         pa_sink_set_volume(u->sink, &v, true, true);
@@ -2453,7 +2453,7 @@ static pa_hook_result_t transport_speaker_gain_changed_cb(pa_bluetooth_discovery
     return PA_HOOK_OK;
 }
 
-static pa_hook_result_t transport_microphone_gain_changed_cb(pa_bluetooth_discovery *y, pa_bluetooth_transport *t, struct userdata *u) {
+static pa_hook_result_t transport_rx_volume_gain_changed_cb(pa_bluetooth_discovery *y, pa_bluetooth_transport *t, struct userdata *u) {
     pa_volume_t volume;
     pa_cvolume v;
     uint16_t gain;
@@ -2464,8 +2464,8 @@ static pa_hook_result_t transport_microphone_gain_changed_cb(pa_bluetooth_discov
     if (t != u->transport)
       return PA_HOOK_OK;
 
-    gain = t->microphone_gain;
-    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / t->max_microphone_gain);
+    gain = t->rx_volume_gain;
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / t->max_rx_volume_gain);
 
     /* increment volume by one to correct rounding errors */
     if (volume < PA_VOLUME_NORM)
@@ -2473,7 +2473,7 @@ static pa_hook_result_t transport_microphone_gain_changed_cb(pa_bluetooth_discov
 
     pa_cvolume_set(&v, u->decoder_sample_spec.channels, volume);
 
-    if (!t->microphone_soft_volume)
+    if (!t->rx_soft_volume)
         pa_source_volume_changed(u->source, &v);
     else
         pa_source_set_volume(u->source, &v, true, true);
@@ -2560,11 +2560,11 @@ int pa__init(pa_module* m) {
         pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED),
                         PA_HOOK_NORMAL, (pa_hook_cb_t) transport_state_changed_cb, u);
 
-    u->transport_speaker_gain_changed_slot =
-        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), PA_HOOK_NORMAL, (pa_hook_cb_t) transport_speaker_gain_changed_cb, u);
+    u->transport_rx_volume_gain_changed_slot =
+        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_RX_VOLUME_GAIN_CHANGED), PA_HOOK_NORMAL, (pa_hook_cb_t) transport_rx_volume_gain_changed_cb, u);
 
-    u->transport_microphone_gain_changed_slot =
-        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), PA_HOOK_NORMAL, (pa_hook_cb_t) transport_microphone_gain_changed_cb, u);
+    u->transport_tx_volume_gain_changed_slot =
+        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_TX_VOLUME_GAIN_CHANGED), PA_HOOK_NORMAL, (pa_hook_cb_t) transport_tx_volume_gain_changed_cb, u);
 
     if (add_card(u) < 0)
         goto fail;
@@ -2624,11 +2624,11 @@ void pa__done(pa_module *m) {
     if (u->transport_state_changed_slot)
         pa_hook_slot_free(u->transport_state_changed_slot);
 
-    if (u->transport_speaker_gain_changed_slot)
-        pa_hook_slot_free(u->transport_speaker_gain_changed_slot);
+    if (u->transport_rx_volume_gain_changed_slot)
+        pa_hook_slot_free(u->transport_rx_volume_gain_changed_slot);
 
-    if (u->transport_microphone_gain_changed_slot)
-        pa_hook_slot_free(u->transport_microphone_gain_changed_slot);
+    if (u->transport_tx_volume_gain_changed_slot)
+        pa_hook_slot_free(u->transport_tx_volume_gain_changed_slot);
 
     if (u->encoder_buffer)
         pa_xfree(u->encoder_buffer);
