@@ -272,6 +272,9 @@ static unsigned device_count_disconnected_profile_uuids(pa_bluetooth_device *dev
 
     bluetooth_profile_count = pa_bluetooth_profile_count();
     for (profile = 0; profile < bluetooth_profile_count; profile++) {
+        if (profile == PA_BLUETOOTH_PROFILE_OFF)
+            continue;
+
         if (!device_supports_profile(device, profile) || pa_bluetooth_profile_is_a2dp(profile))
             continue;
 
@@ -310,6 +313,9 @@ static void wait_for_profiles_cb(pa_mainloop_api *api, pa_time_event* event, con
 
     bluetooth_profile_count = pa_bluetooth_profile_count();
     for (profile = 0; profile < bluetooth_profile_count; profile++) {
+        if (profile == PA_BLUETOOTH_PROFILE_OFF)
+            continue;
+
         if (device_is_profile_connected(device, profile))
             continue;
 
