@@ -186,6 +186,7 @@ struct port_pointers {
     bool is_possible_profile_active;
     bool is_preferred_profile_active;
     bool is_port_active;
+    bool is_sink_source_default;
 };
 
 static const char* profile_name_for_dir(pa_card_profile *cp, pa_direction_t dir) {
@@ -206,15 +207,11 @@ static struct port_pointers find_port_pointers(pa_device_port *port) {
 
     switch (port->direction) {
         case PA_DIRECTION_OUTPUT:
-            PA_IDXSET_FOREACH(pp.sink, card->sinks, state)
-                if (port == pa_hashmap_get(pp.sink->ports, port->name))
-                    break;
+            pp.sink = pa_device_port_get_sink(port);
             break;
 
         case PA_DIRECTION_INPUT:
-            PA_IDXSET_FOREACH(pp.source, card->sources, state)
-                if (port == pa_hashmap_get(pp.source->ports, port->name))
-                    break;
+            pp.source = pa_device_port_get_source(port);
             break;
     }
 
@@ -223,6 +220,8 @@ static struct port_pointers find_port_pointers(pa_device_port *port) {
     pp.is_preferred_profile_active = pp.is_possible_profile_active && (!port->preferred_profile ||
         pa_safe_streq(port->preferred_profile, profile_name_for_dir(card->active_profile, port->direction)));
     pp.is_port_active = (pp.sink && pp.sink->active_port == port) || (pp.source && pp.source->active_port == port);
+    pp.is_sink_source_default = (pp.sink && pp.sink->core->default_sink && pp.sink->core->default_sink == pp.sink) ||
+        (pp.source && pp.source->core->default_source && pp.source->core->default_source == pp.source);
 
     return pp;
 }
@@ -231,7 +230,7 @@ static struct port_pointers find_port_pointers(pa_device_port *port) {
 static void switch_to_port(pa_device_port *port) {
     struct port_pointers pp = find_port_pointers(port);
 
-    if (pp.is_port_active)
+    if (pp.is_port_active && pp.is_sink_source_default)
         return; /* Already selected */
 
     pa_log_debug("Trying to switch to port %s", port->name);
@@ -245,10 +244,14 @@ static void switch_to_port(pa_device_port *port) {
             pp = find_port_pointers(port);
     }
 
-    if (pp.source)
+    if (pp.source) {
         pa_source_set_port(pp.source, port->name, false);
-    if (pp.sink)
+        pa_core_set_configured_default_source(pp.source->core, pp.source->name);
+    }
+    if (pp.sink) {
         pa_sink_set_port(pp.sink, port->name, false);
+        pa_core_set_configured_default_sink(pp.sink->core, pp.sink->name);
+    }
 }
 
 /* Switches away from a port, switching profiles if necessary or preferred */
@@ -257,7 +260,7 @@ static void switch_from_port(pa_device_port *port) {
     pa_device_port *p, *best_port = NULL;
     void *state;
 
-    if (!pp.is_port_active)
+    if (!pp.is_port_active || !pp.is_sink_source_default)
         return; /* Already deselected */
 
     /* Try to find a good enough port to switch to */
