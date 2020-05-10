@@ -1153,25 +1153,12 @@ static void append_audio_agent_object(DBusMessageIter *iter, const char *endpoin
     dbus_message_iter_open_container(iter, DBUS_TYPE_DICT_ENTRY, NULL, &object);
     pa_assert_se(dbus_message_iter_append_basic(&object, DBUS_TYPE_OBJECT_PATH, &endpoint));
 
-    dbus_message_iter_open_container(&object, DBUS_TYPE_ARRAY,
-                                     DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                     DBUS_TYPE_STRING_AS_STRING
-                                     DBUS_TYPE_ARRAY_AS_STRING
-                                     DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                     DBUS_TYPE_STRING_AS_STRING
-                                     DBUS_TYPE_VARIANT_AS_STRING
-                                     DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-                                     DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
-                                     &array);
+    dbus_message_iter_open_container(&object, DBUS_TYPE_ARRAY, "{sa{sv}}", &array);
 
     dbus_message_iter_open_container(&array, DBUS_TYPE_DICT_ENTRY, NULL, &entry);
     pa_assert_se(dbus_message_iter_append_basic(&entry, DBUS_TYPE_STRING, &interface_name));
 
-    dbus_message_iter_open_container(&entry, DBUS_TYPE_ARRAY,
-                                     DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                     DBUS_TYPE_STRING_AS_STRING
-                                     DBUS_TYPE_VARIANT_AS_STRING DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
-                                     &dict);
+    dbus_message_iter_open_container(&entry, DBUS_TYPE_ARRAY, "{sv}", &dict);
 
     pa_dbus_append_basic_variant_dict_entry(&dict, "AgentCodec", DBUS_TYPE_STRING, &agent_codec);
 
@@ -1205,20 +1192,7 @@ static DBusHandlerResult application_object_manager_handler(DBusConnection *c, D
         pa_assert_se(r = dbus_message_new_method_return(m));
 
         dbus_message_iter_init_append(r, &iter);
-        dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY,
-                                         DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                         DBUS_TYPE_OBJECT_PATH_AS_STRING
-                                         DBUS_TYPE_ARRAY_AS_STRING
-                                         DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                         DBUS_TYPE_STRING_AS_STRING
-                                         DBUS_TYPE_ARRAY_AS_STRING
-                                         DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
-                                         DBUS_TYPE_STRING_AS_STRING
-                                         DBUS_TYPE_VARIANT_AS_STRING
-                                         DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-                                         DBUS_DICT_ENTRY_END_CHAR_AS_STRING
-                                         DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
-                                         &array);
+        dbus_message_iter_open_container(&iter, DBUS_TYPE_ARRAY, "{oa{sa{sv}}}", &array);
 
         append_audio_agent_object(&array, AUDIO_AGENT_ENDPOINT_PCM_S16LE_8KHZ, "PCM_s16le_8kHz");
 
