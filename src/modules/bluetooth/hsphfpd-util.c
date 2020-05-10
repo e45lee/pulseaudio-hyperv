@@ -33,6 +33,8 @@
 #include "hsphfpd-util.h"
 #include "legacy-hsp.h"
 
+#define DBUS_INTERFACE_OBJECTMANAGER DBUS_SERVICE_DBUS ".ObjectManager"
+
 #define HSPHFPD_SERVICE "org.hsphfpd"
 #define HSPHFPD_APPLICATION_MANAGER_INTERFACE HSPHFPD_SERVICE ".ApplicationManager"
 #define HSPHFPD_ENDPOINT_INTERFACE HSPHFPD_SERVICE ".Endpoint"
@@ -46,7 +48,7 @@
 #define APPLICATION_OBJECT_MANAGER_INTROSPECT_XML                              \
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE                                  \
     "<node>\n"                                                                 \
-    " <interface name=\"org.freedesktop.DBus.ObjectManager\">\n"               \
+    " <interface name=\"" DBUS_INTERFACE_OBJECTMANAGER "\">\n"                 \
     "  <method name=\"GetManagedObjects\">\n"                                  \
     "   <arg name=\"objects\" direction=\"out\" type=\"a{oa{sa{sv}}}\"/>\n"    \
     "  </method>\n"                                                            \
@@ -59,7 +61,7 @@
     "   <arg name=\"interfaces\" type=\"as\"/>\n"                              \
     "  </signal>\n"                                                            \
     " </interface>\n"                                                          \
-    " <interface name=\"org.freedesktop.DBus.Introspectable\">\n"              \
+    " <interface name=\"" DBUS_INTERFACE_INTROSPECTABLE "\">\n"                \
     "  <method name=\"Introspect\">\n"                                         \
     "   <arg name=\"data\" direction=\"out\" type=\"s\"/>\n"                   \
     "  </method>\n"                                                            \
@@ -77,12 +79,12 @@
     "  </method>\n"                                                            \
     "  <property name=\"AgentCodec\" type=\"s\" access=\"read\"/>\n"           \
     " </interface>\n"                                                          \
-    " <interface name=\"org.freedesktop.DBus.Introspectable\">\n"              \
+    " <interface name=\"" DBUS_INTERFACE_INTROSPECTABLE "\">\n"                \
     "  <method name=\"Introspect\">\n"                                         \
     "   <arg name=\"data\" direction=\"out\" type=\"s\"/>\n"                   \
     "  </method>\n"                                                            \
     " </interface>\n"                                                          \
-    " <interface name=\"org.freedesktop.DBus.Properties\">\n"                  \
+    " <interface name=\"" DBUS_INTERFACE_PROPERTIES "\">\n"                    \
     "  <method name=\"Get\">\n"                                                \
     "   <arg name=\"interface\" direction=\"in\" type=\"s\"/>\n"               \
     "   <arg name=\"name\" direction=\"in\" type=\"s\"/>\n"                    \
@@ -195,7 +197,7 @@ static void set_dbus_property_reply(DBusPendingCall *pending, void *userdata) {
 static void set_dbus_property(pa_bluetooth_hsphfpd *hsphfpd, const char *service, const char *path, const char *interface, const char *property, int type, void *value, char *error_message) {
     DBusMessage *m;
     DBusMessageIter iter;
-    pa_assert_se(m = dbus_message_new_method_call(service, path, "org.freedesktop.DBus.Properties", "Set"));
+    pa_assert_se(m = dbus_message_new_method_call(service, path, DBUS_INTERFACE_PROPERTIES, "Set"));
     pa_assert_se(dbus_message_append_args(m, DBUS_TYPE_STRING, &interface, DBUS_TYPE_STRING, &property, DBUS_TYPE_INVALID));
     dbus_message_iter_init_append(m, &iter);
     pa_dbus_append_basic_variant(&iter, type, value);
@@ -755,7 +757,7 @@ static void hsphfpd_get_endpoints(pa_bluetooth_hsphfpd *hsphfpd) {
 
     pa_assert(hsphfpd);
 
-    pa_assert_se(m = dbus_message_new_method_call(HSPHFPD_SERVICE, "/", "org.freedesktop.DBus.ObjectManager", "GetManagedObjects"));
+    pa_assert_se(m = dbus_message_new_method_call(HSPHFPD_SERVICE, "/", DBUS_INTERFACE_OBJECTMANAGER, "GetManagedObjects"));
     send_and_add_to_pending(hsphfpd, m, hsphfpd_get_endpoints_reply, NULL);
 }
 
@@ -997,9 +999,9 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
 
     sender = dbus_message_get_sender(m);
 
-    if (pa_streq(sender, "org.freedesktop.DBus")) {
+    if (pa_streq(sender, DBUS_SERVICE_DBUS)) {
 
-        if (dbus_message_is_signal(m, "org.freedesktop.DBus", "NameOwnerChanged")) {
+        if (dbus_message_is_signal(m, DBUS_SERVICE_DBUS, "NameOwnerChanged")) {
             const char *name, *old_owner, *new_owner;
 
             if (!dbus_message_get_args(m, &err,
@@ -1008,7 +1010,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
                                        DBUS_TYPE_STRING, &new_owner,
                                        DBUS_TYPE_INVALID)
                   || dbus_error_is_set(&err)) {
-                pa_log_error("Failed to parse org.freedesktop.DBus.NameOwnerChanged: %s", err.message);
+                pa_log_error("Failed to parse NameOwnerChanged: %s", err.message);
                 goto finish;
             }
 
@@ -1038,7 +1040,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
 
         DBusMessageIter arg_i;
 
-        if (dbus_message_is_signal(m, "org.freedesktop.DBus.ObjectManager", "InterfacesAdded")) {
+        if (dbus_message_is_signal(m, DBUS_INTERFACE_OBJECTMANAGER, "InterfacesAdded")) {
             if (!hsphfpd->endpoints_listed)
                 goto finish;
 
@@ -1048,7 +1050,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
             }
 
             parse_interfaces(hsphfpd, &arg_i);
-        } else if (dbus_message_is_signal(m, "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved")) {
+        } else if (dbus_message_is_signal(m, DBUS_INTERFACE_OBJECTMANAGER, "InterfacesRemoved")) {
             const char *path;
             DBusMessageIter element_i;
 
@@ -1082,7 +1084,7 @@ static DBusHandlerResult filter_cb(DBusConnection *bus, DBusMessage *m, void *da
 
                 dbus_message_iter_next(&element_i);
             }
-        } else if (dbus_message_is_signal(m, "org.freedesktop.DBus.Properties", "PropertiesChanged")) {
+        } else if (dbus_message_is_signal(m, DBUS_INTERFACE_PROPERTIES, "PropertiesChanged")) {
             const char *iface;
             const char *path;
 
@@ -1192,12 +1194,12 @@ static DBusHandlerResult application_object_manager_handler(DBusConnection *c, D
 
     pa_log_debug("dbus: path=%s, interface=%s, member=%s", path, interface, member);
 
-    if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Introspectable", "Introspect")) {
+    if (dbus_message_is_method_call(m, DBUS_INTERFACE_INTROSPECTABLE, "Introspect")) {
         const char *xml = APPLICATION_OBJECT_MANAGER_INTROSPECT_XML;
 
         pa_assert_se(r = dbus_message_new_method_return(m));
         pa_assert_se(dbus_message_append_args(r, DBUS_TYPE_STRING, &xml, DBUS_TYPE_INVALID));
-    } else if (dbus_message_is_method_call(m, "org.freedesktop.DBus.ObjectManager", "GetManagedObjects")) {
+    } else if (dbus_message_is_method_call(m, DBUS_INTERFACE_OBJECTMANAGER, "GetManagedObjects")) {
         DBusMessageIter iter, array;
 
         pa_assert_se(r = dbus_message_new_method_return(m));
@@ -1241,12 +1243,12 @@ static DBusHandlerResult audio_agent_endpoint_pcm_s16le_8khz_handler(DBusConnect
     if (!pa_streq(dbus_message_get_path(m), AUDIO_AGENT_ENDPOINT_PCM_S16LE_8KHZ))
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
-    if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Introspectable", "Introspect")) {
+    if (dbus_message_is_method_call(m, DBUS_INTERFACE_INTROSPECTABLE, "Introspect")) {
         const char *xml = AUDIO_AGENT_ENDPOINT_INTROSPECT_XML;
 
         pa_assert_se(r = dbus_message_new_method_return(m));
         pa_assert_se(dbus_message_append_args(r, DBUS_TYPE_STRING, &xml, DBUS_TYPE_INVALID));
-    } else if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Properties", "Get")) {
+    } else if (dbus_message_is_method_call(m, DBUS_INTERFACE_PROPERTIES, "Get")) {
         const char *interface;
         const char *property;
         DBusError error;
@@ -1272,7 +1274,7 @@ static DBusHandlerResult audio_agent_endpoint_pcm_s16le_8khz_handler(DBusConnect
             pa_assert_se(dbus_message_append_args(r, DBUS_TYPE_STRING, &agent_codec, DBUS_TYPE_INVALID));
         } else
             return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
-    } else if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Properties", "GetAll")) {
+    } else if (dbus_message_is_method_call(m, DBUS_INTERFACE_PROPERTIES, "GetAll")) {
         DBusError error;
         DBusMessageIter iter, dict;
         const char *interface;
@@ -1347,11 +1349,11 @@ pa_bluetooth_hsphfpd *pa_bluetooth_hsphfpd_new(pa_core *core, pa_bluetooth_disco
     }
 
     if (pa_dbus_add_matches(pa_dbus_connection_get(hsphfpd->connection), &err,
-            "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='" HSPHFPD_SERVICE "'",
-            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
-            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
-            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_ENDPOINT_INTERFACE "'",
-            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
+            "type='signal',sender='" DBUS_SERVICE_DBUS "',interface='" DBUS_SERVICE_DBUS "',member='NameOwnerChanged',arg0='" HSPHFPD_SERVICE "'",
+            "type='signal',interface='" DBUS_INTERFACE_OBJECTMANAGER "',member='InterfacesAdded'",
+            "type='signal',interface='" DBUS_INTERFACE_OBJECTMANAGER "',member='InterfacesRemoved'",
+            "type='signal',interface='" DBUS_INTERFACE_PROPERTIES "',member='PropertiesChanged',arg0='" HSPHFPD_ENDPOINT_INTERFACE "'",
+            "type='signal',interface='" DBUS_INTERFACE_PROPERTIES "',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
             NULL) < 0) {
         pa_log_error("Failed to add hsphfpd D-Bus matches: %s", err.message);
         dbus_connection_remove_filter(pa_dbus_connection_get(hsphfpd->connection), filter_cb, hsphfpd);
@@ -1379,11 +1381,11 @@ void pa_bluetooth_hsphfpd_free(pa_bluetooth_hsphfpd *hsphfpd) {
     dbus_connection_unregister_object_path(pa_dbus_connection_get(hsphfpd->connection), AUDIO_AGENT_ENDPOINT_PCM_S16LE_8KHZ);
 
     pa_dbus_remove_matches(pa_dbus_connection_get(hsphfpd->connection),
-            "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='" HSPHFPD_SERVICE "'",
-            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesAdded'",
-            "type='signal',interface='org.freedesktop.DBus.ObjectManager',member='InterfacesRemoved'",
-            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_ENDPOINT_INTERFACE "'",
-            "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
+            "type='signal',sender='" DBUS_SERVICE_DBUS "',interface='" DBUS_SERVICE_DBUS "',member='NameOwnerChanged',arg0='" HSPHFPD_SERVICE "'",
+            "type='signal',interface='" DBUS_INTERFACE_OBJECTMANAGER "',member='InterfacesAdded'",
+            "type='signal',interface='" DBUS_INTERFACE_OBJECTMANAGER "',member='InterfacesRemoved'",
+            "type='signal',interface='" DBUS_INTERFACE_PROPERTIES "',member='PropertiesChanged',arg0='" HSPHFPD_ENDPOINT_INTERFACE "'",
+            "type='signal',interface='" DBUS_INTERFACE_PROPERTIES "',member='PropertiesChanged',arg0='" HSPHFPD_AUDIO_TRANSPORT_INTERFACE "'",
             NULL);
 
     dbus_connection_remove_filter(pa_dbus_connection_get(hsphfpd->connection), filter_cb, hsphfpd);
