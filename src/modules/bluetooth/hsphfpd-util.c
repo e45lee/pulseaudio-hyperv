@@ -234,11 +234,6 @@ static void hsphfpd_transport_connect_audio_reply(DBusPendingCall *pending, void
 
     dbus_error_init(&error);
 
-    if (!pa_safe_streq(dbus_message_get_sender(r), hsphfpd->hsphfpd_service_id)) {
-        pa_log_error("Reply for " HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() from invalid sender");
-        goto failed;
-    }
-
     if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR) {
         error_name = dbus_message_get_error_name(r);
         if (pa_safe_streq(error_name, HSPHFPD_SERVICE ".AlreadyConnected"))
@@ -246,6 +241,11 @@ static void hsphfpd_transport_connect_audio_reply(DBusPendingCall *pending, void
         if (pa_safe_streq(error_name, HSPHFPD_SERVICE ".InProgress"))
             goto finish; /* Another ConnectAudio() call is in progress, so do not touch transport state */
         pa_log_warn(HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() failed: %s: %s", error_name, pa_dbus_get_error_message(r));
+        goto failed;
+    }
+
+    if (!pa_safe_streq(dbus_message_get_sender(r), hsphfpd->hsphfpd_service_id)) {
+        pa_log_error("Reply for " HSPHFPD_ENDPOINT_INTERFACE ".ConnectAudio() from invalid sender");
         goto failed;
     }
 
@@ -720,13 +720,13 @@ static void hsphfpd_get_endpoints_reply(DBusPendingCall *pending, void *userdata
         goto finish;
     }
 
-    if (!dbus_message_iter_init(r, &arg_i) || !pa_streq(dbus_message_get_signature(r), "a{oa{sa{sv}}}")) {
-        pa_log_error("Invalid reply signature for GetManagedObjects()");
+    if (!pa_safe_streq(dbus_message_get_sender(r), hsphfpd->hsphfpd_service_id)) {
+        pa_log_error("Reply for GetManagedObjects() from invalid sender");
         goto finish;
     }
 
-    if (!pa_safe_streq(dbus_message_get_sender(r), hsphfpd->hsphfpd_service_id)) {
-        pa_log_error("Reply for GetManagedObjects() from invalid sender");
+    if (!dbus_message_iter_init(r, &arg_i) || !pa_streq(dbus_message_get_signature(r), "a{oa{sa{sv}}}")) {
+        pa_log_error("Invalid reply signature for GetManagedObjects()");
         goto finish;
     }
 
