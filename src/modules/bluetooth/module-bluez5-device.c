@@ -988,9 +988,6 @@ static void source_set_volume_cb(pa_source *s) {
     pa_assert(u);
     pa_assert(u->source == s);
 
-    if (u->transport->set_rx_volume_gain == NULL)
-      return;
-
     gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_rx_volume_gain) / PA_VOLUME_NORM;
 
     if (gain > u->transport->max_rx_volume_gain)
@@ -1010,7 +1007,8 @@ static void source_set_volume_cb(pa_source *s) {
     else
         pa_cvolume_reset(&s->soft_volume, u->decoder_sample_spec.channels);
 
-    u->transport->set_rx_volume_gain(u->transport, gain);
+    if (u->transport->set_rx_volume_gain)
+        u->transport->set_rx_volume_gain(u->transport, gain);
 }
 
 /* Run from main thread */
@@ -1157,9 +1155,6 @@ static void sink_set_volume_cb(pa_sink *s) {
     pa_assert(u);
     pa_assert(u->sink == s);
 
-    if (u->transport->set_tx_volume_gain == NULL)
-      return;
-
     gain = (pa_cvolume_max(&s->real_volume) * u->transport->max_tx_volume_gain) / PA_VOLUME_NORM;
 
     if (gain > u->transport->max_tx_volume_gain)
@@ -1179,7 +1174,8 @@ static void sink_set_volume_cb(pa_sink *s) {
     else
         pa_cvolume_reset(&s->soft_volume, u->encoder_sample_spec.channels);
 
-    u->transport->set_tx_volume_gain(u->transport, gain);
+    if (u->transport->set_tx_volume_gain)
+        u->transport->set_tx_volume_gain(u->transport, gain);
 }
 
 /* Run from main thread */
