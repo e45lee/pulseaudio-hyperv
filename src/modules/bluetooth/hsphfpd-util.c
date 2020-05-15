@@ -783,6 +783,8 @@ static void hsphfpd_register_application_reply(DBusPendingCall *pending, void *u
         goto finish;
     }
 
+    pa_log_info("hsphfpd is now running and pulseaudio was registered");
+
     hsphfpd->hsphfpd_service_id = pa_xstrdup(dbus_message_get_sender(r));
 
     hsphfpd_get_endpoints(hsphfpd);
