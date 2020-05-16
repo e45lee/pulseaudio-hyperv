@@ -62,6 +62,9 @@
 
 #include <pulse/client-conf.h>
 #include <pulse/mainloop.h>
+#include <pulse/mainloop-api.h>
+#include <pulse/thread-mainloop.h>
+#include <pulse/context.h>
 #include <pulse/mainloop-signal.h>
 #include <pulse/timeval.h>
 #include <pulse/xmalloc.h>
@@ -612,12 +615,20 @@ int main(int argc, char *argv[]) {
                 goto finish;
             }
 
-            if (pa_pid_file_check_running(&pid, "pulseaudio") < 0)
+            pa_threaded_mainloop *mainloop = pa_threaded_mainloop_new();
+            pa_context *context = pa_context_new(pa_threaded_mainloop_get_api(mainloop), "pulseaudio daemon check");
+            if (pa_context_connect(context, NULL, 0, NULL) < 0)
                 pa_log_info("Daemon not running");
             else {
-                pa_log_info("Daemon running as PID %u", pid);
+                pa_threaded_mainloop_start(mainloop);
+                pa_threaded_mainloop_lock(mainloop);
+                pa_context_disconnect(context);
+                pa_threaded_mainloop_unlock(mainloop);
+                pa_threaded_mainloop_stop(mainloop);
+                pa_log_info("Daemon running");
                 retval = 0;
             }
+            pa_threaded_mainloop_free(mainloop);
 
             goto finish;
 
