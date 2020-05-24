@@ -1645,10 +1645,10 @@ static int start_thread(struct userdata *u) {
         if (u->profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY || u->profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY)
             u->sink->priority = 1500;
 
-        pa_sink_put(u->sink);
-
         if (u->sink->set_volume)
             u->sink->set_volume(u->sink);
+
+        pa_sink_put(u->sink);
     }
 
     if (u->source) {
@@ -1661,10 +1661,10 @@ static int start_thread(struct userdata *u) {
         if (u->profile == PA_BLUETOOTH_PROFILE_HSP_AUDIO_GATEWAY || u->profile == PA_BLUETOOTH_PROFILE_HFP_AUDIO_GATEWAY || pa_bluetooth_profile_is_a2dp_source(u->profile))
             u->source->priority = 1500;
 
-        pa_source_put(u->source);
-
         if (u->source->set_volume)
             u->source->set_volume(u->source);
+
+        pa_source_put(u->source);
     }
 
     return 0;
