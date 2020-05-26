@@ -51,6 +51,9 @@ struct userdata {
 
 static void load(struct userdata *u) {
     FILE *f;
+    pa_sink *sink;
+    uint32_t idx;
+    pa_core *core = u->core;
 
     /* We never overwrite manually configured settings */
 
@@ -68,6 +71,16 @@ static void load(struct userdata *u) {
         else if (!pa_namereg_is_valid_name(ln))
             pa_log_warn("Invalid sink name: %s", ln);
         else {
+            PA_IDXSET_FOREACH(sink, core->sinks, idx) {
+                if (pa_streq(sink->name, ln)) {
+                    if (sink->active_port && sink->active_port->available == PA_AVAILABLE_NO) {
+                        pa_core_update_default_sink(core);
+                        memset(ln, '\0', strlen(ln));
+                        strncpy(ln, core->default_sink->name, strlen(core->default_sink->name));
+                    }
+                    break;
+                }
+            }
             pa_log_info("Restoring default sink '%s'.", ln);
             pa_core_set_configured_default_sink(u->core, ln);
         }
