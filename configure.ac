@@ -1458,7 +1458,14 @@ AS_IF([test "x$os_is_win32" != "x1"],
 AS_IF([test "x$ax_pthread_ok" = "xyes"],
     AC_DEFINE([_POSIX_PTHREAD_SEMANTICS], 1, [Needed on Solaris]))
 
+#### Support for new smoother code (optional) ####
 
+AC_ARG_ENABLE([smoother-2],
+    AS_HELP_STRING([--enable-smoother-2],[Enable optional new smoother support]))
+
+AS_IF([test "x$enable_smoother_2" == "xyes"], [USE_SMOOTHER_2=1], [USE_SMOOTHER_2=0])
+
+AS_IF([test "x$USE_SMOOTHER_2" = "x1"], AC_DEFINE([USE_SMOOTHER_2], 1, [Define this to enable new smoother support]))
 
 ###################################
 #            Output               #

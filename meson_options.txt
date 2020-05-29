@@ -135,6 +135,9 @@ option('udev',
 option('x11',
        type : 'feature', value : 'auto',
        description : 'Optional X11 support')
+option('enable-smoother-2',
+       type : 'boolean', value : 'false',
+       description : 'Use alternative time smoother implementation')
 
 # Echo cancellation
 
