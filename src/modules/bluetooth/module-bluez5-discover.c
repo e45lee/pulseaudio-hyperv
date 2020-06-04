@@ -48,7 +48,7 @@ static const char* const valid_modargs[] = {
 struct userdata {
     pa_module *module;
     pa_core *core;
-    pa_hashmap *loaded_device_paths;
+    pa_hashmap *loaded_device_modules;
     pa_hook_slot *device_connection_changed_slot;
     pa_bluetooth_discovery *discovery;
     bool autodetect_mtu;
@@ -60,12 +60,12 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
     pa_assert(d);
     pa_assert(u);
 
-    module_loaded = pa_hashmap_get(u->loaded_device_paths, d->path) ? true : false;
+    module_loaded = pa_hashmap_get(u->loaded_device_modules, d->path) ? true : false;
 
     if (module_loaded && !pa_bluetooth_device_any_transport_connected(d)) {
         /* disconnection, the module unloads itself */
         pa_log_debug("Unregistering module for %s", d->path);
-        pa_hashmap_remove(u->loaded_device_paths, d->path);
+        pa_hashmap_remove(u->loaded_device_modules, d->path);
         return PA_HOOK_OK;
     }
 
@@ -81,7 +81,7 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
         if (m)
             /* No need to duplicate the path here since the device object will
              * exist for the whole hashmap entry lifespan */
-            pa_hashmap_put(u->loaded_device_paths, d->path, d->path);
+            pa_hashmap_put(u->loaded_device_modules, d->path, m);
         else
             pa_log_warn("Failed to load module for device %s", d->path);
 
@@ -133,7 +133,7 @@ int pa__init(pa_module *m) {
     u->module = m;
     u->core = m->core;
     u->autodetect_mtu = autodetect_mtu;
-    u->loaded_device_paths = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+    u->loaded_device_modules = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
 
     if (!(u->discovery = pa_bluetooth_discovery_get(u->core, headset_backend)))
         goto fail;
@@ -166,8 +166,15 @@ void pa__done(pa_module *m) {
     if (u->discovery)
         pa_bluetooth_discovery_unref(u->discovery);
 
-    if (u->loaded_device_paths)
-        pa_hashmap_free(u->loaded_device_paths);
+    if (u->loaded_device_modules) {
+        pa_module *mm;
+        void *state;
+
+        PA_HASHMAP_FOREACH(mm, u->loaded_device_modules, state)
+            pa_module_unload(mm, true);
+
+        pa_hashmap_free(u->loaded_device_modules);
+    }
 
     pa_xfree(u);
 }
