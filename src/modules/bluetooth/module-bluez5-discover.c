@@ -48,9 +48,11 @@ static const char* const valid_modargs[] = {
 struct userdata {
     pa_module *module;
     pa_core *core;
-    pa_hashmap *loaded_device_paths;
+    pa_hashmap *loaded_device_modules;
     pa_hook_slot *device_connection_changed_slot;
+    pa_hook_slot *user_active_changed_slot;
     pa_bluetooth_discovery *discovery;
+    int headset_backend;
     bool autodetect_mtu;
 };
 
@@ -60,12 +62,12 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
     pa_assert(d);
     pa_assert(u);
 
-    module_loaded = pa_hashmap_get(u->loaded_device_paths, d->path) ? true : false;
+    module_loaded = pa_hashmap_get(u->loaded_device_modules, d->path) ? true : false;
 
     if (module_loaded && !pa_bluetooth_device_any_transport_connected(d)) {
         /* disconnection, the module unloads itself */
         pa_log_debug("Unregistering module for %s", d->path);
-        pa_hashmap_remove(u->loaded_device_paths, d->path);
+        pa_hashmap_remove(u->loaded_device_modules, d->path);
         return PA_HOOK_OK;
     }
 
@@ -81,12 +83,63 @@ static pa_hook_result_t device_connection_changed_cb(pa_bluetooth_discovery *y, 
         if (m)
             /* No need to duplicate the path here since the device object will
              * exist for the whole hashmap entry lifespan */
-            pa_hashmap_put(u->loaded_device_paths, d->path, d->path);
+            pa_hashmap_put(u->loaded_device_modules, d->path, m);
         else
             pa_log_warn("Failed to load module for device %s", d->path);
 
         return PA_HOOK_OK;
     }
+
+    return PA_HOOK_OK;
+}
+
+static int enable_discovery(struct userdata *u) {
+    pa_assert(u->discovery == NULL);
+    u->discovery = pa_bluetooth_discovery_get(u->core, u->headset_backend);
+    if (!u->discovery)
+        return -1;
+
+    pa_assert(u->device_connection_changed_slot == NULL);
+    u->device_connection_changed_slot =
+        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED),
+                        PA_HOOK_NORMAL, (pa_hook_cb_t) device_connection_changed_cb, u);
+
+    return 0;
+}
+
+static void disable_discovery(struct userdata *u) {
+    if (u->device_connection_changed_slot) {
+        pa_hook_slot_free(u->device_connection_changed_slot);
+        u->device_connection_changed_slot = 0;
+    }
+
+    if (u->discovery) {
+        pa_bluetooth_discovery_unref(u->discovery);
+        u->discovery = NULL;
+    }
+
+    if (u->loaded_device_modules) {
+        pa_module *m;
+        void *state;
+
+        PA_HASHMAP_FOREACH(m, u->loaded_device_modules, state)
+            pa_module_unload(m, true);
+
+        pa_hashmap_remove_all(u->loaded_device_modules);
+    }
+}
+
+static pa_hook_result_t user_active_changed_cb(pa_core *c, bool *activeptr, struct userdata *u) {
+    bool active;
+
+    pa_assert(activeptr);
+    pa_assert(u);
+
+    active = *activeptr;
+    if (active)
+        enable_discovery(u);
+    else
+        disable_discovery(u);
 
     return PA_HOOK_OK;
 }
@@ -132,15 +185,17 @@ int pa__init(pa_module *m) {
     m->userdata = u = pa_xnew0(struct userdata, 1);
     u->module = m;
     u->core = m->core;
+    u->headset_backend = headset_backend;
     u->autodetect_mtu = autodetect_mtu;
-    u->loaded_device_paths = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
+    u->loaded_device_modules = pa_hashmap_new(pa_idxset_string_hash_func, pa_idxset_string_compare_func);
 
-    if (!(u->discovery = pa_bluetooth_discovery_get(u->core, headset_backend)))
-        goto fail;
+    u->user_active_changed_slot =
+        pa_hook_connect(&u->core->hooks[PA_CORE_HOOK_USER_ACTIVE_CHANGED],
+                        PA_HOOK_NORMAL, (pa_hook_cb_t) user_active_changed_cb, u);
 
-    u->device_connection_changed_slot =
-        pa_hook_connect(pa_bluetooth_discovery_hook(u->discovery, PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED),
-                        PA_HOOK_NORMAL, (pa_hook_cb_t) device_connection_changed_cb, u);
+    if (u->core->user_active)
+        if (enable_discovery(u) != 0)
+            goto fail;
 
     pa_modargs_free(ma);
     return 0;
@@ -160,14 +215,13 @@ void pa__done(pa_module *m) {
     if (!(u = m->userdata))
         return;
 
-    if (u->device_connection_changed_slot)
-        pa_hook_slot_free(u->device_connection_changed_slot);
+    if (u->user_active_changed_slot)
+        pa_hook_slot_free(u->user_active_changed_slot);
 
-    if (u->discovery)
-        pa_bluetooth_discovery_unref(u->discovery);
+    disable_discovery(u);
 
-    if (u->loaded_device_paths)
-        pa_hashmap_free(u->loaded_device_paths);
+    if (u->loaded_device_modules)
+        pa_hashmap_free(u->loaded_device_modules);
 
     pa_xfree(u);
 }

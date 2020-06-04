@@ -142,6 +142,7 @@ typedef enum pa_core_hook {
     PA_CORE_HOOK_SAMPLE_CACHE_NEW,
     PA_CORE_HOOK_SAMPLE_CACHE_CHANGED,
     PA_CORE_HOOK_SAMPLE_CACHE_UNLINK,
+    PA_CORE_HOOK_USER_ACTIVE_CHANGED,
     PA_CORE_HOOK_MAX
 } pa_core_hook_t;
 
@@ -231,6 +232,13 @@ struct pa_core {
     pa_server_type_t server_type;
     pa_cpu_info cpu_info;
 
+    /* Whether the PulseAudio user is active (not relevant in system mode).
+     * This variable is set by modules that monitor user sessions, and
+     * should be set only with the setter pa_core_set_user_active().
+     * If no such module exist, the default behaviour is to assume that
+     * the current user is active. */
+    bool user_active;
+
     /* hooks */
     pa_hook hooks[PA_CORE_HOOK_MAX];
 };
@@ -264,6 +272,8 @@ void pa_core_set_exit_idle_time(pa_core *core, int time);
 
 /* Check whether no one is connected to this core */
 void pa_core_check_idle(pa_core *c);
+
+void pa_core_set_user_active(pa_core *core, bool active);
 
 int pa_core_exit(pa_core *c, bool force, int retval);
 

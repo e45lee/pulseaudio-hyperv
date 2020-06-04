@@ -32,6 +32,7 @@
 
 #include <pulse/xmalloc.h>
 
+#include <pulsecore/core-util.h>
 #include <pulsecore/module.h>
 #include <pulsecore/log.h>
 #include <pulsecore/hashmap.h>
@@ -155,6 +156,29 @@ static int get_session_list(struct userdata *u) {
     return 0;
 }
 
+static int get_user_active(struct userdata *u) {
+    int r;
+    char *state;
+    bool active;
+
+    pa_assert(u);
+
+    r = sd_uid_get_state(getuid(), &state);
+    if (r < 0)
+        return -1;
+
+    if (pa_streq(state, "active"))
+        active = true;
+    else
+        active = false;
+
+    free(state);
+
+    pa_core_set_user_active(u->core, active);
+
+    return 0;
+}
+
 static void monitor_cb(
         pa_mainloop_api*a,
         pa_io_event* e,
@@ -168,6 +192,7 @@ static void monitor_cb(
 
     sd_login_monitor_flush(u->monitor);
     get_session_list(u);
+    get_user_active(u);
 }
 
 int pa__init(pa_module *m) {
@@ -188,9 +213,9 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    r = sd_login_monitor_new("session", &monitor);
+    r = sd_login_monitor_new(NULL, &monitor);
     if (r < 0) {
-        pa_log("Failed to create session monitor: %s", strerror(-r));
+        pa_log("Failed to create sd login monitor: %s", strerror(-r));
         goto fail;
     }
 
@@ -204,6 +229,9 @@ int pa__init(pa_module *m) {
     u->io = u->core->mainloop->io_new(u->core->mainloop, sd_login_monitor_get_fd(monitor), PA_IO_EVENT_INPUT, monitor_cb, u);
 
     if (get_session_list(u) < 0)
+        goto fail;
+
+    if (get_user_active(u) < 0)
         goto fail;
 
     pa_modargs_free(ma);

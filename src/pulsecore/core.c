@@ -150,6 +150,8 @@ pa_core* pa_core_new(pa_mainloop_api *m, bool shared, bool enable_memfd, size_t 
     c->deferred_volume = true;
     c->resample_method = PA_RESAMPLER_SPEEX_FLOAT_BASE + 1;
 
+    c->user_active = true;
+
     for (j = 0; j < PA_CORE_HOOK_MAX; j++)
         pa_hook_init(&c->hooks[j], c);
 
@@ -472,6 +474,20 @@ void pa_core_check_idle(pa_core *c) {
         c->mainloop->time_free(c->exit_event);
         c->exit_event = NULL;
     }
+}
+
+void pa_core_set_user_active(pa_core *c, bool active) {
+    pa_assert(c);
+
+    if (active == c->user_active)
+        return;
+
+    pa_log_info("user_active: %s -> %s",
+                c->user_active ? "true" : "false",
+                active ? "true" : "false");
+
+    c->user_active = active;
+    pa_hook_fire(&c->hooks[PA_CORE_HOOK_USER_ACTIVE_CHANGED], &c->user_active);
 }
 
 int pa_core_exit(pa_core *c, bool force, int retval) {
