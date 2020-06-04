@@ -70,6 +70,7 @@ proplist-test
 queue-test
 remix-test
 resampler-test
+resampler-rewind-test
 rtpoll-test
 rtstutter
 sig2str-test

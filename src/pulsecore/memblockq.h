@@ -112,6 +112,11 @@ bool pa_memblockq_is_readable(pa_memblockq *bq);
 /* Return the length of the queue in bytes */
 size_t pa_memblockq_get_length(pa_memblockq *bq);
 
+/* Return the number of bytes missing to achieve the target length.
+ * If the number of missing bytes is smaller than minreq but larger
+ * than 0, minreq will be returned. */
+size_t pa_memblockq_get_missing(pa_memblockq *bq);
+
 /* Return the number of bytes that are missing since the last call to
  * this function, reset the internal counter to 0. */
 size_t pa_memblockq_pop_missing(pa_memblockq *bq);

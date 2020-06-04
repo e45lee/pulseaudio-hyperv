@@ -288,7 +288,7 @@ static bool find_paired_master(struct userdata *u, struct filter *filter, pa_obj
                     if (pa_streq(module_name, si->sink->module->name)) {
                         /* Make sure we're not routing to another instance of
                          * the same filter. */
-                        filter->sink_master = si->sink->input_to_master->sink;
+                        filter->sink_master = si->sink->vsink->input_to_master->sink;
                     } else {
                         filter->sink_master = si->sink;
                     }
@@ -456,7 +456,7 @@ static void find_filters_for_module(struct userdata *u, pa_module *m, const char
         if (sink->module == m) {
             pa_assert(pa_sink_is_filter(sink));
 
-            fltr = filter_new(name, parameters, sink->input_to_master->sink, NULL);
+            fltr = filter_new(name, parameters, sink->vsink->input_to_master->sink, NULL);
             fltr->module_index = m->index;
             fltr->sink = sink;
 

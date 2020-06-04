@@ -271,6 +271,7 @@ TESTS_default = \
 		queue-test \
 		rtpoll-test \
 		resampler-test \
+		resampler-rewind-test \
 		smoother-test \
 		thread-test \
 		volume-test \
@@ -559,6 +560,11 @@ resampler_test_SOURCES = tests/resampler-test.c
 resampler_test_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
 resampler_test_CFLAGS = $(AM_CFLAGS)
 resampler_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS)
+
+resampler_rewind_test_SOURCES = tests/resampler-rewind-test.c
+resampler_rewind_test_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
+resampler_rewind_test_CFLAGS = $(AM_CFLAGS)
+resampler_rewind_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS)
 
 mix_test_SOURCES = tests/mix-test.c
 mix_test_LDADD = $(AM_LDADD) libpulsecore-@PA_MAJORMINOR@.la libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
@@ -1213,6 +1219,9 @@ libavahi_wrap_la_LIBADD = $(AM_LIBADD) $(AVAHI_CFLAGS) libpulsecore-@PA_MAJORMIN
 #        Plug-in libraries        #
 ###################################
 
+modlibexec_LTLIBRARIES += \
+		libvirtual_sink.la
+
 if HAVE_DBUS
 # Serveral module (e.g. libalsa-util.la)
 modlibexec_LTLIBRARIES += \
@@ -1666,6 +1675,15 @@ module_sine_source_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_sine_source
 
 # Couplings
 
+# Virtual sink library
+libvirtual_sink_la_SOURCES = \
+		modules/virtual-sink-common.c \
+		modules/virtual-sink-common.h
+
+libvirtual_sink_la_LDFLAGS = -avoid-version
+libvirtual_sink_la_LIBADD = $(MODULE_LIBADD)
+libvirtual_sink_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS)
+
 module_combine_la_SOURCES = modules/module-combine.c
 module_combine_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_combine_la_LIBADD = $(MODULE_LIBADD)
@@ -1698,7 +1716,7 @@ module_filter_heuristics_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_filter
 
 module_remap_sink_la_SOURCES = modules/module-remap-sink.c
 module_remap_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_remap_sink_la_LIBADD = $(MODULE_LIBADD)
+module_remap_sink_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 module_remap_sink_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_remap_sink
 
 module_remap_source_la_SOURCES = modules/module-remap-source.c
@@ -1709,7 +1727,7 @@ module_remap_source_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_remap_sourc
 module_ladspa_sink_la_SOURCES = modules/module-ladspa-sink.c modules/ladspa.h
 module_ladspa_sink_la_CFLAGS = -DLADSPA_PATH="$(libdir)/ladspa:/usr/local/lib/ladspa:/usr/lib/ladspa:/usr/local/lib64/ladspa:/usr/lib64/ladspa" $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_ladspa_sink
 module_ladspa_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_ladspa_sink_la_LIBADD = $(MODULE_LIBADD) $(LIBLTDL)
+module_ladspa_sink_la_LIBADD = $(MODULE_LIBADD) $(LIBLTDL) libvirtual_sink.la
 
 if HAVE_DBUS
 module_ladspa_sink_la_CFLAGS += $(DBUS_CFLAGS)
@@ -1719,7 +1737,7 @@ endif
 module_equalizer_sink_la_SOURCES = modules/module-equalizer-sink.c
 module_equalizer_sink_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) $(DBUS_CFLAGS) $(FFTW_CFLAGS) -DPA_MODULE_NAME=module_equalizer_sink
 module_equalizer_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_equalizer_sink_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) $(FFTW_LIBS)
+module_equalizer_sink_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) $(FFTW_LIBS) libvirtual_sink.la
 
 module_match_la_SOURCES = modules/module-match.c
 module_match_la_LDFLAGS = $(MODULE_LDFLAGS)
@@ -1754,7 +1772,7 @@ module_loopback_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_loopback
 module_virtual_sink_la_SOURCES = modules/module-virtual-sink.c
 module_virtual_sink_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_virtual_sink
 module_virtual_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_virtual_sink_la_LIBADD = $(MODULE_LIBADD)
+module_virtual_sink_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 
 module_virtual_source_la_SOURCES = modules/module-virtual-source.c
 module_virtual_source_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_virtual_source
@@ -1764,7 +1782,7 @@ module_virtual_source_la_LIBADD = $(MODULE_LIBADD)
 module_virtual_surround_sink_la_SOURCES = modules/module-virtual-surround-sink.c
 module_virtual_surround_sink_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_virtual_surround_sink
 module_virtual_surround_sink_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_virtual_surround_sink_la_LIBADD = $(MODULE_LIBADD)
+module_virtual_surround_sink_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 
 # X11
 
@@ -2018,7 +2036,7 @@ module_echo_cancel_la_SOURCES = \
 		modules/echo-cancel/null.c \
 		modules/echo-cancel/echo-cancel.h
 module_echo_cancel_la_LDFLAGS = $(MODULE_LDFLAGS)
-module_echo_cancel_la_LIBADD = $(MODULE_LIBADD)
+module_echo_cancel_la_LIBADD = $(MODULE_LIBADD) libvirtual_sink.la
 module_echo_cancel_la_CFLAGS = $(AM_CFLAGS) $(SERVER_CFLAGS) -DPA_MODULE_NAME=module_echo_cancel
 if HAVE_ADRIAN_EC
 module_echo_cancel_la_SOURCES += \

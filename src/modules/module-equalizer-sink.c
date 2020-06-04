@@ -28,6 +28,8 @@
 #include <config.h>
 #endif
 
+#include <modules/virtual-sink-common.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <float.h>
@@ -50,10 +52,8 @@
 #include <pulsecore/i18n.h>
 #include <pulsecore/aupdate.h>
 #include <pulsecore/namereg.h>
-#include <pulsecore/sink.h>
 #include <pulsecore/module.h>
 #include <pulsecore/core-util.h>
-#include <pulsecore/modargs.h>
 #include <pulsecore/log.h>
 #include <pulsecore/rtpoll.h>
 #include <pulsecore/sample-util.h>
@@ -85,9 +85,7 @@ PA_MODULE_USAGE(
 
 struct userdata {
     pa_module *module;
-    pa_sink *sink;
-    pa_sink_input *sink_input;
-    bool autoloaded;
+    pa_vsink *vsink;
 
     size_t channels;
     size_t fft_size;//length (res) of fft
@@ -125,8 +123,6 @@ struct userdata {
 
     pa_database *database;
     char **base_profiles;
-
-    bool automatic_description;
 };
 
 static const char* const valid_modargs[] = {
@@ -237,131 +233,12 @@ static void alloc_input_buffers(struct userdata *u, size_t min_buffer_length) {
     u->input_buffer_max = min_buffer_length;
 }
 
-/* Called from I/O thread context */
-static int sink_process_msg_cb(pa_msgobject *o, int code, void *data, int64_t offset, pa_memchunk *chunk) {
-    struct userdata *u = PA_SINK(o)->userdata;
-
-    switch (code) {
-
-        case PA_SINK_MESSAGE_GET_LATENCY: {
-            //size_t fs=pa_frame_size(&u->sink->sample_spec);
-
-            /* The sink is _put() before the sink input is, so let's
-             * make sure we don't access it in that time. Also, the
-             * sink input is first shut down, the sink second. */
-            if (!PA_SINK_IS_LINKED(u->sink->thread_info.state) ||
-                !PA_SINK_INPUT_IS_LINKED(u->sink_input->thread_info.state)) {
-                *((int64_t*) data) = 0;
-                return 0;
-            }
-
-            *((int64_t*) data) =
-                /* Get the latency of the master sink */
-                pa_sink_get_latency_within_thread(u->sink_input->sink, true) +
-
-                /* Add the latency internal to our sink input on top */
-                pa_bytes_to_usec(pa_memblockq_get_length(u->output_q) +
-                                 pa_memblockq_get_length(u->input_q), &u->sink_input->sink->sample_spec) +
-                pa_bytes_to_usec(pa_memblockq_get_length(u->sink_input->thread_info.render_memblockq), &u->sink_input->sink->sample_spec);
-            //    pa_bytes_to_usec(u->samples_gathered * fs, &u->sink->sample_spec);
-            //+ pa_bytes_to_usec(u->latency * fs, ss)
-            return 0;
-        }
-    }
-
-    return pa_sink_process_msg(o, code, data, offset, chunk);
-}
-
-/* Called from main context */
-static int sink_set_state_in_main_thread_cb(pa_sink *s, pa_sink_state_t state, pa_suspend_cause_t suspend_cause) {
+static pa_usec_t sink_get_extra_latency_cb(pa_sink *s) {
     struct userdata *u;
 
-    pa_sink_assert_ref(s);
     pa_assert_se(u = s->userdata);
 
-    if (!PA_SINK_IS_LINKED(state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->state))
-        return 0;
-
-    pa_sink_input_cork(u->sink_input, state == PA_SINK_SUSPENDED);
-    return 0;
-}
-
-/* Called from the IO thread. */
-static int sink_set_state_in_io_thread_cb(pa_sink *s, pa_sink_state_t new_state, pa_suspend_cause_t new_suspend_cause) {
-    struct userdata *u;
-
-    pa_assert(s);
-    pa_assert_se(u = s->userdata);
-
-    /* When set to running or idle for the first time, request a rewind
-     * of the master sink to make sure we are heard immediately */
-    if (PA_SINK_IS_OPENED(new_state) && s->thread_info.state == PA_SINK_INIT) {
-        pa_log_debug("Requesting rewind due to state change.");
-        pa_sink_input_request_rewind(u->sink_input, 0, false, true, true);
-    }
-
-    return 0;
-}
-
-/* Called from I/O thread context */
-static void sink_request_rewind_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->thread_info.state))
-        return;
-
-    /* Just hand this one over to the master sink */
-    pa_sink_input_request_rewind(u->sink_input, s->thread_info.rewind_nbytes+pa_memblockq_get_length(u->input_q), true, false, false);
-}
-
-/* Called from I/O thread context */
-static void sink_update_requested_latency_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->thread_info.state))
-        return;
-
-    /* Just hand this one over to the master sink */
-    pa_sink_input_set_requested_latency_within_thread(
-            u->sink_input,
-            pa_sink_get_requested_latency_within_thread(s));
-}
-
-/* Called from main context */
-static void sink_set_volume_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(s->state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->state))
-        return;
-
-    pa_sink_input_set_volume(u->sink_input, &s->real_volume, s->save_volume, true);
-}
-
-/* Called from main context */
-static void sink_set_mute_cb(pa_sink *s) {
-    struct userdata *u;
-
-    pa_sink_assert_ref(s);
-    pa_assert_se(u = s->userdata);
-
-    if (!PA_SINK_IS_LINKED(s->state) ||
-        !PA_SINK_INPUT_IS_LINKED(u->sink_input->state))
-        return;
-
-    pa_sink_input_set_mute(u->sink_input, s->muted, s->save_muted);
+    return pa_bytes_to_usec(pa_memblockq_get_length(u->output_q), &u->vsink->input_to_master->sample_spec);
 }
 
 #if 1
@@ -518,14 +395,14 @@ static void dsp_logic(
 #endif
 
 static void flatten_to_memblockq(struct userdata *u) {
-    size_t mbs = pa_mempool_block_size_max(u->sink->core->mempool);
+    size_t mbs = pa_mempool_block_size_max(u->vsink->sink->core->mempool);
     pa_memchunk tchunk;
     char *dst;
     size_t i = 0;
     while(i < u->output_buffer_length) {
         tchunk.index = 0;
         tchunk.length = PA_MIN((u->output_buffer_length - i), mbs);
-        tchunk.memblock = pa_memblock_new(u->sink->core->mempool, tchunk.length);
+        tchunk.memblock = pa_memblock_new(u->vsink->sink->core->mempool, tchunk.length);
         //pa_log_debug("pushing %ld into the q", tchunk.length);
         dst = pa_memblock_acquire(tchunk.memblock);
         memcpy(dst, u->output_buffer + i, tchunk.length);
@@ -537,7 +414,7 @@ static void flatten_to_memblockq(struct userdata *u) {
 }
 
 static void process_samples(struct userdata *u) {
-    size_t fs = pa_frame_size(&(u->sink->sample_spec));
+    size_t fs = pa_frame_size(&(u->vsink->sink->sample_spec));
     unsigned a_i;
     float *H, X;
     size_t iterations, offset;
@@ -587,7 +464,7 @@ static void process_samples(struct userdata *u) {
 }
 
 static void input_buffer(struct userdata *u, pa_memchunk *in) {
-    size_t fs = pa_frame_size(&(u->sink->sample_spec));
+    size_t fs = pa_frame_size(&(u->vsink->sink->sample_spec));
     size_t samples = in->length/fs;
     float *src = pa_memblock_acquire_chunk(in);
     pa_assert(u->samples_gathered + samples <= u->input_buffer_max);
@@ -614,22 +491,22 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes, pa_memchunk *chunk
     pa_sink_input_assert_ref(i);
     pa_assert_se(u = i->userdata);
     pa_assert(chunk);
-    pa_assert(u->sink);
+    pa_assert(u->vsink->sink);
 
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state))
+    if (!PA_SINK_IS_LINKED(u->vsink->sink->thread_info.state))
         return -1;
 
     /* FIXME: Please clean this up. I see more commented code lines
      * than uncommented code lines. I am sorry, but I am too dumb to
      * understand this. */
 
-    fs = pa_frame_size(&(u->sink->sample_spec));
-    mbs = pa_mempool_block_size_max(u->sink->core->mempool);
+    fs = pa_frame_size(&(u->vsink->sink->sample_spec));
+    mbs = pa_mempool_block_size_max(u->vsink->sink->core->mempool);
     if (pa_memblockq_get_length(u->output_q) > 0) {
         //pa_log_debug("qsize is %ld", pa_memblockq_get_length(u->output_q));
         goto END;
     }
-    //nbytes = PA_MIN(nbytes, pa_mempool_block_size_max(u->sink->core->mempool));
+    //nbytes = PA_MIN(nbytes, pa_mempool_block_size_max(u->vsink->sink->core->mempool));
     target_samples = PA_ROUND_UP(nbytes / fs, u->R);
     ////pa_log_debug("vanilla mbs = %ld",mbs);
     //mbs = PA_ROUND_DOWN(mbs / fs, u->R);
@@ -648,7 +525,7 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes, pa_memchunk *chunk
     chunk->memblock = NULL;
 
     /* Hmm, process any rewind request that might be queued up */
-    pa_sink_process_rewind(u->sink, 0);
+    pa_sink_process_rewind(u->vsink->sink, 0);
 
     //pa_log_debug("start output-buffered %ld, input-buffered %ld, requested %ld",buffered_samples,u->samples_gathered,samples_requested);
     //pa_rtclock_get(&start);
@@ -658,7 +535,7 @@ static int sink_input_pop_cb(pa_sink_input *i, size_t nbytes, pa_memchunk *chunk
         pa_assert(input_remaining > 0);
         while (pa_memblockq_peek(u->input_q, &tchunk) < 0) {
             //pa_sink_render(u->sink, input_remaining * fs, &tchunk);
-            pa_sink_render_full(u->sink, PA_MIN(input_remaining * fs, mbs), &tchunk);
+            pa_sink_render_full(u->vsink->sink, PA_MIN(input_remaining * fs, mbs), &tchunk);
             pa_memblockq_push(u->input_q, &tchunk);
             pa_memblock_unref(tchunk.memblock);
         }
@@ -697,26 +574,6 @@ END:
     return 0;
 }
 
-/* Called from main context */
-static void sink_input_volume_changed_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_volume_changed(u->sink, &i->volume);
-}
-
-/* Called from main context */
-static void sink_input_mute_changed_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_mute_changed(u->sink, i->muted);
-}
-
 #if 0
 static void reset_filter(struct userdata *u) {
     size_t fs = pa_frame_size(&u->sink->sample_spec);
@@ -734,148 +591,6 @@ static void reset_filter(struct userdata *u) {
     pa_sink_set_max_request_within_thread(u->sink, max_request * fs);
 }
 #endif
-
-/* Called from I/O thread context */
-static void sink_input_process_rewind_cb(pa_sink_input *i, size_t nbytes) {
-    struct userdata *u;
-    size_t amount = 0;
-
-    pa_log_debug("Rewind callback!");
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    /* If the sink is not yet linked, there is nothing to rewind */
-    if (!PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        return;
-
-    if (u->sink->thread_info.rewind_nbytes > 0) {
-        size_t max_rewrite;
-
-        //max_rewrite = nbytes;
-        max_rewrite = nbytes + pa_memblockq_get_length(u->input_q);
-        //PA_MIN(pa_memblockq_get_length(u->input_q), nbytes);
-        amount = PA_MIN(u->sink->thread_info.rewind_nbytes, max_rewrite);
-        u->sink->thread_info.rewind_nbytes = 0;
-
-        if (amount > 0) {
-            //invalidate the output q
-            pa_memblockq_seek(u->input_q, - (int64_t) amount, PA_SEEK_RELATIVE, true);
-            pa_log("Resetting filter");
-            //reset_filter(u); //this is the "proper" thing to do...
-        }
-    }
-
-    pa_sink_process_rewind(u->sink, amount);
-    pa_memblockq_rewind(u->input_q, nbytes);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_max_rewind_cb(pa_sink_input *i, size_t nbytes) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    /* FIXME: Too small max_rewind:
-     * https://bugs.freedesktop.org/show_bug.cgi?id=53709 */
-    pa_memblockq_set_maxrewind(u->input_q, nbytes);
-    pa_sink_set_max_rewind_within_thread(u->sink, nbytes);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_max_request_cb(pa_sink_input *i, size_t nbytes) {
-    struct userdata *u;
-    size_t fs;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    fs = pa_frame_size(&u->sink_input->sample_spec);
-    pa_sink_set_max_request_within_thread(u->sink, PA_ROUND_UP(nbytes / fs, u->R) * fs);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_sink_latency_range_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_latency_range_within_thread(u->sink, i->sink->thread_info.min_latency, i->sink->thread_info.max_latency);
-}
-
-/* Called from I/O thread context */
-static void sink_input_update_sink_fixed_latency_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_fixed_latency_within_thread(u->sink, i->sink->thread_info.fixed_latency);
-}
-
-/* Called from I/O thread context */
-static void sink_input_detach_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    if (PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        pa_sink_detach_within_thread(u->sink);
-
-    pa_sink_set_rtpoll(u->sink, NULL);
-}
-
-/* Called from I/O thread context */
-static void sink_input_attach_cb(pa_sink_input *i) {
-    struct userdata *u;
-    size_t fs, max_request;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    pa_sink_set_rtpoll(u->sink, i->sink->thread_info.rtpoll);
-    pa_sink_set_latency_range_within_thread(u->sink, i->sink->thread_info.min_latency, i->sink->thread_info.max_latency);
-    pa_sink_set_fixed_latency_within_thread(u->sink, i->sink->thread_info.fixed_latency);
-
-    fs = pa_frame_size(&u->sink_input->sample_spec);
-    /* set buffer size to max request, no overlap copy */
-    max_request = PA_ROUND_UP(pa_sink_input_get_max_request(u->sink_input) / fs, u->R);
-    max_request = PA_MAX(max_request, u->window_size);
-
-    pa_sink_set_max_request_within_thread(u->sink, max_request * fs);
-
-    /* FIXME: Too small max_rewind:
-     * https://bugs.freedesktop.org/show_bug.cgi?id=53709 */
-    pa_sink_set_max_rewind_within_thread(u->sink, pa_sink_input_get_max_rewind(i));
-
-    if (PA_SINK_IS_LINKED(u->sink->thread_info.state))
-        pa_sink_attach_within_thread(u->sink);
-}
-
-/* Called from main context */
-static void sink_input_kill_cb(pa_sink_input *i) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    /* The order here matters! We first kill the sink so that streams
-     * can properly be moved away while the sink input is still connected
-     * to the master. */
-    pa_sink_input_cork(u->sink_input, true);
-    pa_sink_unlink(u->sink);
-    pa_sink_input_unlink(u->sink_input);
-
-    pa_sink_input_unref(u->sink_input);
-    u->sink_input = NULL;
-
-    /* Leave u->sink alone for now, it will be cleaned up on module
-     * unload (and it is needed during unload as well). */
-
-    pa_module_unload_request(u->module, true);
-}
 
 static void pack(char **strs, size_t len, char **packed, size_t *length) {
     size_t t_len = 0;
@@ -964,7 +679,7 @@ static void save_state(struct userdata *u) {
         pa_aupdate_read_end(u->a_H[c]);
     }
 
-    key.data = u->sink->name;
+    key.data = u->vsink->sink->name;
     key.size = strlen(key.data);
     data.data = state;
     data.size = filter_state_size + packed_length;
@@ -1029,7 +744,7 @@ static void load_state(struct userdata *u) {
         return;
     }
 
-    key.data = u->sink->name;
+    key.data = u->vsink->sink->name;
     key.size = strlen(key.data);
 
     if (pa_database_get(database, &key, &value) != NULL) {
@@ -1059,55 +774,12 @@ static void load_state(struct userdata *u) {
     pa_database_close(database);
 }
 
-/* Called from main context */
-static bool sink_input_may_move_to_cb(pa_sink_input *i, pa_sink *dest) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    return u->sink != dest;
-}
-
-/* Called from main context */
-static void sink_input_moving_cb(pa_sink_input *i, pa_sink *dest) {
-    struct userdata *u;
-
-    pa_sink_input_assert_ref(i);
-    pa_assert_se(u = i->userdata);
-
-    if (u->autoloaded) {
-        /* We were autoloaded, and don't support moving. Let's unload ourselves. */
-        pa_log_debug("Can't move autoloaded stream, unloading");
-        pa_module_unload_request(u->module, true);
-    }
-
-    if (dest) {
-        pa_sink_set_asyncmsgq(u->sink, dest->asyncmsgq);
-        pa_sink_update_flags(u->sink, PA_SINK_LATENCY|PA_SINK_DYNAMIC_LATENCY, dest->flags);
-
-        if (u->automatic_description) {
-            const char *master_description;
-            char *new_description;
-
-            master_description = pa_proplist_gets(dest->proplist, PA_PROP_DEVICE_DESCRIPTION);
-            new_description = pa_sprintf_malloc(_("FFT based equalizer on %s"),
-                                                master_description ? master_description : dest->name);
-            pa_sink_set_description(u->sink, new_description);
-            pa_xfree(new_description);
-        }
-    } else
-        pa_sink_set_asyncmsgq(u->sink, NULL);
-}
-
 int pa__init(pa_module*m) {
     struct userdata *u;
     pa_sample_spec ss;
     pa_channel_map map;
     pa_modargs *ma;
     pa_sink *master;
-    pa_sink_input_new_data sink_input_data;
-    pa_sink_new_data sink_data;
     size_t i;
     unsigned c;
     float *H;
@@ -1191,104 +863,23 @@ int pa__init(pa_module*m) {
     for (c = 0; c < u->channels; ++c)
         u->base_profiles[c] = pa_xstrdup("default");
 
-    /* Create sink */
-    pa_sink_new_data_init(&sink_data);
-    sink_data.driver = __FILE__;
-    sink_data.module = m;
-    if (!(sink_data.name = pa_xstrdup(pa_modargs_get_value(ma, "sink_name", NULL))))
-        sink_data.name = pa_sprintf_malloc("%s.equalizer", master->name);
-    pa_sink_new_data_set_sample_spec(&sink_data, &ss);
-    pa_sink_new_data_set_channel_map(&sink_data, &map);
-
-    pa_proplist_sets(sink_data.proplist, PA_PROP_DEVICE_MASTER_DEVICE, master->name);
-    pa_proplist_sets(sink_data.proplist, PA_PROP_DEVICE_CLASS, "filter");
-
-    if (pa_modargs_get_proplist(ma, "sink_properties", sink_data.proplist, PA_UPDATE_REPLACE) < 0) {
-        pa_log("Invalid properties");
-        pa_sink_new_data_done(&sink_data);
+    /* Create virtual sink */
+    if (!(u->vsink = pa_virtual_sink_create(master, "equalizer", "FFT based equalizer Sink", &ss, &map,
+                                            &ss, &map, m, u, ma, use_volume_sharing, false, 0)))
         goto fail;
-    }
 
-    if (!pa_proplist_contains(sink_data.proplist, PA_PROP_DEVICE_DESCRIPTION)) {
-        const char *master_description;
+    u->vsink->get_extra_latency = sink_get_extra_latency_cb;
+    u->vsink->fixed_block_size = u->R;
+    u->vsink->max_request_frames_min = u->window_size;
+    u->vsink->input_to_master->pop = sink_input_pop_cb;
 
-        master_description = pa_proplist_gets(master->proplist, PA_PROP_DEVICE_DESCRIPTION);
-        pa_proplist_setf(sink_data.proplist, PA_PROP_DEVICE_DESCRIPTION,
-                         _("FFT based equalizer on %s"), master_description ? master_description : master->name);
-        u->automatic_description = true;
-    }
-
-    u->autoloaded = DEFAULT_AUTOLOADED;
-    if (pa_modargs_get_value_boolean(ma, "autoloaded", &u->autoloaded) < 0) {
-        pa_log("Failed to parse autoloaded value");
-        goto fail;
-    }
-
-    u->sink = pa_sink_new(m->core, &sink_data, (master->flags & (PA_SINK_LATENCY | PA_SINK_DYNAMIC_LATENCY))
-                                               | (use_volume_sharing ? PA_SINK_SHARE_VOLUME_WITH_MASTER : 0));
-    pa_sink_new_data_done(&sink_data);
-
-    if (!u->sink) {
-        pa_log("Failed to create sink.");
-        goto fail;
-    }
-
-    u->sink->parent.process_msg = sink_process_msg_cb;
-    u->sink->set_state_in_main_thread = sink_set_state_in_main_thread_cb;
-    u->sink->set_state_in_io_thread = sink_set_state_in_io_thread_cb;
-    u->sink->update_requested_latency = sink_update_requested_latency_cb;
-    u->sink->request_rewind = sink_request_rewind_cb;
-    pa_sink_set_set_mute_callback(u->sink, sink_set_mute_cb);
-    if (!use_volume_sharing) {
-        pa_sink_set_set_volume_callback(u->sink, sink_set_volume_cb);
-        pa_sink_enable_decibel_volume(u->sink, true);
-    }
-    u->sink->userdata = u;
-
-    u->input_q = pa_memblockq_new("module-equalizer-sink input_q", 0, MEMBLOCKQ_MAXLENGTH, 0, &ss, 1, 1, 0, &u->sink->silence);
+    u->input_q = pa_memblockq_new("module-equalizer-sink input_q", 0, MEMBLOCKQ_MAXLENGTH, 0, &ss, 1, 1, 0, &u->vsink->sink->silence);
     u->output_q = pa_memblockq_new("module-equalizer-sink output_q", 0, MEMBLOCKQ_MAXLENGTH, 0, &ss, 1, 1, 0, NULL);
     u->output_buffer = NULL;
     u->output_buffer_length = 0;
     u->output_buffer_max_length = 0;
 
-    pa_sink_set_asyncmsgq(u->sink, master->asyncmsgq);
-    //pa_sink_set_fixed_latency(u->sink, pa_bytes_to_usec(u->R*fs, &ss));
-
-    /* Create sink input */
-    pa_sink_input_new_data_init(&sink_input_data);
-    sink_input_data.driver = __FILE__;
-    sink_input_data.module = m;
-    pa_sink_input_new_data_set_sink(&sink_input_data, master, false, true);
-    sink_input_data.origin_sink = u->sink;
-    pa_proplist_sets(sink_input_data.proplist, PA_PROP_MEDIA_NAME, "Equalized Stream");
-    pa_proplist_sets(sink_input_data.proplist, PA_PROP_MEDIA_ROLE, "filter");
-    pa_sink_input_new_data_set_sample_spec(&sink_input_data, &ss);
-    pa_sink_input_new_data_set_channel_map(&sink_input_data, &map);
-    sink_input_data.flags |= PA_SINK_INPUT_START_CORKED;
-
-    pa_sink_input_new(&u->sink_input, m->core, &sink_input_data);
-    pa_sink_input_new_data_done(&sink_input_data);
-
-    if (!u->sink_input)
-        goto fail;
-
-    u->sink_input->pop = sink_input_pop_cb;
-    u->sink_input->process_rewind = sink_input_process_rewind_cb;
-    u->sink_input->update_max_rewind = sink_input_update_max_rewind_cb;
-    u->sink_input->update_max_request = sink_input_update_max_request_cb;
-    u->sink_input->update_sink_latency_range = sink_input_update_sink_latency_range_cb;
-    u->sink_input->update_sink_fixed_latency = sink_input_update_sink_fixed_latency_cb;
-    u->sink_input->kill = sink_input_kill_cb;
-    u->sink_input->attach = sink_input_attach_cb;
-    u->sink_input->detach = sink_input_detach_cb;
-    u->sink_input->may_move_to = sink_input_may_move_to_cb;
-    u->sink_input->moving = sink_input_moving_cb;
-    if (!use_volume_sharing)
-        u->sink_input->volume_changed = sink_input_volume_changed_cb;
-    u->sink_input->mute_changed = sink_input_mute_changed_cb;
-    u->sink_input->userdata = u;
-
-    u->sink->input_to_master = u->sink_input;
+    u->vsink->memblockq = u->input_q;
 
     dbus_init(u);
 
@@ -1308,12 +899,8 @@ int pa__init(pa_module*m) {
     /* load old parameters */
     load_state(u);
 
-    /* The order here is important. The input must be put first,
-     * otherwise streams might attach to the sink before the sink
-     * input is attached to the master. */
-    pa_sink_input_put(u->sink_input);
-    pa_sink_put(u->sink);
-    pa_sink_input_cork(u->sink_input, false);
+    if (pa_virtual_sink_activate(u->vsink) < 0)
+        goto fail;
 
     pa_modargs_free(ma);
 
@@ -1334,7 +921,7 @@ int pa__get_n_used(pa_module *m) {
     pa_assert(m);
     pa_assert_se(u = m->userdata);
 
-    return pa_sink_linked_by(u->sink);
+    return pa_sink_linked_by(u->vsink->sink);
 }
 
 void pa__done(pa_module*m) {
@@ -1346,7 +933,8 @@ void pa__done(pa_module*m) {
     if (!(u = m->userdata))
         return;
 
-    save_state(u);
+    if (u->vsink && u->vsink->sink)
+        save_state(u);
 
     dbus_done(u);
 
@@ -1354,26 +942,14 @@ void pa__done(pa_module*m) {
         pa_xfree(u->base_profiles[c]);
     pa_xfree(u->base_profiles);
 
-    /* See comments in sink_input_kill_cb() above regarding
-     * destruction order! */
-
-    if (u->sink_input)
-        pa_sink_input_cork(u->sink_input, true);
-
-    if (u->sink)
-        pa_sink_unlink(u->sink);
-
-    if (u->sink_input) {
-        pa_sink_input_unlink(u->sink_input);
-        pa_sink_input_unref(u->sink_input);
-}
-
-    if (u->sink)
-        pa_sink_unref(u->sink);
 
     pa_xfree(u->output_buffer);
-    pa_memblockq_free(u->output_q);
-    pa_memblockq_free(u->input_q);
+
+    if (u->vsink)
+        pa_virtual_sink_destroy(u->vsink);
+
+    if (u->output_q)
+        pa_memblockq_free(u->output_q);
 
     fftwf_destroy_plan(u->inverse_plan);
     fftwf_destroy_plan(u->forward_plan);
@@ -1619,21 +1195,21 @@ void dbus_init(struct userdata *u) {
     uint32_t dummy;
     DBusMessage *message = NULL;
     pa_idxset *sink_list = NULL;
-    u->dbus_protocol=pa_dbus_protocol_get(u->sink->core);
-    u->dbus_path=pa_sprintf_malloc("/org/pulseaudio/core1/sink%d", u->sink->index);
+    u->dbus_protocol=pa_dbus_protocol_get(u->vsink->sink->core);
+    u->dbus_path=pa_sprintf_malloc("/org/pulseaudio/core1/sink%d", u->vsink->sink->index);
 
     pa_assert_se(pa_dbus_protocol_add_interface(u->dbus_protocol, u->dbus_path, &equalizer_info, u) >= 0);
-    sink_list = pa_shared_get(u->sink->core, SINKLIST);
-    u->database = pa_shared_get(u->sink->core, EQDB);
+    sink_list = pa_shared_get(u->vsink->sink->core, SINKLIST);
+    u->database = pa_shared_get(u->vsink->sink->core, EQDB);
     if (sink_list == NULL) {
         char *dbname;
         sink_list=pa_idxset_new(&pa_idxset_trivial_hash_func, &pa_idxset_trivial_compare_func);
-        pa_shared_set(u->sink->core, SINKLIST, sink_list);
+        pa_shared_set(u->vsink->sink->core, SINKLIST, sink_list);
         pa_assert_se(dbname = pa_state_path("equalizer-presets", false));
         pa_assert_se(u->database = pa_database_open(dbname, true));
         pa_xfree(dbname);
-        pa_shared_set(u->sink->core, EQDB, u->database);
-        pa_dbus_protocol_add_interface(u->dbus_protocol, MANAGER_PATH, &manager_info, u->sink->core);
+        pa_shared_set(u->vsink->sink->core, EQDB, u->database);
+        pa_dbus_protocol_add_interface(u->dbus_protocol, MANAGER_PATH, &manager_info, u->vsink->sink->core);
         pa_dbus_protocol_register_extension(u->dbus_protocol, EXTNAME);
     }
     pa_idxset_put(sink_list, u, &dummy);
@@ -1654,14 +1230,14 @@ void dbus_done(struct userdata *u) {
     pa_dbus_protocol_send_signal(u->dbus_protocol, message);
     dbus_message_unref(message);
 
-    pa_assert_se(sink_list=pa_shared_get(u->sink->core,SINKLIST));
+    pa_assert_se(sink_list=pa_shared_get(u->module->core,SINKLIST));
     pa_idxset_remove_by_data(sink_list,u,&dummy);
     if (pa_idxset_size(sink_list) == 0) {
         pa_dbus_protocol_unregister_extension(u->dbus_protocol, EXTNAME);
         pa_dbus_protocol_remove_interface(u->dbus_protocol, MANAGER_PATH, manager_info.name);
-        pa_shared_remove(u->sink->core, EQDB);
+        pa_shared_remove(u->module->core, EQDB);
         pa_database_close(u->database);
-        pa_shared_remove(u->sink->core, SINKLIST);
+        pa_shared_remove(u->module->core, SINKLIST);
         pa_xfree(sink_list);
     }
     pa_dbus_protocol_remove_interface(u->dbus_protocol, u->dbus_path, equalizer_info.name);
@@ -2231,7 +1807,7 @@ void equalizer_get_sample_rate(DBusConnection *conn, DBusMessage *msg, void *_u)
     pa_assert(conn);
     pa_assert(msg);
 
-    rate = (uint32_t) u->sink->sample_spec.rate;
+    rate = (uint32_t) u->vsink->sink->sample_spec.rate;
     pa_dbus_send_basic_variant_reply(conn, msg, DBUS_TYPE_UINT32, &rate);
 }
 
@@ -2257,7 +1833,7 @@ void equalizer_get_all(DBusConnection *conn, DBusMessage *msg, void *_u) {
 
     rev = 1;
     n_coefs = (uint32_t) CHANNEL_PROFILE_SIZE(u);
-    rate = (uint32_t) u->sink->sample_spec.rate;
+    rate = (uint32_t) u->vsink->sink->sample_spec.rate;
     fft_size = (uint32_t) u->fft_size;
     channels = (uint32_t) u->channels;
 

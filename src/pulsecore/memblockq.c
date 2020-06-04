@@ -816,6 +816,18 @@ size_t pa_memblockq_get_prebuf(pa_memblockq *bq) {
     return bq->prebuf;
 }
 
+size_t pa_memblockq_get_missing(pa_memblockq *bq) {
+    size_t l;
+
+    pa_assert(bq);
+
+    if ((l = pa_memblockq_get_length(bq)) >= bq->tlength)
+        return 0;
+
+    l = bq->tlength - l;
+    return PA_MAX(bq->minreq, l);
+}
+
 size_t pa_memblockq_pop_missing(pa_memblockq *bq) {
     size_t l;
 
