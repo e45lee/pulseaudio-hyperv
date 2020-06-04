@@ -1118,6 +1118,40 @@ AC_SUBST(HAVE_BLUEZ_5_NATIVE_HEADSET)
 AM_CONDITIONAL([HAVE_BLUEZ_5_NATIVE_HEADSET], [test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = x1])
 AS_IF([test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = "x1"], AC_DEFINE([HAVE_BLUEZ_5_NATIVE_HEADSET], 1, [Bluez 5 native headset backend enabled]))
 
+#### Bluetooth A2DP aptX codec (optional) ###
+
+AC_ARG_ENABLE([aptx],
+    AS_HELP_STRING([--disable-aptx],[Disable optional bluetooth A2DP aptX and aptX HD codecs support (via libopenaptx)]))
+AC_ARG_VAR([OPENAPTX_CPPFLAGS], [C preprocessor flags for openaptx])
+AC_ARG_VAR([OPENAPTX_LDFLAGS], [linker flags for openaptx])
+
+CPPFLAGS_SAVE="$CPPFLAGS"
+LDFLAGS_SAVE="$LDFLAGS"
+LIBS_SAVE="$LIBS"
+
+CPPFLAGS="$CPPFLAGS $OPENAPTX_CPPFLAGS"
+LDFLAGS="$LDFLAGS $OPENAPTX_LDFLAGS"
+
+AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_aptx" != "xno"],
+    [AC_CHECK_HEADER([openaptx.h],
+        [AC_SEARCH_LIBS([aptx_init], [openaptx],
+            [HAVE_OPENAPTX=1; AS_IF([test "x$ac_cv_search_aptx_init" != "xnone required"], [OPENAPTX_LDFLAGS="$OPENAPTX_LDFLAGS $ac_cv_search_aptx_init"])],
+            [HAVE_OPENAPTX=0])],
+        [HAVE_OPENAPTX=0])])
+
+CPPFLAGS="$CPPFLAGS_SAVE"
+LDFLAGS="$LDFLAGS_SAVE"
+LIBS="$LIBS_SAVE"
+
+AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_aptx" = "xyes" && test "x$HAVE_OPENAPTX" = "x0"],
+    [AC_MSG_ERROR([*** libopenaptx from https://github.com/pali/libopenaptx not found])])
+
+AC_SUBST(OPENAPTX_CPPFLAGS)
+AC_SUBST(OPENAPTX_LDFLAGS)
+AC_SUBST(HAVE_OPENAPTX)
+AM_CONDITIONAL([HAVE_OPENAPTX], [test "x$HAVE_OPENAPTX" = "x1"])
+AS_IF([test "x$HAVE_OPENAPTX" = "x1"], AC_DEFINE([HAVE_OPENAPTX], 1, [Have openaptx codec library]))
+
 #### UDEV support (optional) ####
 
 AC_ARG_ENABLE([udev],
@@ -1625,6 +1659,7 @@ AS_IF([test "x$HAVE_SYSTEMD_JOURNAL" = "x1"], ENABLE_SYSTEMD_JOURNAL=yes, ENABLE
 AS_IF([test "x$HAVE_BLUEZ_5" = "x1"], ENABLE_BLUEZ_5=yes, ENABLE_BLUEZ_5=no)
 AS_IF([test "x$HAVE_BLUEZ_5_OFONO_HEADSET" = "x1"], ENABLE_BLUEZ_5_OFONO_HEADSET=yes, ENABLE_BLUEZ_5_OFONO_HEADSET=no)
 AS_IF([test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = "x1"], ENABLE_BLUEZ_5_NATIVE_HEADSET=yes, ENABLE_BLUEZ_5_NATIVE_HEADSET=no)
+AS_IF([test "x$HAVE_OPENAPTX" = "x1"], ENABLE_APTX=yes, ENABLE_APTX=no)
 AS_IF([test "x$HAVE_HAL_COMPAT" = "x1"], ENABLE_HAL_COMPAT=yes, ENABLE_HAL_COMPAT=no)
 AS_IF([test "x$HAVE_TCPWRAP" = "x1"], ENABLE_TCPWRAP=yes, ENABLE_TCPWRAP=no)
 AS_IF([test "x$HAVE_LIBSAMPLERATE" = "x1"], ENABLE_LIBSAMPLERATE="yes (DEPRECATED)", ENABLE_LIBSAMPLERATE=no)
@@ -1685,6 +1720,7 @@ echo "
       Enable BlueZ 5:              ${ENABLE_BLUEZ_5}
         Enable ofono headsets:     ${ENABLE_BLUEZ_5_OFONO_HEADSET}
         Enable native headsets:    ${ENABLE_BLUEZ_5_NATIVE_HEADSET}
+        Enable aptX+aptXHD codecs: ${ENABLE_APTX}
     Enable udev:                   ${ENABLE_UDEV}
       Enable HAL->udev compat:     ${ENABLE_HAL_COMPAT}
     Enable systemd

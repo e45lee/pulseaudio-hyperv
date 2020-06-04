@@ -59,7 +59,12 @@ struct userdata {
     pa_hook_slot *card_init_profile_slot;
     pa_hook_slot *card_unlink_slot;
     pa_hook_slot *profile_available_changed_slot;
-    pa_hashmap *will_need_revert_card_map;
+    pa_hashmap *profile_switch_map;
+};
+
+struct profile_switch {
+    const char *from_profile;
+    const char *to_profile;
 };
 
 /* When a source is created, loopback it to default sink */
@@ -85,7 +90,7 @@ static pa_hook_result_t source_put_hook_callback(pa_core *c, pa_source *source, 
     if (!s)
         return PA_HOOK_OK;
 
-    if (u->enable_a2dp_source && pa_streq(s, "a2dp_source"))
+    if (u->enable_a2dp_source && pa_startswith(s, "a2dp_source"))
         role = "music";
     else if (u->enable_ag && pa_streq(s, "headset_audio_gateway"))
         role = "phone";
@@ -142,43 +147,57 @@ static pa_hook_result_t sink_put_hook_callback(pa_core *c, pa_sink *sink, void *
     return PA_HOOK_OK;
 }
 
-static void card_set_profile(struct userdata *u, pa_card *card, bool revert_to_a2dp)
-{
+static void card_set_profile(struct userdata *u, pa_card *card, const char *revert_to_profile_name) {
+    pa_card_profile *iter_profile;
     pa_card_profile *profile;
+    struct profile_switch *ps;
+    char *old_profile_name;
     void *state;
 
-    /* Find available profile and activate it */
-    PA_HASHMAP_FOREACH(profile, card->profiles, state) {
-        if (profile->available == PA_AVAILABLE_NO)
-            continue;
-
-        /* Check for correct profile based on revert_to_a2dp */
-        if (revert_to_a2dp) {
-            if (!pa_streq(profile->name, "a2dp_sink"))
+    if (revert_to_profile_name) {
+        profile = pa_hashmap_get(card->profiles, revert_to_profile_name);
+    } else {
+        /* Find highest priority profile with both sink and source */
+        profile = NULL;
+        PA_HASHMAP_FOREACH(iter_profile, card->profiles, state) {
+            if (iter_profile->available == PA_AVAILABLE_NO)
                 continue;
-        } else {
-            if (!pa_streq(profile->name, "headset_head_unit"))
+            if (iter_profile->n_sources == 0 || iter_profile->n_sinks == 0)
                 continue;
+            if (!profile || profile->priority < iter_profile->priority)
+                profile = iter_profile;
         }
+    }
 
-        pa_log_debug("Setting card '%s' to profile '%s'", card->name, profile->name);
+    if (!profile) {
+        pa_log_warn("Could not find any suitable profile for card '%s'", card->name);
+        return;
+    }
 
-        if (pa_card_set_profile(card, profile, false) != 0) {
-            pa_log_warn("Could not set profile '%s'", profile->name);
-            continue;
-        }
+    old_profile_name = card->active_profile->name;
 
-        /* When we are not in revert_to_a2dp phase flag this card for will_need_revert */
-        if (!revert_to_a2dp)
-            pa_hashmap_put(u->will_need_revert_card_map, card, PA_INT_TO_PTR(1));
+    pa_log_debug("Setting card '%s' from profile '%s' to profile '%s'", card->name, old_profile_name, profile->name);
 
-        break;
+    if (pa_card_set_profile(card, profile, false) != 0) {
+        pa_log_warn("Could not set profile '%s'", profile->name);
+        return;
+    }
+
+    /* When not reverting, store data for future reverting */
+    if (!revert_to_profile_name) {
+        ps = pa_xnew0(struct profile_switch, 1);
+        ps->from_profile = old_profile_name;
+        ps->to_profile = profile->name;
+        pa_hashmap_put(u->profile_switch_map, card, ps);
     }
 }
 
 /* Switch profile for one card */
-static void switch_profile(pa_card *card, bool revert_to_a2dp, void *userdata) {
+static void switch_profile(pa_card *card, bool revert, void *userdata) {
     struct userdata *u = userdata;
+    struct profile_switch *ps;
+    const char *from_profile;
+    const char *to_profile;
     const char *s;
 
     /* Only consider bluetooth cards */
@@ -186,29 +205,25 @@ static void switch_profile(pa_card *card, bool revert_to_a2dp, void *userdata) {
     if (!s || !pa_streq(s, "bluetooth"))
         return;
 
-    if (revert_to_a2dp) {
-        /* In revert_to_a2dp phase only consider cards with will_need_revert flag and remove it */
-        if (!pa_hashmap_remove(u->will_need_revert_card_map, card))
+    if (revert) {
+        /* In revert phase only consider cards which switched profile */
+        if (!(ps = pa_hashmap_remove(u->profile_switch_map, card)))
             return;
 
-        /* Skip card if does not have active hsp profile */
-        if (!pa_streq(card->active_profile->name, "headset_head_unit"))
-            return;
+        from_profile = ps->from_profile;
+        to_profile = ps->to_profile;
+        pa_xfree(ps);
 
-        /* Skip card if already has active a2dp profile */
-        if (pa_streq(card->active_profile->name, "a2dp_sink"))
+        /* Skip card if does not have active profile to which was switched */
+        if (!pa_streq(card->active_profile->name, to_profile))
             return;
     } else {
-        /* Skip card if does not have active a2dp profile */
-        if (!pa_streq(card->active_profile->name, "a2dp_sink"))
-            return;
-
-        /* Skip card if already has active hsp profile */
-        if (pa_streq(card->active_profile->name, "headset_head_unit"))
+        /* Skip card if already has both sink and source */
+        if (card->active_profile->n_sources > 0 && card->active_profile->n_sinks > 0)
             return;
     }
 
-    card_set_profile(u, card, revert_to_a2dp);
+    card_set_profile(u, card, revert ? from_profile : NULL);
 }
 
 /* Return true if we should ignore this source output */
@@ -254,15 +269,15 @@ static unsigned source_output_count(pa_core *c, void *userdata) {
 }
 
 /* Switch profile for all cards */
-static void switch_profile_all(pa_idxset *cards, bool revert_to_a2dp, void *userdata) {
+static void switch_profile_all(pa_idxset *cards, bool revert, void *userdata) {
     pa_card *card;
     uint32_t idx;
 
     PA_IDXSET_FOREACH(card, cards, idx)
-        switch_profile(card, revert_to_a2dp, userdata);
+        switch_profile(card, revert, userdata);
 }
 
-/* When a source output is created, switch profile a2dp to profile hsp */
+/* When a source output is created, switch profile to some which has both sink and source */
 static pa_hook_result_t source_output_put_hook_callback(pa_core *c, pa_source_output *source_output, void *userdata) {
     pa_assert(c);
     pa_assert(source_output);
@@ -274,7 +289,7 @@ static pa_hook_result_t source_output_put_hook_callback(pa_core *c, pa_source_ou
     return PA_HOOK_OK;
 }
 
-/* When all source outputs are unlinked, switch profile hsp back back to profile a2dp */
+/* When all source outputs are unlinked, switch to previous profile */
 static pa_hook_result_t source_output_unlink_hook_callback(pa_core *c, pa_source_output *source_output, void *userdata) {
     pa_assert(c);
     pa_assert(source_output);
@@ -291,30 +306,16 @@ static pa_hook_result_t source_output_unlink_hook_callback(pa_core *c, pa_source
 }
 
 static pa_hook_result_t card_init_profile_hook_callback(pa_core *c, pa_card *card, void *userdata) {
-    struct userdata *u = userdata;
-    const char *s;
-
     pa_assert(c);
     pa_assert(card);
 
+    /* If there are not some source outputs do nothing */
     if (source_output_count(c, userdata) == 0)
         return PA_HOOK_OK;
 
-    /* Only consider bluetooth cards */
-    s = pa_proplist_gets(card->proplist, PA_PROP_DEVICE_BUS);
-    if (!s || !pa_streq(s, "bluetooth"))
-        return PA_HOOK_OK;
+    /* Set initial profile to some with source */
+    switch_profile(card, false, userdata);
 
-    /* Ignore card if has already set other initial profile than a2dp */
-    if (card->active_profile &&
-        !pa_streq(card->active_profile->name, "a2dp_sink"))
-        return PA_HOOK_OK;
-
-    /* Set initial profile to hsp */
-    card_set_profile(u, card, false);
-
-    /* Flag this card for will_need_revert */
-    pa_hashmap_put(u->will_need_revert_card_map, card, PA_INT_TO_PTR(1));
     return PA_HOOK_OK;
 }
 
@@ -359,7 +360,7 @@ static pa_hook_result_t profile_available_hook_callback(pa_core *c, pa_card_prof
         return PA_HOOK_OK;
 
     /* Do not automatically switch profiles for headsets, just in case */
-    if (pa_streq(profile->name, "a2dp_sink") || pa_streq(profile->name, "headset_head_unit"))
+    if (pa_startswith(profile->name, "a2dp_sink") || pa_streq(profile->name, "headset_head_unit"))
         return PA_HOOK_OK;
 
     is_active_profile = card->active_profile == profile;
@@ -447,7 +448,7 @@ int pa__init(pa_module *m) {
         goto fail;
     }
 
-    u->will_need_revert_card_map = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
+    u->profile_switch_map = pa_hashmap_new(pa_idxset_trivial_hash_func, pa_idxset_trivial_compare_func);
 
     u->source_put_slot = pa_hook_connect(&m->core->hooks[PA_CORE_HOOK_SOURCE_PUT], PA_HOOK_NORMAL,
                                          (pa_hook_cb_t) source_put_hook_callback, u);
@@ -512,7 +513,7 @@ void pa__done(pa_module *m) {
     if (u->profile_available_changed_slot)
         pa_hook_slot_free(u->profile_available_changed_slot);
 
-    pa_hashmap_free(u->will_need_revert_card_map);
+    pa_hashmap_free(u->profile_switch_map);
 
     pa_xfree(u);
 }

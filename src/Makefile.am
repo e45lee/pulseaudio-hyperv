@@ -2172,6 +2172,14 @@ libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-sbc.c
 libbluez5_util_la_LIBADD += $(SBC_LIBS)
 libbluez5_util_la_CFLAGS += $(SBC_CFLAGS)
 
+libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-faststream.c
+
+if HAVE_OPENAPTX
+libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-aptx.c
+libbluez5_util_la_CPPFLAGS += $(OPENAPTX_CPPFLAGS)
+libbluez5_util_la_LDFLAGS += $(OPENAPTX_LDFLAGS)
+endif
+
 module_bluez5_discover_la_SOURCES = modules/bluetooth/module-bluez5-discover.c
 module_bluez5_discover_la_LDFLAGS = $(MODULE_LDFLAGS)
 module_bluez5_discover_la_LIBADD = $(MODULE_LIBADD) $(DBUS_LIBS) libbluez5-util.la

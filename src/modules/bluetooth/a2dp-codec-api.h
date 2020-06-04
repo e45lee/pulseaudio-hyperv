@@ -24,11 +24,6 @@
 
 #define MAX_A2DP_CAPS_SIZE 254
 
-typedef struct pa_a2dp_codec_capabilities {
-    uint8_t size;
-    uint8_t buffer[]; /* max size is 254 bytes */
-} pa_a2dp_codec_capabilities;
-
 typedef struct pa_a2dp_codec_id {
     uint8_t codec_id;
     uint32_t vendor_id;
@@ -51,11 +46,17 @@ typedef struct pa_a2dp_codec {
     /* Returns true if codec accepts capabilities, for_encoding is true when
      * capabilities are used for encoding */
     bool (*can_accept_capabilities)(const uint8_t *capabilities_buffer, uint8_t capabilities_size, bool for_encoding);
-    /* Choose remote endpoint based on capabilities from hash map
-     * (const char *endpoint -> const pa_a2dp_codec_capabilities *capability)
-     * and returns corresponding endpoint key (or NULL when there is no valid),
-     * for_encoder is true when capabilities hash map is used for encoding */
-    const char *(*choose_remote_endpoint)(const pa_hashmap *capabilities_hashmap, const pa_sample_spec *default_sample_spec, bool for_encoding);
+    /* Comparator function for sorting endpoints, based on endpoint capabilities
+     * and default sample spec, this function should return:
+     * -1 if first endpoint is preferred;
+     *  1 if second endpoint is preferred;
+     *  0 if both endpoints have same priority;
+     * for_encoding is true when endpoints are used for encoding,
+     * only endpoints which passed can_accept_capabilities() are compared,
+     * remote endpoints are tried from most preferred to less preferred,
+     * endpoint which better fits for default sample spec should be more
+     * preferred than other endpoints */
+    int (*cmp_endpoints)(const uint8_t *capabilities1_buffer, uint8_t capabilities1_size, const uint8_t *capabilities2_buffer, uint8_t capabilities2_size, const pa_sample_spec *default_sample_spec, bool for_encoding);
     /* Fill codec capabilities, returns size of filled buffer */
     uint8_t (*fill_capabilities)(uint8_t capabilities_buffer[MAX_A2DP_CAPS_SIZE]);
     /* Validate codec configuration, returns true on success */
