@@ -81,9 +81,9 @@ struct pa_sink {
 
     pa_sample_spec sample_spec;
     pa_channel_map channel_map;
-    uint32_t default_sample_rate;
+    pa_sample_spec default_sample_spec;
     uint32_t alternate_sample_rate;
-    bool avoid_resampling:1;
+    bool avoid_processing:1;
 
     pa_idxset *inputs;
     unsigned n_corked;
@@ -106,7 +106,9 @@ struct pa_sink {
     bool save_volume:1;
     bool save_muted:1;
 
-    /* Saved volume state while we're in passthrough mode */
+    /* Saved state while we're in passthrough mode */
+    pa_sample_spec saved_spec;
+    pa_channel_map saved_map;
     pa_cvolume saved_volume;
     bool saved_save_volume:1;
 
@@ -267,7 +269,7 @@ struct pa_sink {
 
     /* Called whenever device parameters need to be changed. Called from
      * main thread. */
-    void (*reconfigure)(pa_sink *s, pa_sample_spec *spec, bool passthrough);
+    int (*reconfigure)(pa_sink *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough);
 
     /* Contains copies of the above data so that the real-time worker
      * thread can work without access locking */
@@ -377,7 +379,7 @@ typedef struct pa_sink_new_data {
     pa_sample_spec sample_spec;
     pa_channel_map channel_map;
     uint32_t alternate_sample_rate;
-    bool avoid_resampling:1;
+    bool avoid_processing:1;
     pa_cvolume volume;
     bool muted:1;
 
@@ -443,7 +445,7 @@ unsigned pa_device_init_priority(pa_proplist *p);
 
 /**** May be called by everyone, from main context */
 
-void pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, bool passthrough);
+int pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough, bool restore);
 void pa_sink_set_port_latency_offset(pa_sink *s, int64_t offset);
 
 /* The returned value is supposed to be in the time domain of the sound card! */
@@ -470,9 +472,6 @@ bool pa_sink_is_filter(pa_sink *s);
 /* Is the sink in passthrough mode? (that is, is there a passthrough sink input
  * connected to this sink? */
 bool pa_sink_is_passthrough(pa_sink *s);
-/* These should be called when a sink enters/leaves passthrough mode */
-void pa_sink_enter_passthrough(pa_sink *s);
-void pa_sink_leave_passthrough(pa_sink *s);
 
 void pa_sink_set_volume(pa_sink *sink, const pa_cvolume *volume, bool sendmsg, bool save);
 const pa_cvolume *pa_sink_get_volume(pa_sink *sink, bool force_refresh);
@@ -512,8 +511,11 @@ bool pa_sink_set_formats(pa_sink *s, pa_idxset *formats);
 bool pa_sink_check_format(pa_sink *s, pa_format_info *f);
 pa_idxset* pa_sink_check_formats(pa_sink *s, pa_idxset *in_formats);
 
+void pa_sink_set_sample_spec(pa_sink *s, pa_sample_spec *spec);
 void pa_sink_set_sample_format(pa_sink *s, pa_sample_format_t format);
 void pa_sink_set_sample_rate(pa_sink *s, uint32_t rate);
+void pa_sink_set_channels(pa_sink *s, uint8_t channels);
+void pa_sink_set_channel_map(pa_sink *s, pa_channel_map *map);
 
 /*** To be called exclusively by the sink driver, from IO context */
 

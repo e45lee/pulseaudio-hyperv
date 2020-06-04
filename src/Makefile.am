@@ -302,6 +302,7 @@ TESTS_norun = \
 TESTS_daemon = \
 		extended-test \
 		passthrough-test \
+		reconfigure-test \
 		sync-playback
 
 # These tests need a running daemon and take a while to complete
@@ -379,6 +380,11 @@ check-daemon:
 check-daemon-long: check-daemon
 
 endif
+
+libtest_util_la_SOURCES = tests/test-util.h tests/test-util.c
+libtest_util_la_LIBADD = libpulse.la
+libtest_util_la_LDFLAGS = -avoid-version
+noinst_LTLIBRARIES += libtest-util.la
 
 core_util_test_SOURCES = tests/core-util-test.c
 core_util_test_CFLAGS = $(AM_CFLAGS) $(LIBCHECK_CFLAGS)
@@ -496,9 +502,14 @@ extended_test_CFLAGS = $(AM_CFLAGS) $(LIBCHECK_CFLAGS)
 extended_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(LIBCHECK_LIBS)
 
 passthrough_test_SOURCES = tests/passthrough-test.c
-passthrough_test_LDADD = $(AM_LDADD) libpulse.la libpulsecommon-@PA_MAJORMINOR@.la
+passthrough_test_LDADD = $(AM_LDADD) libpulse.la libpulsecommon-@PA_MAJORMINOR@.la libtest-util.la
 passthrough_test_CFLAGS = $(AM_CFLAGS) $(LIBCHECK_CFLAGS)
 passthrough_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(LIBCHECK_LIBS)
+
+reconfigure_test_SOURCES = tests/reconfigure-test.c
+reconfigure_test_LDADD = $(AM_LDADD) libpulse.la libpulsecommon-@PA_MAJORMINOR@.la libtest-util.la
+reconfigure_test_CFLAGS = $(AM_CFLAGS) $(LIBCHECK_CFLAGS)
+reconfigure_test_LDFLAGS = $(AM_LDFLAGS) $(BINLDFLAGS) $(LIBCHECK_LIBS)
 
 strlist_test_SOURCES = tests/strlist-test.c
 strlist_test_CFLAGS = $(AM_CFLAGS) $(LIBCHECK_CFLAGS)

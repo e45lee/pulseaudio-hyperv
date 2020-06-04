@@ -103,6 +103,7 @@ struct userdata {
     pa_sample_spec verified_sample_spec;
     pa_sample_format_t *supported_formats;
     unsigned int *supported_rates;
+    unsigned int *supported_channels;
     struct {
         size_t fragment_size;
         size_t nfrags;
@@ -1570,11 +1571,12 @@ static void source_update_requested_latency_cb(pa_source *s) {
     update_sw_params(u);
 }
 
-static void source_reconfigure_cb(pa_source *s, pa_sample_spec *spec, bool passthrough) {
+static int source_reconfigure_cb(pa_source *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough) {
     struct userdata *u = s->userdata;
     int i;
     bool format_supported = false;
     bool rate_supported = false;
+    bool channels_supported = false;
 
     pa_assert(u);
 
@@ -1604,6 +1606,38 @@ static void source_reconfigure_cb(pa_source *s, pa_sample_spec *spec, bool passt
         pa_log_info("Source does not support sample rate of %u, set it to a verfied value", spec->rate);
         pa_source_set_sample_rate(u->source, u->verified_sample_spec.rate);
     }
+
+    for (i = 0; u->supported_channels[i]; i++) {
+        if (u->supported_channels[i] == spec->channels) {
+            pa_source_set_channels(u->source, spec->channels);
+            channels_supported = true;
+            break;
+        }
+    }
+
+    if (!channels_supported) {
+        pa_log_info("Sink does not support %u channels, set it to a verified value", spec->channels);
+        pa_source_set_channels(u->source, u->verified_sample_spec.channels);
+    }
+
+    if (map) {
+        if (pa_channel_map_valid(map)) {
+            pa_source_set_channel_map(s, map);
+        } else {
+            char map_str[PA_CHANNEL_MAP_SNPRINT_MAX];
+
+            pa_channel_map_snprint(map_str, sizeof(map_str), map);
+            pa_log_error("Bad channel map: %s", map_str);
+
+            pa_source_set_channels(u->source, u->verified_sample_spec.channels);
+        }
+    } else {
+        pa_channel_map def_map;
+        pa_channel_map_init_auto(&def_map, spec->channels, PA_CHANNEL_MAP_DEFAULT);
+        pa_source_set_channel_map(s, &def_map);
+    }
+
+    return 0;
 }
 
 static void thread_func(void *userdata) {
@@ -1954,7 +1988,7 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
     bool fixed_latency_range = false;
     bool b;
     bool d;
-    bool avoid_resampling;
+    bool avoid_processing;
     pa_source_new_data data;
     bool volume_is_set;
     bool mute_is_set;
@@ -1966,7 +2000,7 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
 
     ss = m->core->default_sample_spec;
     map = m->core->default_channel_map;
-    avoid_resampling = m->core->avoid_resampling;
+    avoid_processing = m->core->avoid_processing;
 
     /* Pick sample spec overrides from the mapping, if any */
     if (mapping) {
@@ -2195,6 +2229,12 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
         goto fail;
     }
 
+    u->supported_channels = pa_alsa_get_supported_channels(u->pcm_handle, ss.rate);
+    if (!u->supported_channels) {
+        pa_log_error("Failed to find any supported channel counts.");
+        goto fail;
+    }
+
     /* ALSA might tweak the sample spec, so recalculate the frame size */
     frame_size = pa_frame_size(&ss);
 
@@ -2216,12 +2256,12 @@ pa_source *pa_alsa_source_new(pa_module *m, pa_modargs *ma, const char*driver, p
     }
     data.namereg_fail = namereg_fail;
 
-    if (pa_modargs_get_value_boolean(ma, "avoid_resampling", &avoid_resampling) < 0) {
-        pa_log("Failed to parse avoid_resampling argument.");
+    if (pa_modargs_get_value_boolean(ma, "avoid_processing", &avoid_processing) < 0) {
+        pa_log("Failed to parse avoid_processing argument.");
         pa_source_new_data_done(&data);
         goto fail;
     }
-    data.avoid_resampling = avoid_resampling;
+    data.avoid_processing = avoid_processing;
 
     pa_source_new_data_set_sample_spec(&data, &ss);
     pa_source_new_data_set_channel_map(&data, &map);
@@ -2427,6 +2467,9 @@ static void userdata_free(struct userdata *u) {
 
     if (u->supported_rates)
         pa_xfree(u->supported_rates);
+
+    if (u->supported_channels)
+        pa_xfree(u->supported_channels);
 
     reserve_done(u);
     monitor_done(u);

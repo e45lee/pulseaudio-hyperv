@@ -82,9 +82,9 @@ struct pa_source {
 
     pa_sample_spec sample_spec;
     pa_channel_map channel_map;
-    uint32_t default_sample_rate;
+    pa_sample_spec default_sample_spec;
     uint32_t alternate_sample_rate;
-    bool avoid_resampling:1;
+    bool avoid_processing:1;
 
     pa_idxset *outputs;
     unsigned n_corked;
@@ -107,7 +107,9 @@ struct pa_source {
     bool save_volume:1;
     bool save_muted:1;
 
-    /* Saved volume state while we're in passthrough mode */
+    /* Saved state while we're in passthrough mode */
+    pa_sample_spec saved_spec;
+    pa_channel_map saved_map;
     pa_cvolume saved_volume;
     bool saved_save_volume:1;
 
@@ -225,7 +227,7 @@ struct pa_source {
 
     /* Called whenever device parameters need to be changed. Called from
      * main thread. */
-    void (*reconfigure)(pa_source *s, pa_sample_spec *spec, bool passthrough);
+    int (*reconfigure)(pa_source *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough);
 
     /* Contains copies of the above data so that the real-time worker
      * thread can work without access locking */
@@ -315,7 +317,7 @@ typedef struct pa_source_new_data {
     pa_sample_spec sample_spec;
     pa_channel_map channel_map;
     uint32_t alternate_sample_rate;
-    bool avoid_resampling:1;
+    bool avoid_processing:1;
     pa_cvolume volume;
     bool muted:1;
 
@@ -402,9 +404,6 @@ bool pa_source_is_filter(pa_source *s);
 /* Is the source in passthrough mode? (that is, is this a monitor source for a sink
  * that has a passthrough sink input connected to it. */
 bool pa_source_is_passthrough(pa_source *s);
-/* These should be called when a source enters/leaves passthrough mode */
-void pa_source_enter_passthrough(pa_source *s);
-void pa_source_leave_passthrough(pa_source *s);
 
 void pa_source_set_volume(pa_source *source, const pa_cvolume *volume, bool sendmsg, bool save);
 const pa_cvolume *pa_source_get_volume(pa_source *source, bool force_refresh);
@@ -416,7 +415,7 @@ bool pa_source_update_proplist(pa_source *s, pa_update_mode_t mode, pa_proplist 
 
 int pa_source_set_port(pa_source *s, const char *name, bool save);
 
-void pa_source_reconfigure(pa_source *s, pa_sample_spec *spec, bool passthrough);
+int pa_source_reconfigure(pa_source *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough, bool restore);
 
 unsigned pa_source_linked_by(pa_source *s); /* Number of connected streams */
 unsigned pa_source_used_by(pa_source *s); /* Number of connected streams that are not corked */
@@ -442,8 +441,11 @@ pa_idxset* pa_source_get_formats(pa_source *s);
 bool pa_source_check_format(pa_source *s, pa_format_info *f);
 pa_idxset* pa_source_check_formats(pa_source *s, pa_idxset *in_formats);
 
+void pa_source_set_sample_spec(pa_source *s, pa_sample_spec *spec);
 void pa_source_set_sample_format(pa_source *s, pa_sample_format_t format);
 void pa_source_set_sample_rate(pa_source *s, uint32_t rate);
+void pa_source_set_channels(pa_source *s, uint8_t channels);
+void pa_source_set_channel_map(pa_source *s, pa_channel_map *map);
 
 /*** To be called exclusively by the source driver, from IO context */
 

@@ -264,14 +264,16 @@ pa_sink* pa_sink_new(
 
     s->sample_spec = data->sample_spec;
     s->channel_map = data->channel_map;
-    s->default_sample_rate = s->sample_spec.rate;
+    s->default_sample_spec = s->sample_spec;
+    pa_sample_spec_init(&s->saved_spec);
+    pa_channel_map_init(&s->saved_map);
 
     if (data->alternate_sample_rate_is_set)
         s->alternate_sample_rate = data->alternate_sample_rate;
     else
         s->alternate_sample_rate = s->core->alternate_sample_rate;
 
-    s->avoid_resampling = data->avoid_resampling;
+    s->avoid_processing = data->avoid_processing;
 
     s->inputs = pa_idxset_new(NULL, NULL);
     s->n_corked = 0;
@@ -367,7 +369,7 @@ pa_sink* pa_sink_new(
     source_data.driver = data->driver;
     source_data.module = data->module;
     source_data.card = data->card;
-    source_data.avoid_resampling = data->avoid_resampling;
+    source_data.avoid_processing = data->avoid_processing;
 
     dn = pa_proplist_gets(s->proplist, PA_PROP_DEVICE_DESCRIPTION);
     pa_proplist_setf(source_data.proplist, PA_PROP_DEVICE_DESCRIPTION, "Monitor of %s", dn ? dn : s->name);
@@ -1454,64 +1456,87 @@ void pa_sink_render_full(pa_sink *s, size_t length, pa_memchunk *result) {
 }
 
 /* Called from main thread */
-void pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, bool passthrough) {
+int pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, pa_channel_map *map, bool passthrough, bool restore) {
+    int ret = -1;
     pa_sample_spec desired_spec;
-    uint32_t default_rate = s->default_sample_rate;
+    pa_sample_format_t default_format = s->default_sample_spec.format;
+    uint32_t default_rate = s->default_sample_spec.rate;
     uint32_t alternate_rate = s->alternate_sample_rate;
+    uint8_t default_channels = s->default_sample_spec.channels;
     uint32_t idx;
     pa_sink_input *i;
     bool default_rate_is_usable = false;
     bool alternate_rate_is_usable = false;
-    bool avoid_resampling = s->avoid_resampling;
+    bool avoid_processing = s->avoid_processing;
+    pa_channel_map old_map, *new_map;
 
-    if (pa_sample_spec_equal(spec, &s->sample_spec))
-        return;
+    pa_assert(restore || (spec != NULL));
+    pa_assert(!restore || (spec == NULL && map == NULL && pa_sample_spec_valid(&s->saved_spec)));
+
+    if (!restore && pa_sample_spec_equal(spec, &s->sample_spec))
+        return 0;
 
     if (!s->reconfigure)
-        return;
+        return -1;
 
-    if (PA_UNLIKELY(default_rate == alternate_rate && !passthrough && !avoid_resampling)) {
+    if (PA_UNLIKELY(default_rate == alternate_rate && !passthrough && !restore && !avoid_processing)) {
         pa_log_debug("Default and alternate sample rates are the same, so there is no point in switching.");
-        return;
+        return -1;
     }
 
     if (PA_SINK_IS_RUNNING(s->state)) {
-        pa_log_info("Cannot update sample spec, SINK_IS_RUNNING, will keep using %s and %u Hz",
+        pa_log_info("Cannot update spec, SINK_IS_RUNNING, will keep using %s and %u Hz",
                     pa_sample_format_to_string(s->sample_spec.format), s->sample_spec.rate);
-        return;
+        return -1;
     }
 
     if (s->monitor_source) {
         if (PA_SOURCE_IS_RUNNING(s->monitor_source->state) == true) {
-            pa_log_info("Cannot update sample spec, monitor source is RUNNING");
-            return;
+            pa_log_info("Cannot update spec, monitor source is RUNNING");
+            return -1;
         }
     }
 
-    if (PA_UNLIKELY(!pa_sample_spec_valid(spec)))
-        return;
-
-    desired_spec = s->sample_spec;
+    if (PA_UNLIKELY(!restore && !pa_sample_spec_valid(spec)))
+        return -1;
 
     if (passthrough) {
-        /* We have to try to use the sink input format and rate */
-        desired_spec.format = spec->format;
-        desired_spec.rate = spec->rate;
+        /* Save the previous sample spec and channel map, we will try to restore it when leaving passthrough */
+        s->saved_spec = s->sample_spec;
+        s->saved_map = s->channel_map;
 
-    } else if (avoid_resampling) {
-        /* We just try to set the sink input's sample rate if it's not too low */
+        /* Save the volume, we're going to reset it to NORM while in passthrough */
+        s->saved_volume = *pa_sink_get_volume(s, true);
+        s->saved_save_volume = s->save_volume;
+    }
+
+    if (restore) {
+        /* We try to restore the saved spec */
+        desired_spec = s->saved_spec;
+
+    } else if (passthrough) {
+        /* We have to try to use the sink input spec */
+        desired_spec = *spec;
+
+    } else if (avoid_processing) {
+        desired_spec = s->sample_spec;
+
         if (spec->rate >= default_rate || spec->rate >= alternate_rate)
             desired_spec.rate = spec->rate;
-        desired_spec.format = spec->format;
+        if (spec->channels >= default_channels)
+            desired_spec.channels = spec->channels;
+        if (pa_sample_size_of_format(spec->format) >= pa_sample_size_of_format(default_format))
+            desired_spec.format = spec->format;
 
     } else if (default_rate == spec->rate || alternate_rate == spec->rate) {
         /* We can directly try to use this rate */
+        desired_spec = s->sample_spec;
         desired_spec.rate = spec->rate;
 
-    }
-
-    if (desired_spec.rate != spec->rate) {
+    } else {
         /* See if we can pick a rate that results in less resampling effort */
+        desired_spec = s->sample_spec;
+
         if (default_rate % 11025 == 0 && spec->rate % 11025 == 0)
             default_rate_is_usable = true;
         if (default_rate % 4000 == 0 && spec->rate % 4000 == 0)
@@ -1528,28 +1553,88 @@ void pa_sink_reconfigure(pa_sink *s, pa_sample_spec *spec, bool passthrough) {
     }
 
     if (pa_sample_spec_equal(&desired_spec, &s->sample_spec) && passthrough == pa_sink_is_passthrough(s))
-        return;
+        return 0;
 
     if (!passthrough && pa_sink_used_by(s) > 0)
-        return;
+        return -1;
 
     pa_log_debug("Suspending sink %s due to changing format, desired format = %s rate = %u",
                  s->name, pa_sample_format_to_string(desired_spec.format), desired_spec.rate);
     pa_sink_suspend(s, true, PA_SUSPEND_INTERNAL);
 
-    s->reconfigure(s, &desired_spec, passthrough);
+    /* Keep the old channel map in case it changes */
+    old_map = s->channel_map;
 
-    /* update monitor source as well */
-    if (s->monitor_source && !passthrough)
-        pa_source_reconfigure(s->monitor_source, &s->sample_spec, false);
-    pa_log_info("Reconfigured successfully");
+    if (restore) {
+        /* Restore the previous channel map as well */
+        new_map = &s->saved_map;
+    } else if (map) {
+        /* Set the requested channel map */
+        new_map = map;
+    } else if (desired_spec.channels == s->sample_spec.channels) {
+        /* No requested channel map, but channel count is unchanged so don't change */
+        new_map = &s->channel_map;
+    } else {
+        /* No requested channel map, let the device decide */
+        new_map = NULL;
+    }
+
+    if (s->reconfigure(s, &desired_spec, new_map, passthrough) >= 0) {
+        char spec_str[PA_SAMPLE_SPEC_SNPRINT_MAX];
+
+        /* update monitor source as well */
+        if (s->monitor_source && !passthrough)
+            pa_source_reconfigure(s->monitor_source, &desired_spec, new_map, false, false);
+
+        pa_log_info("Reconfigured successfully to: %s",
+                pa_sample_spec_snprint(spec_str, sizeof(spec_str), &desired_spec));
+    }
 
     PA_IDXSET_FOREACH(i, s->inputs, idx) {
         if (i->state == PA_SINK_INPUT_CORKED)
             pa_sink_input_update_resampler(i);
     }
 
+    if (!restore && !pa_channel_map_equal(&old_map, &s->channel_map)) {
+        /* Remap stored volumes to the new channel map if we're not just restoring a previously saved volume */
+        pa_cvolume_remap(&s->reference_volume, &old_map, &s->channel_map);
+        pa_cvolume_remap(&s->real_volume, &old_map, &s->channel_map);
+        pa_cvolume_remap(&s->soft_volume, &old_map, &s->channel_map);
+    }
+
+    if (passthrough) {
+        /* set the volume to NORM */
+        pa_cvolume volume;
+
+        pa_cvolume_set(&volume, s->sample_spec.channels, PA_MIN(s->base_volume, PA_VOLUME_NORM));
+        pa_sink_set_volume(s, &volume, true, false);
+
+        /* disable the monitor in passthrough mode */
+        if (s->monitor_source) {
+            pa_log_debug("Suspending monitor source %s, because the sink is entering the passthrough mode.", s->monitor_source->name);
+            pa_source_suspend(s->monitor_source, true, PA_SUSPEND_PASSTHROUGH);
+        }
+    }
+
+    if (restore) {
+        /* Reset saved spec and channel map so we don't try to restore it again */
+        pa_sample_spec_init(&s->saved_spec);
+        pa_channel_map_init(&s->saved_map);
+
+        /* Restore sink volume to what it was before we entered passthrough mode */
+        pa_sink_set_volume(s, &s->saved_volume, true, s->saved_save_volume);
+        pa_cvolume_init(&s->saved_volume);
+        s->saved_save_volume = false;
+
+        if (s->monitor_source) {
+            pa_log_debug("Resuming monitor source %s, because the sink is leaving the passthrough mode.", s->monitor_source->name);
+            pa_source_suspend(s->monitor_source, false, PA_SUSPEND_PASSTHROUGH);
+        }
+    }
+
     pa_sink_suspend(s, false, PA_SUSPEND_INTERNAL);
+
+    return ret;
 }
 
 /* Called from main thread */
@@ -1666,46 +1751,6 @@ bool pa_sink_is_passthrough(pa_sink *s) {
     }
 
     return false;
-}
-
-/* Called from main context */
-void pa_sink_enter_passthrough(pa_sink *s) {
-    pa_cvolume volume;
-
-    /* The sink implementation is reconfigured for passthrough in
-     * pa_sink_reconfigure(). This function sets the PA core objects to
-     * passthrough mode. */
-
-    /* disable the monitor in passthrough mode */
-    if (s->monitor_source) {
-        pa_log_debug("Suspending monitor source %s, because the sink is entering the passthrough mode.", s->monitor_source->name);
-        pa_source_suspend(s->monitor_source, true, PA_SUSPEND_PASSTHROUGH);
-    }
-
-    /* set the volume to NORM */
-    s->saved_volume = *pa_sink_get_volume(s, true);
-    s->saved_save_volume = s->save_volume;
-
-    pa_cvolume_set(&volume, s->sample_spec.channels, PA_MIN(s->base_volume, PA_VOLUME_NORM));
-    pa_sink_set_volume(s, &volume, true, false);
-
-    pa_log_debug("Suspending/Restarting sink %s to enter passthrough mode", s->name);
-}
-
-/* Called from main context */
-void pa_sink_leave_passthrough(pa_sink *s) {
-    /* Unsuspend monitor */
-    if (s->monitor_source) {
-        pa_log_debug("Resuming monitor source %s, because the sink is leaving the passthrough mode.", s->monitor_source->name);
-        pa_source_suspend(s->monitor_source, false, PA_SUSPEND_PASSTHROUGH);
-    }
-
-    /* Restore sink volume to what it was before we entered passthrough mode */
-    pa_sink_set_volume(s, &s->saved_volume, true, s->saved_save_volume);
-
-    pa_cvolume_init(&s->saved_volume);
-    s->saved_save_volume = false;
-
 }
 
 /* Called from main context. */
@@ -3879,6 +3924,28 @@ done:
 }
 
 /* Called from the main thread */
+void pa_sink_set_sample_spec(pa_sink *s, pa_sample_spec *spec) {
+    pa_sample_spec old_spec;
+    char spec_str[PA_SAMPLE_SPEC_SNPRINT_MAX], old_spec_str[PA_SAMPLE_SPEC_SNPRINT_MAX];
+
+    pa_assert(s);
+    pa_assert(pa_sample_spec_valid(spec));
+
+    old_spec = s->sample_spec;
+    if (pa_sample_spec_equal(&old_spec, spec))
+        return;
+
+    pa_sample_spec_snprint(spec_str, sizeof(spec_str), spec);
+    pa_sample_spec_snprint(old_spec_str, sizeof(old_spec_str), &old_spec);
+
+    pa_log_info("%s: spec: %s -> %s", s->name, old_spec_str, spec_str);
+
+    s->sample_spec = *spec;
+
+    pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
+}
+
+/* Called from the main thread */
 void pa_sink_set_sample_format(pa_sink *s, pa_sample_format_t format) {
     pa_sample_format_t old_format;
 
@@ -3915,6 +3982,47 @@ void pa_sink_set_sample_rate(pa_sink *s, uint32_t rate) {
     pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
 }
 
+/* Called from the main thread */
+void pa_sink_set_channels(pa_sink *s, uint8_t channels) {
+    uint8_t old_channels;
+
+    pa_assert(s);
+    pa_assert(pa_channels_valid(channels));
+
+    old_channels = s->sample_spec.channels;
+    if (old_channels == channels)
+        return;
+
+    pa_log_info("%s: channels: %u -> %u", s->name, old_channels, channels);
+
+    s->sample_spec.channels = channels;
+
+    pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
+}
+
+/* Called from the main thread */
+void pa_sink_set_channel_map(pa_sink *s, pa_channel_map *map) {
+    pa_channel_map old_map;
+    char old_map_str[PA_CHANNEL_MAP_SNPRINT_MAX];
+    char new_map_str[PA_CHANNEL_MAP_SNPRINT_MAX];
+
+    pa_assert(s);
+    pa_assert(map);
+    pa_assert(pa_channel_map_valid(map));
+
+    old_map = s->channel_map;
+    if (pa_channel_map_equal(&old_map, map))
+        return;
+
+    pa_log_info("%s: channel map: %s -> %s", s->name,
+            pa_channel_map_snprint(old_map_str, sizeof(old_map_str), &old_map),
+            pa_channel_map_snprint(new_map_str, sizeof(new_map_str), map));
+
+    s->channel_map = *map;
+
+    pa_subscription_post(s->core, PA_SUBSCRIPTION_EVENT_SINK | PA_SUBSCRIPTION_EVENT_CHANGE, s->index);
+}
+
 /* Called from the main thread. */
 void pa_sink_set_reference_volume_direct(pa_sink *s, const pa_cvolume *volume) {
     pa_cvolume old_volume;
@@ -3931,7 +4039,8 @@ void pa_sink_set_reference_volume_direct(pa_sink *s, const pa_cvolume *volume) {
 
     s->reference_volume = *volume;
     pa_log_debug("The reference volume of sink %s changed from %s to %s.", s->name,
-                 pa_cvolume_snprint_verbose(old_volume_str, sizeof(old_volume_str), &old_volume, &s->channel_map,
+                 /* we don't print old volume channel map as it might have changed */
+                 pa_cvolume_snprint_verbose(old_volume_str, sizeof(old_volume_str), &old_volume, NULL,
                                             s->flags & PA_SINK_DECIBEL_VOLUME),
                  pa_cvolume_snprint_verbose(new_volume_str, sizeof(new_volume_str), volume, &s->channel_map,
                                             s->flags & PA_SINK_DECIBEL_VOLUME));
