@@ -2147,20 +2147,19 @@ module_bluetooth_discover_la_CFLAGS = $(AM_CFLAGS) -DPA_MODULE_NAME=module_bluet
 
 # Bluetooth BlueZ 5 sink / source
 libbluez5_util_la_SOURCES = \
+		modules/bluetooth/hsphfpd-util.c \
+		modules/bluetooth/hsphfpd-util.h \
 		modules/bluetooth/bluez5-util.c \
 		modules/bluetooth/bluez5-util.h \
+		modules/bluetooth/legacy-hsp.h \
 		modules/bluetooth/a2dp-codec-api.h \
 		modules/bluetooth/a2dp-codec-util.c \
 		modules/bluetooth/a2dp-codec-util.h \
 		modules/bluetooth/a2dp-codecs.h \
 		modules/bluetooth/rtp.h
-if HAVE_BLUEZ_5_OFONO_HEADSET
+if HAVE_BLUEZ_5_LEGACY_HSP
 libbluez5_util_la_SOURCES += \
-		modules/bluetooth/backend-ofono.c
-endif
-if HAVE_BLUEZ_5_NATIVE_HEADSET
-libbluez5_util_la_SOURCES += \
-		modules/bluetooth/backend-native.c
+		modules/bluetooth/legacy-hsp.c
 endif
 
 libbluez5_util_la_LDFLAGS = -avoid-version
@@ -2171,6 +2170,14 @@ libbluez5_util_la_CPPFLAGS = $(AM_CPPFLAGS)
 libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-sbc.c
 libbluez5_util_la_LIBADD += $(SBC_LIBS)
 libbluez5_util_la_CFLAGS += $(SBC_CFLAGS)
+
+libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-faststream.c
+
+if HAVE_OPENAPTX
+libbluez5_util_la_SOURCES += modules/bluetooth/a2dp-codec-aptx.c
+libbluez5_util_la_CPPFLAGS += $(OPENAPTX_CPPFLAGS)
+libbluez5_util_la_LDFLAGS += $(OPENAPTX_LDFLAGS)
+endif
 
 module_bluez5_discover_la_SOURCES = modules/bluetooth/module-bluez5-discover.c
 module_bluez5_discover_la_LDFLAGS = $(MODULE_LDFLAGS)

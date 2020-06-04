@@ -1099,24 +1099,50 @@ AM_CONDITIONAL([HAVE_BLUEZ], [test "x$HAVE_BLUEZ" = x1])
 
 ## Bluetooth Headset profiles backend ##
 
-AC_ARG_ENABLE([bluez5-ofono-headset],
-    AS_HELP_STRING([--disable-bluez5-ofono-headset],[Disable optional ofono headset backend support (Bluez 5)]))
-AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_bluez5_ofono_headset" != "xno"], HAVE_BLUEZ_5_OFONO_HEADSET=1,
-      HAVE_BLUEZ_5_OFONO_HEADSET=0)
-AC_SUBST(HAVE_BLUEZ_5_OFONO_HEADSET)
-AM_CONDITIONAL([HAVE_BLUEZ_5_OFONO_HEADSET], [test "x$HAVE_BLUEZ_5_OFONO_HEADSET" = x1])
-AS_IF([test "x$HAVE_BLUEZ_5_OFONO_HEADSET" = "x1"], AC_DEFINE([HAVE_BLUEZ_5_OFONO_HEADSET], 1, [Bluez 5 ofono headset backend enabled]))
+AC_ARG_ENABLE([bluez5-legacy-hsp],
+    AS_HELP_STRING([--disable-bluez5-legacy-hsp],[Disable optional legacy HSP backend support (Bluez 5)]))
+AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_bluez5_legacy_hsp" != "xno"],
+      [PKG_CHECK_MODULES(BLUEZ, [ bluez >= 4.101 ], HAVE_BLUEZ_5_LEGACY_HSP=1, HAVE_BLUEZ_5_LEGACY_HSP=0)],
+      HAVE_BLUEZ_5_LEGACY_HSP=0)
+AS_IF([test "x$enable_bluez5_legacy_hsp" = "xyes" && test "x$HAVE_BLUEZ_5_LEGACY_HSP" = "x0"],
+      [AC_MSG_ERROR([*** BlueZ 5 legacy HSP backend support not available (requires the libbluetooth headers)])])
+AC_SUBST(HAVE_BLUEZ_5_LEGACY_HSP)
+AM_CONDITIONAL([HAVE_BLUEZ_5_LEGACY_HSP], [test "x$HAVE_BLUEZ_5_LEGACY_HSP" = x1])
+AS_IF([test "x$HAVE_BLUEZ_5_LEGACY_HSP" = "x1"], AC_DEFINE([HAVE_BLUEZ_5_LEGACY_HSP], 1, [Bluez 5 legacy HSP backend enabled]))
 
-AC_ARG_ENABLE([bluez5-native-headset],
-    AS_HELP_STRING([--disable-bluez5-native-headset],[Disable optional native headset backend support (Bluez 5)]))
-AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_bluez5_native_headset" != "xno"],
-      [PKG_CHECK_MODULES(BLUEZ, [ bluez >= 4.101 ], HAVE_BLUEZ_5_NATIVE_HEADSET=1, HAVE_BLUEZ_5_NATIVE_HEADSET=0)],
-      HAVE_BLUEZ_5_NATIVE_HEADSET=0)
-AS_IF([test "x$enable_bluez5_native_headset" = "xyes" && test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = "x0"],
-      [AC_MSG_ERROR([*** BlueZ 5 native headset backend support not available (requires the libbluetooth headers)])])
-AC_SUBST(HAVE_BLUEZ_5_NATIVE_HEADSET)
-AM_CONDITIONAL([HAVE_BLUEZ_5_NATIVE_HEADSET], [test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = x1])
-AS_IF([test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = "x1"], AC_DEFINE([HAVE_BLUEZ_5_NATIVE_HEADSET], 1, [Bluez 5 native headset backend enabled]))
+#### Bluetooth A2DP aptX codec (optional) ###
+
+AC_ARG_ENABLE([aptx],
+    AS_HELP_STRING([--disable-aptx],[Disable optional bluetooth A2DP aptX and aptX HD codecs support (via libopenaptx)]))
+AC_ARG_VAR([OPENAPTX_CPPFLAGS], [C preprocessor flags for openaptx])
+AC_ARG_VAR([OPENAPTX_LDFLAGS], [linker flags for openaptx])
+
+CPPFLAGS_SAVE="$CPPFLAGS"
+LDFLAGS_SAVE="$LDFLAGS"
+LIBS_SAVE="$LIBS"
+
+CPPFLAGS="$CPPFLAGS $OPENAPTX_CPPFLAGS"
+LDFLAGS="$LDFLAGS $OPENAPTX_LDFLAGS"
+
+AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_aptx" != "xno"],
+    [AC_CHECK_HEADER([openaptx.h],
+        [AC_SEARCH_LIBS([aptx_init], [openaptx],
+            [HAVE_OPENAPTX=1; AS_IF([test "x$ac_cv_search_aptx_init" != "xnone required"], [OPENAPTX_LDFLAGS="$OPENAPTX_LDFLAGS $ac_cv_search_aptx_init"])],
+            [HAVE_OPENAPTX=0])],
+        [HAVE_OPENAPTX=0])])
+
+CPPFLAGS="$CPPFLAGS_SAVE"
+LDFLAGS="$LDFLAGS_SAVE"
+LIBS="$LIBS_SAVE"
+
+AS_IF([test "x$HAVE_BLUEZ_5" = "x1" && test "x$enable_aptx" = "xyes" && test "x$HAVE_OPENAPTX" = "x0"],
+    [AC_MSG_ERROR([*** libopenaptx from https://github.com/pali/libopenaptx not found])])
+
+AC_SUBST(OPENAPTX_CPPFLAGS)
+AC_SUBST(OPENAPTX_LDFLAGS)
+AC_SUBST(HAVE_OPENAPTX)
+AM_CONDITIONAL([HAVE_OPENAPTX], [test "x$HAVE_OPENAPTX" = "x1"])
+AS_IF([test "x$HAVE_OPENAPTX" = "x1"], AC_DEFINE([HAVE_OPENAPTX], 1, [Have openaptx codec library]))
 
 #### UDEV support (optional) ####
 
@@ -1623,8 +1649,8 @@ AS_IF([test "x$HAVE_SYSTEMD_DAEMON" = "x1"], ENABLE_SYSTEMD_DAEMON=yes, ENABLE_S
 AS_IF([test "x$HAVE_SYSTEMD_LOGIN" = "x1"], ENABLE_SYSTEMD_LOGIN=yes, ENABLE_SYSTEMD_LOGIN=no)
 AS_IF([test "x$HAVE_SYSTEMD_JOURNAL" = "x1"], ENABLE_SYSTEMD_JOURNAL=yes, ENABLE_SYSTEMD_JOURNAL=no)
 AS_IF([test "x$HAVE_BLUEZ_5" = "x1"], ENABLE_BLUEZ_5=yes, ENABLE_BLUEZ_5=no)
-AS_IF([test "x$HAVE_BLUEZ_5_OFONO_HEADSET" = "x1"], ENABLE_BLUEZ_5_OFONO_HEADSET=yes, ENABLE_BLUEZ_5_OFONO_HEADSET=no)
-AS_IF([test "x$HAVE_BLUEZ_5_NATIVE_HEADSET" = "x1"], ENABLE_BLUEZ_5_NATIVE_HEADSET=yes, ENABLE_BLUEZ_5_NATIVE_HEADSET=no)
+AS_IF([test "x$HAVE_BLUEZ_5_LEGACY_HSP" = "x1"], ENABLE_BLUEZ_5_LEGACY_HSP=yes, ENABLE_BLUEZ_5_LEGACY_HSP=no)
+AS_IF([test "x$HAVE_OPENAPTX" = "x1"], ENABLE_APTX=yes, ENABLE_APTX=no)
 AS_IF([test "x$HAVE_HAL_COMPAT" = "x1"], ENABLE_HAL_COMPAT=yes, ENABLE_HAL_COMPAT=no)
 AS_IF([test "x$HAVE_TCPWRAP" = "x1"], ENABLE_TCPWRAP=yes, ENABLE_TCPWRAP=no)
 AS_IF([test "x$HAVE_LIBSAMPLERATE" = "x1"], ENABLE_LIBSAMPLERATE="yes (DEPRECATED)", ENABLE_LIBSAMPLERATE=no)
@@ -1683,8 +1709,8 @@ echo "
     Enable LIRC:                   ${ENABLE_LIRC}
     Enable D-Bus:                  ${ENABLE_DBUS}
       Enable BlueZ 5:              ${ENABLE_BLUEZ_5}
-        Enable ofono headsets:     ${ENABLE_BLUEZ_5_OFONO_HEADSET}
-        Enable native headsets:    ${ENABLE_BLUEZ_5_NATIVE_HEADSET}
+        Enable legacy HSP backend: ${ENABLE_BLUEZ_5_LEGACY_HSP}
+        Enable aptX+aptXHD codecs: ${ENABLE_APTX}
     Enable udev:                   ${ENABLE_UDEV}
       Enable HAL->udev compat:     ${ENABLE_HAL_COMPAT}
     Enable systemd

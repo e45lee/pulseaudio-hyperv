@@ -630,12 +630,17 @@ if get_option('bluez5')
   cdata.set('HAVE_SBC', 1)
   cdata.set('HAVE_BLUEZ', 1)
   cdata.set('HAVE_BLUEZ_5', 1)
-  if get_option('bluez5-native-headset')
-    cdata.set('HAVE_BLUEZ_5_NATIVE_HEADSET', 1)
+  if get_option('bluez5-legacy-hsp')
+    cdata.set('HAVE_BLUEZ_5_LEGACY_HSP', 1)
   endif
-  if get_option('bluez5-ofono-headset')
-    cdata.set('HAVE_BLUEZ_5_OFONO_HEADSET', 1)
-  endif
+endif
+
+bluez5_aptx_feature = get_option('bluez5-aptx')
+bluez5_aptx_dep = cc.find_library('openaptx', required : bluez5_aptx_feature)
+bluez5_aptx = cc.has_header_symbol('openaptx.h', 'aptx_init', required : bluez5_aptx_feature) \
+    and bluez5_aptx_dep.found()
+if bluez5_aptx
+  cdata.set('HAVE_OPENAPTX', 1)
 endif
 
 fftw_dep = dependency('fftw3f', required : get_option('fftw'))
@@ -817,8 +822,8 @@ summary = [
   'Enable LIRC:                   @0@'.format(lirc_dep.found()),
   'Enable D-Bus:                  @0@'.format(dbus_dep.found()),
   '  Enable BlueZ 5:              @0@'.format(get_option('bluez5')),
-  '    Enable native headsets:    @0@'.format(get_option('bluez5-native-headset')),
-  '    Enable  ofono headsets:    @0@'.format(get_option('bluez5-ofono-headset')),
+  '    Enable legacy HSP backend: @0@'.format(get_option('bluez5-legacy-hsp')),
+  '    Enable aptX+aptXHD codecs: @0@'.format(bluez5_aptx),
   'Enable udev:                   @0@'.format(udev_dep.found()),
   '  Enable HAL->udev compat:     @0@'.format(get_option('hal-compat')),
   'Enable systemd:                @0@'.format(libsystemd_dep.found()),
