@@ -78,6 +78,8 @@ load-module module-jackdbus-detect channels=2
 ifelse(@HAVE_BLUEZ@, 1, [dnl
 ### Automatically load driver modules for Bluetooth hardware
 .ifexists module-bluetooth-policy@PA_SOEXT@
+# Uncomment next line to enable switching between headset/handsfree head unit and a2dp sink profiles based on heuristic (by default is is based on media.role=phone)
+#load-module module-bluetooth-policy auto_switch=2
 load-module module-bluetooth-policy
 .endif
 
