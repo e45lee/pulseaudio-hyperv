@@ -127,6 +127,7 @@ struct pa_bluetooth_adapter {
     pa_bluetooth_discovery *discovery;
     char *path;
     char *address;
+    pa_hashmap *uuids; /* char* -> char* (hashmap-as-a-set) */
 
     bool valid;
 };
@@ -161,6 +162,7 @@ void pa_bluetooth_transport_put(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_unlink(pa_bluetooth_transport *t);
 void pa_bluetooth_transport_free(pa_bluetooth_transport *t);
 
+bool pa_bluetooth_device_supports_profile(const pa_bluetooth_device *device, pa_bluetooth_profile_t profile);
 bool pa_bluetooth_device_any_transport_connected(const pa_bluetooth_device *d);
 
 pa_bluetooth_device* pa_bluetooth_discovery_get_device_by_path(pa_bluetooth_discovery *y, const char *path);
