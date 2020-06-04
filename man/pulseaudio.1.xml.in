@@ -108,9 +108,10 @@ License along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
       <p><opt>--check</opt></p>
 
       <optdesc><p>Return 0 as return code when the PulseAudio daemon
-      is already running for the calling user, or non-zero
-      otherwise. Produces no output on the console except for errors
-      to stderr.</p></optdesc>
+      is ready for the calling user, or non-zero otherwise. When the
+      PulseAudio deamon is not running, but ready to be activated via
+      socket-activation, this operation starts the daemon. Produces no
+      output on the console except for errors to stderr.</p></optdesc>
     </option>
 
 
