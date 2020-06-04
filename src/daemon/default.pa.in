@@ -86,6 +86,14 @@ load-module module-bluetooth-discover
 .endif
 ])dnl
 
+### Automatically connect sink and source if XRDP server is present
+.ifexists module-xrdp-sink.so
+load-module module-xrdp-sink
+.endif
+.ifexists module-xrdp-source.so
+load-module module-xrdp-source
+.endif
+
 ifelse(@HAVE_AF_UNIX@, 1, [dnl
 ### Load several protocols
 .ifexists module-esound-protocol-unix@PA_SOEXT@
