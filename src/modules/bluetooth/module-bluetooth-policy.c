@@ -36,7 +36,7 @@ PA_MODULE_DESCRIPTION("Policy module to make using bluetooth devices out-of-the-
 PA_MODULE_VERSION(PACKAGE_VERSION);
 PA_MODULE_LOAD_ONCE(true);
 PA_MODULE_USAGE(
-        "auto_switch=<Switch between head unit and a2dp profile? (0 - never, 1 - media.role=phone, 2 - heuristic> "
+        "auto_switch=<Switch between head unit and a2dp sink card profiles? (0 - never, 1 - media.role=phone, 2 - heuristic> "
         "a2dp_source=<Handle a2dp source card profiles?> "
         "ag=<Handle audio gateway card profiles?> ");
 
