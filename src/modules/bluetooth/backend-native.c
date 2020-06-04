@@ -63,6 +63,27 @@ struct transport_data {
 
 #define HSP_AG_PROFILE "/Profile/HSPAGProfile"
 #define HSP_HS_PROFILE "/Profile/HSPHSProfile"
+#define HFP_AG_PROFILE "/Profile/HFPAGProfile"
+
+#define HF_FEATURE_EC_ANDOR_NR              0x0001
+#define HF_FEATURE_CALL_WAITING_AND_3WAY    0x0002
+#define HF_FEATURE_CLI_PRESENTATION         0x0004
+#define HF_FEATURE_VOICE_RECOGNITION        0x0008
+#define HF_FEATURE_REMOTE_VOLUME_CONTROL    0x0010
+#define HF_FEATURE_ENHANCED_CALL_STATUS     0x0020
+#define HF_FEATURE_ENHANCED_CALL_CONTROL    0x0040
+
+#define AG_FEATURE_THREE_WAY_CALLING            0x0001
+#define AG_FEATURE_EC_ANDOR_NR                  0x0002
+#define AG_FEATURE_VOICE_RECOGNITION            0x0004
+#define AG_FEATURE_INBAND_RINGTONE              0x0008
+#define AG_FEATURE_ATTACH_NUMBER_TO_VOICETAG    0x0010
+#define AG_FEATURE_REJECT_A_CALL                0x0020
+#define AG_FEATURE_ENHANCED_CALL_STATUS         0x0040
+#define AG_FEATURE_ENHANCED_CALL_CONTROL        0x0080
+#define AG_FEATURE_EXTENDED_ERROR_RESULT_CODES  0x0100
+
+#define AG_FEATURES 0
 
 /* RFCOMM channel for HSP headset role
  * The choice seems to be a bit arbitrary -- it looks like at least channels 2, 4 and 5 also work*/
@@ -351,6 +372,53 @@ static void register_profile(pa_bluetooth_backend *b, const char *profile, const
     send_and_add_to_pending(b, m, register_profile_reply, pa_xstrdup(profile));
 }
 
+static void rfcomm_send_ok(int fd) {
+    ssize_t len;
+    pa_log_debug("RFCOMM >> OK");
+    len = write(fd, "\r\nOK\r\n", 6);
+
+    if (len < 0)
+        pa_log_error("RFCOMM write error: %s", pa_cstrerror(errno));
+}
+
+static void rfcomm_send_error(int fd) {
+    ssize_t len;
+    pa_log_debug("RFCOMM >> ERROR");
+    len = write(fd, "\r\nERROR\r\n", 9);
+
+    if (len < 0)
+        pa_log_error ("RFCOMM write error: %s", pa_cstrerror (errno));
+}
+
+static void rfcomm_send_reply(int fd, const char* format, ...) {
+    char buf[512];
+    ssize_t len;
+    va_list ap;
+
+    va_start(ap, format);
+
+    // First two and last two characters are saved for \r\n
+    len = vsnprintf(&buf[2], sizeof(buf) - 4, format, ap);
+    va_end(ap);
+
+    pa_log_debug("RFCOMM >> %s", &buf[2]);
+
+    // Prepend and append \r\n to the string
+    buf[0] = '\r';
+    buf[1] = '\n';
+    len += 2;
+    buf[len++] = '\r';
+    buf[len++] = '\n';
+    buf[len] = '\0';
+    len = write(fd, buf, len);
+
+    if (len < 0)
+        pa_log_error ("RFCOMM write error: %s", pa_cstrerror (errno));
+    else
+        rfcomm_send_ok (fd);
+}
+
+
 static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_io_event_flags_t events, void *userdata) {
     pa_bluetooth_transport *t = userdata;
 
@@ -366,7 +434,7 @@ static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_i
         char buf[512];
         ssize_t len;
         int gain, dummy;
-        bool  do_reply = false;
+        unsigned int features;
 
         len = pa_read(fd, buf, 511, NULL);
         if (len < 0) {
@@ -376,40 +444,88 @@ static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_i
         buf[len] = 0;
         pa_log_debug("RFCOMM << %s", buf);
 
-        /* There are only four HSP AT commands:
-         * AT+VGS=value: value between 0 and 15, sent by the HS to AG to set the speaker gain.
-         * +VGS=value is sent by AG to HS as a response to an AT+VGS command or when the gain
-         * is changed on the AG side.
-         * AT+VGM=value: value between 0 and 15, sent by the HS to AG to set the microphone gain.
-         * +VGM=value is sent by AG to HS as a response to an AT+VGM command or when the gain
-         * is changed on the AG side.
-         * AT+CKPD=200: Sent by HS when headset button is pressed.
-         * RING: Sent by AG to HS to notify of an incoming call. It can safely be ignored because
-         * it does not expect a reply. */
         if (sscanf(buf, "AT+VGS=%d", &gain) == 1 || sscanf(buf, "\r\n+VGM=%d\r\n", &gain) == 1) {
             t->speaker_gain = gain;
             pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), t);
-            do_reply = true;
+            rfcomm_send_ok (fd);
 
         } else if (sscanf(buf, "AT+VGM=%d", &gain) == 1 || sscanf(buf, "\r\n+VGS=%d\r\n", &gain) == 1) {
             t->microphone_gain = gain;
             pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), t);
-            do_reply = true;
+            rfcomm_send_ok (fd);
         } else if (sscanf(buf, "AT+CKPD=%d", &dummy) == 1) {
-            do_reply = true;
-        } else {
-            do_reply = false;
+            rfcomm_send_ok (fd);
         }
+        else if (sscanf(buf, "AT+BRSF=%u", &features) == 1) {
+            if (features & HF_FEATURE_EC_ANDOR_NR)
+                pa_log_debug("HF Feature: EC and/or NR function");
+            if (features & HF_FEATURE_CALL_WAITING_AND_3WAY)
+                pa_log_debug("HF Feature: Call waiting and 3-way calling");
+            if (features & HF_FEATURE_CLI_PRESENTATION)
+                pa_log_debug("HF Feature: CLI presentation capability");
+            if (features & HF_FEATURE_VOICE_RECOGNITION)
+                pa_log_debug("HF Feature: Voice recognition activation");
+            if (features & HF_FEATURE_REMOTE_VOLUME_CONTROL)
+                pa_log_debug("HF Feature: Remote volume control");
+            if (features & HF_FEATURE_ENHANCED_CALL_STATUS)
+                pa_log_debug("HF Feature: Enhanced call status");
+            if (features & HF_FEATURE_ENHANCED_CALL_CONTROL)
+                pa_log_debug("HF Feature: Enhanced call control");
 
-        if (do_reply) {
-            pa_log_debug("RFCOMM >> OK");
-
-            len = write(fd, "\r\nOK\r\n", 6);
-
-            /* we ignore any errors, it's not critical and real errors should
-             * be caught with the HANGUP and ERROR events handled above */
-            if (len < 0)
-                pa_log_error("RFCOMM write error: %s", pa_cstrerror(errno));
+            rfcomm_send_reply (fd, "+BRSF: %u", AG_FEATURES);
+        } else if (strncmp("AT+CIND=?", buf, 9) == 0) {
+            // It is not clear from HFP spec which indicators are mandatory, if any
+            // Only calheld is mentioned as mandatory
+            rfcomm_send_reply (fd, "+CIND: (\"callheld\",(0-2))");
+        } else if (strncmp(buf, "AT+CIND?", 8) == 0) {
+            // Only one indicator is implemented, the callheld, 0 mean no call is held
+            rfcomm_send_reply (fd, "+CIND: 0");
+        } else if (strncmp(buf, "AT+CMEE", 7) == 0) {
+            // Enabling extended error featur is not enabled by the AG, this message
+            // shouldn't have sent, anyway, reply with error
+            rfcomm_send_error (fd);
+        }
+        else if (strncmp("AT+COPS?", buf, 8) == 0) {
+            // message format is +COPS: <mode>, <format>, <operator>, however telephony is not implemented
+            // so the we can omit the format and operator, just sending the mode, 0 for auto
+            rfcomm_send_reply (fd, "+COPS: 0");
+        }
+        // Supported commands that only need an OK reply
+        else if (
+            strncmp("AT+BIA", buf, 6)  == 0 ||
+            strncmp("AT+COPS=", buf, 8)  == 0 ||
+            strncmp("AT+CNUM", buf, 8) == 0 ||
+            strncmp("AT+CLCC", buf, 8) == 0 ||
+            strncmp("AT+VTS", buf, 6) == 0) {
+            rfcomm_send_ok(fd);
+        } else if (strncmp("AT+CMER", buf, 7) == 0) {
+            rfcomm_send_ok (fd);
+        }
+        // Unsupported commands, as telephony is not implemented or features are not supported
+        else if (strncmp("AT+CHLD=?", buf, 9) == 0 ||
+                 strncmp("AT+CHUP", buf, 7) == 0 ||
+                 strncmp("ATD", buf, 3) == 0 ||
+                 strncmp("ATA", buf, 3) == 0 ||
+                 strncmp("AT+BLDN", buf, 7) == 0 ||
+                 strncmp("AT+CCWA", buf, 7) == 0 ||
+                 strncmp("AT+CLIP", buf, 7) == 0 ||
+                 strncmp("AT+NREC", buf, 7) == 0 ||
+                 strncmp("AT+BVRA", buf, 7) == 0 ||
+                 strncmp("AT+BINP", buf, 7) == 0 ||
+                 strncmp("AT+VTS", buf, 6) == 0 ||
+                 strncmp("AT+BCC", buf, 6) == 0 ||
+                 strncmp("AT+BCS", buf, 6) == 0 ||
+                 strncmp("AT+BAC", buf, 6) == 0 ||
+                 strncmp("AT+BIND", buf, 7) == 0 ||
+                 strncmp("AT+BIEV", buf, 7) == 0 ||
+                 strncmp("AT+BTRH", buf, 7) == 0) {
+            pa_log_error("Unsupported command: %s", buf);
+            rfcomm_send_error(fd);
+        } else if (strncmp("RING", buf, 4) == 0) {
+            // Nothing to do, no need to reply
+        } else {
+            pa_log_error("Badly formated or unrecognized command: %s", buf);
+            rfcomm_send_error(fd);
         }
     }
 
@@ -508,7 +624,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     }
 
     handler = dbus_message_get_path(m);
-    if (pa_streq(handler, HSP_AG_PROFILE)) {
+    if (pa_streq(handler, HSP_AG_PROFILE) || pa_streq(handler, HFP_AG_PROFILE)) {
         p = PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT;
     } else if (pa_streq(handler, HSP_HS_PROFILE)) {
         p = PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY;
@@ -532,7 +648,7 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     dbus_message_iter_get_basic(&arg_i, &fd);
 
     pa_log_debug("dbus: NewConnection path=%s, fd=%d, profile %s", path, fd,
-        pa_bluetooth_profile_to_string(p));
+        pa_bluetooth_profile_to_string(p), handler);
 
     sender = dbus_message_get_sender(m);
 
@@ -589,7 +705,7 @@ static DBusHandlerResult profile_handler(DBusConnection *c, DBusMessage *m, void
 
     pa_log_debug("dbus: path=%s, interface=%s, member=%s", path, interface, member);
 
-    if (!pa_streq(path, HSP_AG_PROFILE) && !pa_streq(path, HSP_HS_PROFILE))
+    if (!pa_streq(path, HSP_AG_PROFILE) && !pa_streq(path, HSP_HS_PROFILE) && !pa_streq(path, HFP_AG_PROFILE))
         return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 
     if (dbus_message_is_method_call(m, "org.freedesktop.DBus.Introspectable", "Introspect")) {
@@ -620,27 +736,24 @@ static void profile_init(pa_bluetooth_backend *b, pa_bluetooth_profile_t profile
     static const DBusObjectPathVTable vtable_profile = {
         .message_function = profile_handler,
     };
-    const char *object_name;
-    const char *uuid;
-
     pa_assert(b);
 
     switch (profile) {
         case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
-            object_name = HSP_AG_PROFILE;
-            uuid = PA_BLUETOOTH_UUID_HSP_AG;
+            pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE, &vtable_profile, b));
+            register_profile(b, HSP_AG_PROFILE, PA_BLUETOOTH_UUID_HSP_AG);
+
+            pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), HFP_AG_PROFILE, &vtable_profile, b));
+            register_profile(b, HFP_AG_PROFILE, PA_BLUETOOTH_UUID_HFP_AG);
             break;
         case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
-            object_name = HSP_HS_PROFILE;
-            uuid = PA_BLUETOOTH_UUID_HSP_HS;
+            pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), HSP_HS_PROFILE, &vtable_profile, b));
+            register_profile(b, HSP_HS_PROFILE, PA_BLUETOOTH_UUID_HSP_HS);
             break;
         default:
             pa_assert_not_reached();
             break;
     }
-
-    pa_assert_se(dbus_connection_register_object_path(pa_dbus_connection_get(b->connection), object_name, &vtable_profile, b));
-    register_profile(b, object_name, uuid);
 }
 
 static void profile_done(pa_bluetooth_backend *b, pa_bluetooth_profile_t profile) {
@@ -649,6 +762,7 @@ static void profile_done(pa_bluetooth_backend *b, pa_bluetooth_profile_t profile
     switch (profile) {
         case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
             dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_AG_PROFILE);
+            dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HFP_AG_PROFILE);
             break;
         case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
             dbus_connection_unregister_object_path(pa_dbus_connection_get(b->connection), HSP_HS_PROFILE);
