@@ -82,3 +82,57 @@ int pa_stream_get_volume_channel_map(const pa_cvolume *volume, const pa_channel_
 
     return -PA_ERR_INVALID;
 }
+
+/* Translates bytes from sink input sample spec to bytes in sink sample
+ * spec. The number of frames is always rounded down. */
+size_t pa_convert_to_sink_length(pa_sink_input *i, size_t length) {
+
+    /* Convert to frames */
+    length = length / pa_frame_size(&i->sample_spec);
+    /* Convert frames to sink sample rate */
+    length = length * i->sink->sample_spec.rate / i->sample_spec.rate;
+    /* Convert to bytes */
+    length *= pa_frame_size(&i->sink->sample_spec);
+    return length;
+}
+
+/* Translates bytes from sink sample spec to bytes in sink input sample
+ * spec. The number of frames is rounded down if the sink rate is larger
+ * than the sink input rate to avoid producing too many samples on the
+ * sink side. */
+size_t pa_convert_to_sink_input_length(pa_sink_input *i, size_t length) {
+
+    /* Transform from sink into sink input domain */
+    if (i->thread_info.resampler)
+        length = pa_resampler_request(i->thread_info.resampler, length);
+    if (i->sample_spec.rate < i->sink->sample_spec.rate && length > 0)
+        length = length - pa_frame_size(&i->sample_spec);
+    return length;
+}
+
+/* Translates bytes from source sample spec to bytes in source output sample
+ * spec. The number of frames is always rounded down. */
+size_t pa_convert_to_source_output_length(pa_source_output *o, size_t length) {
+
+    /* Convert to frames */
+    length = length / pa_frame_size(&o->source->sample_spec);
+    /* Convert frames to source sample rate */
+    length = length * o->sample_spec.rate / o->source->sample_spec.rate;
+    /* Convert to bytes */
+    length *= pa_frame_size(&o->sample_spec);
+    return length;
+}
+
+/* Translates bytes from source output sample spec to bytes in source sample
+ * spec. The number of frames is rounded down if the source output rate is
+ * larger than the source rate to avoid producing too many samples on the
+ * source output side. */
+size_t pa_convert_to_source_length(pa_source_output *o, size_t length) {
+
+    /* Transform from source output into source domain */
+    if (o->thread_info.resampler)
+        length = pa_resampler_request(o->thread_info.resampler, length);
+    if (o->source->sample_spec.rate < o->sample_spec.rate && length > 0)
+        length = length - pa_frame_size(&o->source->sample_spec);
+    return length;
+}

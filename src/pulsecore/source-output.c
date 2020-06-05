@@ -29,6 +29,7 @@
 #include <pulse/xmalloc.h>
 #include <pulse/util.h>
 #include <pulse/internal.h>
+#include <pulse/timeval.h>
 
 #include <pulsecore/core-format.h>
 #include <pulsecore/mix.h>
@@ -237,6 +238,7 @@ int pa_source_output_new(
     pa_channel_map volume_map;
     int r;
     char *pt;
+    size_t resampler_history;
 
     pa_assert(_o);
     pa_assert(core);
@@ -498,6 +500,11 @@ int pa_source_output_new(
             1,
             0,
             &o->source->silence);
+
+    resampler_history = (uint64_t) PA_RESAMPLER_MAX_DELAY_USEC * o->source->sample_spec.rate / PA_USEC_PER_SEC;
+    resampler_history *= pa_frame_size(&o->source->sample_spec);
+
+    pa_memblockq_set_maxrewind(o->thread_info.delay_memblockq, resampler_history);
 
     pa_assert_se(pa_idxset_put(core->source_outputs, o, &o->index) == 0);
     pa_assert_se(pa_idxset_put(o->source->outputs, pa_source_output_ref(o), NULL) == 0);
@@ -865,21 +872,31 @@ void pa_source_output_process_rewind(pa_source_output *o, size_t nbytes /* in so
         return;
 
     if (o->process_rewind) {
+        size_t source_output_nbytes;
+
         pa_assert(pa_memblockq_get_length(o->thread_info.delay_memblockq) == 0);
+        pa_memblockq_rewind(o->thread_info.delay_memblockq, nbytes);
 
-        if (o->thread_info.resampler)
-            nbytes = pa_resampler_result(o->thread_info.resampler, nbytes);
+        source_output_nbytes = pa_convert_to_source_output_length(o, nbytes);
 
-        pa_log_debug("Have to rewind %lu bytes on implementor.", (unsigned long) nbytes);
+        pa_log_debug("Have to rewind %lu bytes on implementor.", (unsigned long) source_output_nbytes);
 
-        if (nbytes > 0)
-            o->process_rewind(o, nbytes);
+        if (source_output_nbytes > 0)
+            o->process_rewind(o, source_output_nbytes);
 
-        if (o->thread_info.resampler)
-            pa_resampler_rewind(o->thread_info.resampler, nbytes);
+        if (o->thread_info.resampler) {
+            size_t resampler_bytes;
 
-    } else
-        pa_memblockq_seek(o->thread_info.delay_memblockq, - ((int64_t) nbytes), PA_SEEK_RELATIVE, true);
+            /* Round down to full frames */
+            resampler_bytes = (size_t) pa_resampler_get_delay(o->thread_info.resampler) * pa_frame_size(&o->source->sample_spec);
+            if (resampler_bytes > 0)
+                pa_memblockq_rewind(o->thread_info.delay_memblockq, resampler_bytes);
+
+            pa_resampler_rewind(o->thread_info.resampler, source_output_nbytes, NULL, 0);
+        }
+    }
+
+    pa_memblockq_seek(o->thread_info.delay_memblockq, - ((int64_t) nbytes), PA_SEEK_RELATIVE, true);
 }
 
 /* Called from thread context */
@@ -887,7 +904,7 @@ size_t pa_source_output_get_max_rewind(pa_source_output *o) {
     pa_source_output_assert_ref(o);
     pa_source_output_assert_io_context(o);
 
-    return o->thread_info.resampler ? pa_resampler_request(o->thread_info.resampler, o->source->thread_info.max_rewind) : o->source->thread_info.max_rewind;
+    return pa_convert_to_source_output_length(o, o->source->thread_info.max_rewind);
 }
 
 /* Called from thread context */
@@ -898,7 +915,7 @@ void pa_source_output_update_max_rewind(pa_source_output *o, size_t nbytes  /* i
     pa_assert(pa_frame_aligned(nbytes, &o->source->sample_spec));
 
     if (o->update_max_rewind)
-        o->update_max_rewind(o, o->thread_info.resampler ? pa_resampler_result(o->thread_info.resampler, nbytes) : nbytes);
+        o->update_max_rewind(o, pa_convert_to_source_output_length(o, nbytes));
 }
 
 /* Called from thread context */
@@ -1676,6 +1693,7 @@ int pa_source_output_process_msg(pa_msgobject *mo, int code, void *userdata, int
             pa_usec_t *r = userdata;
 
             r[0] += pa_bytes_to_usec(pa_memblockq_get_length(o->thread_info.delay_memblockq), &o->source->sample_spec);
+            r[0] += pa_resampler_get_delay_usec(o->thread_info.resampler);
             r[1] += pa_source_get_latency_within_thread(o->source, false);
 
             return 0;
@@ -1759,6 +1777,7 @@ finish:
 int pa_source_output_update_resampler(pa_source_output *o) {
     pa_resampler *new_resampler;
     char *memblockq_name;
+    size_t resampler_history;
 
     pa_source_output_assert_ref(o);
     pa_assert_ctl_context();
@@ -1815,6 +1834,11 @@ int pa_source_output_update_resampler(pa_source_output *o) {
             0,
             &o->source->silence);
     pa_xfree(memblockq_name);
+
+    resampler_history = (uint64_t) PA_RESAMPLER_MAX_DELAY_USEC * o->source->sample_spec.rate / PA_USEC_PER_SEC;
+    resampler_history *= pa_frame_size(&o->source->sample_spec);
+
+    pa_memblockq_set_maxrewind(o->thread_info.delay_memblockq, resampler_history);
 
     o->actual_resample_method = new_resampler ? pa_resampler_get_method(new_resampler) : PA_RESAMPLER_INVALID;
 

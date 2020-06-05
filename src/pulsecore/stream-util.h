@@ -22,6 +22,7 @@
 
 #include <pulse/format.h>
 #include <pulse/volume.h>
+#include <pulsecore/sink-input.h>
 
 /* This is a helper function that is called from pa_sink_input_new() and
  * pa_source_output_new(). The job of this function is to figure out what
@@ -44,5 +45,11 @@
  * case a negative error code is returned. */
 int pa_stream_get_volume_channel_map(const pa_cvolume *volume, const pa_channel_map *original_map, const pa_format_info *format,
                                      pa_channel_map *volume_map);
+
+size_t pa_convert_to_sink_length(pa_sink_input *i, size_t length);
+size_t pa_convert_to_sink_input_length(pa_sink_input *i, size_t length);
+
+size_t pa_convert_to_source_length(pa_source_output *i, size_t length);
+size_t pa_convert_to_source_output_length(pa_source_output *i, size_t length);
 
 #endif
