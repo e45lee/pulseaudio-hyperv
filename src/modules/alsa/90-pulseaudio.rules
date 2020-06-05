@@ -129,6 +129,11 @@ ATTRS{idVendor}=="1038", ATTRS{idProduct}=="1252", ENV{PULSE_PROFILE_SET}="steel
 
 ATTRS{idVendor}=="147a", ATTRS{idProduct}=="e055", ENV{PULSE_PROFILE_SET}="cmedia-high-speed-true-hdaudio.conf"
 
+# Sennheiser GSX 1000
+ATTRS{idVendor}=="1395", ATTRS{idProduct}=="005e", ENV{PULSE_PROFILE_SET}="sennheiser-gsx.conf", ATTR{id}="GSX1000"
+# Sennheiser GSX 1200
+ATTRS{idVendor}=="1395", ATTRS{idProduct}=="005f", ENV{PULSE_PROFILE_SET}="sennheiser-gsx.conf", ATTR{id}="GSX1200"
+
 GOTO="pulseaudio_end"
 
 LABEL="pulseaudio_firewire_quirk"
