@@ -98,6 +98,11 @@ AS_IF([test "x$M4" = "xno"], AC_MSG_ERROR([m4 missing]))
 # pkg-config
 
 PKG_PROG_PKG_CONFIG
+AC_DEFINE_DIR([pkgconfigdir],[],["PKGConfig dir"])
+AC_ARG_WITH(
+        [pkgconfigdir],
+        AS_HELP_STRING([--with-pkgconfigdir],[Directory where to install pkgconfig rules to (defaults to $(libdir)/pkgconfig)]),
+        [pkgconfigdir="$withval"], [pkgconfigdir="$libdir/pkgconfig"])
 
 # gettext
 
@@ -1588,6 +1593,12 @@ AS_IF([test "x$HAVE_SYSTEMD_DAEMON" = "x1"],
     ])
 
 # CMake related ProjectConfig files
+AC_DEFINE_DIR([cmakedir],[],["CMake Template dir"])
+AC_ARG_WITH(
+        [cmakedir],
+        AS_HELP_STRING([--with-cmakedir],[Directory where to install cmake templates to (defaults to $(libdir)/cmake)]),
+        [cmakedir="$withval/PulseAudio"], [cmakedir="$libdir/cmake/PulseAudio"])
+
 PA_LIBDIR="$libdir"
 AX_DEFINE_DIR(PA_LIBDIR, PA_LIBDIR, [PulseAudio library dir])
 PA_INCDIR="$includedir"
