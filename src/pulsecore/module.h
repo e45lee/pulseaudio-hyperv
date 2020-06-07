@@ -30,6 +30,8 @@ typedef struct pa_module pa_module;
 
 #include <pulsecore/core.h>
 
+#define PA_MODULE_ERR_SKIP (9999)
+
 struct pa_module {
     pa_core *core;
     char *name, *argument;
