@@ -2157,10 +2157,10 @@ static pa_hook_result_t transport_sink_volume_changed_cb(pa_bluetooth_discovery 
     volume = t->sink_volume;
 
     pa_cvolume_set(&v, u->encoder_sample_spec.channels, volume);
-    if (t->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT)
-        pa_sink_volume_changed(u->sink, &v);
-    else
+    if (pa_bluetooth_profile_should_attenuate_volume(t->profile))
         pa_sink_set_volume(u->sink, &v, true, true);
+    else
+        pa_sink_volume_changed(u->sink, &v);
 
     return PA_HOOK_OK;
 }
@@ -2179,10 +2179,10 @@ static pa_hook_result_t transport_source_volume_changed_cb(pa_bluetooth_discover
 
     pa_cvolume_set(&v, u->decoder_sample_spec.channels, volume);
 
-    if (t->profile == PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT)
-        pa_source_volume_changed(u->source, &v);
-    else
+    if (pa_bluetooth_profile_should_attenuate_volume(t->profile))
         pa_source_set_volume(u->source, &v, true, true);
+    else
+        pa_source_volume_changed(u->source, &v);
 
     return PA_HOOK_OK;
 }

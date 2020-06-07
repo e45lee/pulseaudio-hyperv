@@ -53,6 +53,8 @@
 #define A2DP_SOURCE_ENDPOINT "/MediaEndpoint/A2DPSource"
 #define A2DP_SINK_ENDPOINT "/MediaEndpoint/A2DPSink"
 
+#define A2DP_MAX_VOLUME 127
+
 #define ENDPOINT_INTROSPECT_XML                                         \
     DBUS_INTROSPECT_1_0_XML_DOCTYPE_DECL_NODE                           \
     "<node>"                                                            \
@@ -321,6 +323,21 @@ void pa_bluetooth_transport_set_state(pa_bluetooth_transport *t, pa_bluetooth_tr
     }
 }
 
+static void pa_bluetooth_transport_set_source_volume(pa_bluetooth_transport *t, uint16_t gain) {
+    pa_volume_t volume;
+
+    pa_assert(t);
+
+    volume = (pa_volume_t) (gain * PA_VOLUME_NORM / A2DP_MAX_VOLUME);
+
+    /* increment volume by one to correct rounding errors */
+    if (volume < PA_VOLUME_NORM)
+        volume++;
+
+    t->source_volume = volume;
+    pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SOURCE_VOLUME_CHANGED), t);
+}
+
 void pa_bluetooth_transport_put(pa_bluetooth_transport *t) {
     pa_assert(t);
 
@@ -483,6 +500,18 @@ static void parse_transport_property(pa_bluetooth_transport *t, DBusMessageIter 
                 }
 
                 pa_bluetooth_transport_set_state(t, state);
+            }
+
+            break;
+        }
+
+        case DBUS_TYPE_UINT16: {
+            uint16_t uintValue;
+            dbus_message_iter_get_basic(&variant_i, &uintValue);
+
+            if (pa_streq(key, "Volume")) {
+                if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE)
+                    pa_bluetooth_transport_set_source_volume(t, uintValue);
             }
 
             break;
@@ -1274,6 +1303,22 @@ const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile) {
     }
 
     return NULL;
+}
+
+bool pa_bluetooth_profile_should_attenuate_volume(pa_bluetooth_profile_t profile) {
+    switch(profile) {
+        case PA_BLUETOOTH_PROFILE_A2DP_SINK:
+            return false;
+        case PA_BLUETOOTH_PROFILE_A2DP_SOURCE:
+            return true;
+        case PA_BLUETOOTH_PROFILE_HEADSET_HEAD_UNIT:
+            return false;
+        case PA_BLUETOOTH_PROFILE_HEADSET_AUDIO_GATEWAY:
+            return true;
+        case PA_BLUETOOTH_PROFILE_OFF:
+            pa_assert_not_reached();
+    }
+    pa_assert_not_reached();
 }
 
 static const pa_a2dp_codec *a2dp_endpoint_to_a2dp_codec(const char *endpoint) {
