@@ -30,6 +30,8 @@ typedef void snd_use_case_mgr_t;
 
 #include "alsa-mixer.h"
 
+#define PA_ALSA_ERR_UCM_LINKED	(9999)
+
 /** For devices: List of verbs, devices or modifiers available */
 #define PA_ALSA_PROP_UCM_NAME                       "alsa.ucm.name"
 
