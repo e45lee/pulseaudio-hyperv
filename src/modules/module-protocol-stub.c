@@ -47,6 +47,9 @@
 #ifdef USE_TCP_SOCKETS
 #define SOCKET_DESCRIPTION "(TCP sockets)"
 #define SOCKET_USAGE "port=<TCP port number> listen=<address to listen on>"
+#elif defined(USE_HYPERV_SOCKETS)
+#define SOCKET_DESCRIPTION "(HyperV sockets)"
+#define SOCKET_USAGE "port=<TCP port number> auto_wsl2=<true for WSL2 VMs, false for all other VMs>"
 #else
 #define SOCKET_DESCRIPTION "(UNIX sockets)"
 #define SOCKET_USAGE "socket=<path to UNIX socket>"
@@ -150,6 +153,9 @@ static const char* const valid_modargs[] = {
 #if defined(USE_TCP_SOCKETS)
     "port",
     "listen",
+#elif defined(USE_HYPERV_SOCKETS)
+    "port",
+    "auto_wsl2",
 #else
     "socket",
 #endif
@@ -179,6 +185,8 @@ struct userdata {
 #  ifdef HAVE_IPV6
     pa_socket_server *socket_server_ipv6;
 #  endif
+#elif defined(USE_HYPERV_SOCKETS)
+    pa_socket_server *socket_server_hyperv;
 #else
     pa_socket_server *socket_server_unix;
     char *socket_path;
@@ -213,6 +221,9 @@ int pa__init(pa_module*m) {
     uint32_t port = IPV4_PORT;
     bool port_fallback = true;
     const char *listen_on;
+#elif defined(USE_HYPERV_SOCKETS)
+    uint32_t port = IPV4_PORT;
+    bool auto_wsl2 = false;
 #else
     int r;
 #endif
@@ -296,6 +307,20 @@ int pa__init(pa_module*m) {
         pa_socket_server_set_callback(u->socket_server_ipv6, socket_server_on_connection_cb, u);
 #  endif
 
+#elif defined(USE_HYPERV_SOCKETS)
+
+    if (pa_modargs_get_value_u32(ma, "port", &port) < 0 || port < 1 || port > 0xFFFF) {
+        pa_log("port= expects a numerical argument between 1 and 65535.");
+        goto fail;
+    }
+
+    pa_modargs_get_value_boolean(ma, "auto_wsl2", &auto_wsl2);
+
+    u->socket_server_hyperv = pa_socket_server_new_hyperv(m->core->mainloop, port, auto_wsl2);
+    if (!u->socket_server_hyperv)
+        goto fail;
+    pa_socket_server_set_callback(u->socket_server_hyperv, socket_server_on_connection_cb, u);
+
 #else
 
 #  if defined(USE_PROTOCOL_ESOUND)
@@ -347,6 +372,9 @@ int pa__init(pa_module*m) {
         if (pa_socket_server_get_address(u->socket_server_ipv6, t, sizeof(t)))
             pa_native_protocol_add_server_string(u->native_protocol, t);
 #    endif
+#  elif defined(USE_HYPERV_SOCKETS)
+    if (pa_socket_server_get_address(u->socket_server_hyperv, t, sizeof(t)))
+        pa_native_protocol_add_server_string(u->native_protocol, t);
 #  else
     if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
         pa_native_protocol_add_server_string(u->native_protocol, t);
@@ -365,6 +393,9 @@ int pa__init(pa_module*m) {
         if (pa_socket_server_get_address(u->socket_server_ipv6, t, sizeof(t)))
             pa_http_protocol_add_server_string(u->http_protocol, t);
 #endif /* HAVE_IPV6 */
+#elif defined(USE_HYPERV_SOCKETS)
+    if (pa_socket_server_get_address(u->socket_server_hyperv, t, sizeof(t)))
+        pa_http_protocl_add_server_string(u->http_protocol, t);
 #else /* USE_TCP_SOCKETS */
     if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
         pa_http_protocol_add_server_string(u->http_protocol, t);
@@ -421,6 +452,10 @@ void pa__done(pa_module*m) {
             if (pa_socket_server_get_address(u->socket_server_ipv6, t, sizeof(t)))
                 pa_http_protocol_remove_server_string(u->http_protocol, t);
 #endif /* HAVE_IPV6 */
+#elif defined(USE_HYPERV_SOCKETS)
+        if (u->socket_server_hyperv)
+            if (pa_socket_server_get_address(u->socket_server_hyperv, t, sizeof(t)))
+                pa_http_protocol_remove_server_string(u->http_protocol, t);
 #else /* USE_TCP_SOCKETS */
         if (u->socket_server_unix)
             if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
@@ -445,6 +480,10 @@ void pa__done(pa_module*m) {
             if (pa_socket_server_get_address(u->socket_server_ipv6, t, sizeof(t)))
                 pa_native_protocol_remove_server_string(u->native_protocol, t);
 #    endif
+#  elif defined(USE_HYPERV_SOCKETS)
+        if (u->socket_server_hyperv)
+            if (pa_socket_server_get_address(u->socket_server_hyperv, t, sizeof(t)))
+                pa_native_protocol_remove_server_string(u->native_protocol, t);
 #  else
         if (u->socket_server_unix)
             if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
@@ -472,6 +511,9 @@ void pa__done(pa_module*m) {
     if (u->socket_server_ipv6)
         pa_socket_server_unref(u->socket_server_ipv6);
 #  endif
+#elif defined(USE_HYPERV_SOCKETS)
+    if (u->socket_server_hyperv)
+        pa_socket_server_unref(u->socket_server_hyperv);
 #else
     if (u->socket_server_unix)
         pa_socket_server_unref(u->socket_server_unix);

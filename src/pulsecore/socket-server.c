@@ -82,6 +82,7 @@ struct pa_socket_server {
     PA_REFCNT_DECLARE;
     int fd;
     char *filename;
+    uint32_t hv_port;
     bool activated;
     char *tcpwrap_service;
 
@@ -93,7 +94,8 @@ struct pa_socket_server {
     enum {
         SOCKET_SERVER_IPV4,
         SOCKET_SERVER_UNIX,
-        SOCKET_SERVER_IPV6
+        SOCKET_SERVER_IPV6,
+        SOCKET_SERVER_HYPERV
     } type;
 };
 
@@ -175,6 +177,80 @@ pa_socket_server* pa_socket_server_ref(pa_socket_server *s) {
     PA_REFCNT_INC(s);
     return s;
 }
+
+#ifdef OS_IS_WIN32
+
+#include <hvsocket.h>
+#include "GetVmId.h"
+
+#ifndef AF_HYPERV
+#define AF_HYPERV 34
+#endif
+
+pa_socket_server* pa_socket_server_new_hyperv(pa_mainloop_api *m, uint32_t port, bool auto_wsl2) {
+    int fd;
+    pa_socket_server *s;
+
+    pa_assert(m);
+    if ((fd = pa_socket_cloexec(AF_HYPERV, SOCK_STREAM, HV_PROTOCOL_RAW)) < 0) {
+        int error = GetLastError();
+        pa_log("socket(AF_HYPERV): %d->%s", error, pa_cstrerror(errno));
+        goto fail;
+    }
+
+    GUID listen_address = HV_GUID_VSOCK_TEMPLATE;
+    listen_address.Data1 = port;
+    GUID target_vm = {0};
+
+    // Listen bind to WSL2 socket if auto_wsl2 is specified.
+    // Otherwise, listen on all VMs.
+    if (auto_wsl2) {
+        int WslVersion = 0;
+        GetVmId(&target_vm, "", &WslVersion);
+    }
+
+    SOCKADDR_HV sa = { AF_HYPERV, 0, target_vm, listen_address };
+    pa_log("Listen Address = {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
+          listen_address.Data1, listen_address.Data2, listen_address.Data3,
+          listen_address.Data4[0], listen_address.Data4[1], listen_address.Data4[2], listen_address.Data4[3],
+          listen_address.Data4[4], listen_address.Data4[5], listen_address.Data4[6], listen_address.Data4[7]);
+    pa_log("Target VM = {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
+          target_vm.Data1, target_vm.Data2, target_vm.Data3,
+          target_vm.Data4[0], target_vm.Data4[1], target_vm.Data4[2], target_vm.Data4[3],
+          target_vm.Data4[4], target_vm.Data4[5], target_vm.Data4[6], target_vm.Data4[7]);
+    if (bind(fd, (struct sockaddr*) &sa, (socklen_t) sizeof(sa)) < 0) {
+        int error = GetLastError();
+        pa_log("bind(): %d->%s", error, pa_cstrerror(errno));
+        goto fail;
+    }
+
+    if (listen(fd, 5) < 0) {
+        int error = GetLastError();
+        pa_log("listen(): %d->%s", error, pa_cstrerror(errno));
+        goto fail;
+    }
+
+    pa_assert_se(s = socket_server_new(m, fd));
+
+    s->type = SOCKET_SERVER_HYPERV;
+    s->activated = true;
+    s->hv_port = port;
+
+    return s;
+fail:
+    if (fd >= 0)
+        pa_close(fd);
+
+    return NULL;
+}
+
+#else
+
+pa_socket_server* pa_socket_server_new_hyperv(pa_mainloop_api *m, uint32_t port, bool auto_wsl2) {
+    return NULL;
+}
+
+#endif
 
 #ifdef HAVE_SYS_UN_H
 
@@ -638,6 +714,10 @@ char *pa_socket_server_get_address(pa_socket_server *s, char *c, size_t l) {
             return c;
         }
 
+        case SOCKET_SERVER_HYPERV: {
+            pa_snprintf(c, l, "hyperv:%d", s->hv_port);
+            return c;
+        }
         default:
             return NULL;
     }

@@ -1,0 +1,71 @@
+name: Build CI
+
+on:
+  push:
+    branches: [ hyperv-sockets ]
+  pull_request:
+    branches: [ hyperv-sockets ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: opensuse/leap:15.1
+      
+    steps:      
+      - name: Refresh Software Sources
+        run: |
+          zypper --gpg-auto-import-keys --non-interactive addrepo https://download.opensuse.org/repositories/windows:mingw:win32/openSUSE_Leap_15.1/windows:mingw:win32.repo
+          zypper --gpg-auto-import-keys --non-interactive refresh
+          zypper --gpg-auto-import-keys --non-interactive modifyrepo --all --keep-packages
+      - name: Install Base System
+        run: zypper --gpg-auto-import-keys --non-interactive install tar which gzip xz git
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 
+      - name: Cache Software Packages
+        uses: actions/cache@v2
+        with:
+          key: rpm-packages-${{ hashFiles('.github/workflows/c-cpp.yml') }}
+          restore-keys: rpm-packages-
+          path: /var/cache/zypp/packages
+      - name: Install Packages
+        run: >
+          zypper --gpg-auto-import-keys --non-interactive install
+          libtool autoconf automake intltool orc make
+          mingw32-cross-pkg-config mingw32-cross-gcc-c++ mingw32-cross-gcc mingw32-libtool 
+          mingw32-winpthreads-devel
+          mingw32-fftw3-devel
+          mingw32-libatomic_ops-devel mingw32-libatomic_ops
+          mingw32-libogg-devel mingw32-libogg
+          mingw32-libopenssl-devel mingw32-libopenssl
+          mingw32-liborc-devel
+          mingw32-libsndfile-devel mingw32-libsndfile
+          mingw32-libspeex-devel mingw32-libspeex mingw32-libspeexdsp1
+          mingw32-libvorbis-devel mingw32-libvorbis
+          mingw32-pcre-devel mingw32-libpcreposix
+          mingw32-win_iconv-devel mingw32-win_iconv
+          mingw32-winpthreads-devel
+          mingw32-zlib-devel mingw32-zlib
+          mingw32-libjson-c-devel 
+          mingw32-gettext-runtime mingw32-gettext-tools
+          mingw32-libssp0 mingw32-libltdl        
+      - name: pre-configure
+        run: autoreconf --force --install --verbose
+      - name: configure
+        run: mkdir build && cd build && lt_cv_deplibs_check_method="pass_all" mingw32-configure --enable-shared --disable-static
+      - name: make
+        run: cd build && mingw32-make -j2
+      - name: install
+        run: cd build && mingw32-make DESTDIR=$(pwd)/../install install -j2
+      - name: deploy
+        working-directory: install/usr/i686-w64-mingw32/sys-root/
+        run: |
+          cp /usr/i686-w64-mingw32/sys-root/i686-w64-mingw32/bin/*.dll mingw/bin/
+          cp mingw/lib/bin/*.dll mingw/bin/
+          cp mingw/lib/pulse-*/bin/*.dll mingw/bin
+          cp -R mingw $GITHUB_WORKSPACE/pulseaudio-bin
+      - uses: actions/upload-artifact@v2
+        with:
+          name: pulseaudio-bin
+          path: pulseaudio-bin
