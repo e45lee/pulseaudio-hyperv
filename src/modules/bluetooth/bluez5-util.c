@@ -466,12 +466,56 @@ static void bluez5_transport_release_cb(pa_bluetooth_transport *t) {
         pa_log_info("Transport %s released", t->path);
 }
 
+struct set_volume_and_transport {
+    pa_bluetooth_transport *t;
+    pa_volume_t volume;
+};
+
+static void set_volume_reply(DBusPendingCall *pending, void *userdata) {
+    DBusMessage *r;
+    pa_dbus_pending *p;
+    pa_bluetooth_discovery *y;
+    struct set_volume_and_transport *call_data;
+    pa_bluetooth_transport *t;
+
+    pa_assert(pending);
+    pa_assert_se(p = userdata);
+    pa_assert_se(y = p->context_data);
+    pa_assert_se(call_data = p->call_data);
+    pa_assert_se(t = call_data->t);
+    pa_assert_se(r = dbus_pending_call_steal_reply(pending));
+
+    if (dbus_message_get_type(r) == DBUS_MESSAGE_TYPE_ERROR) {
+        pa_log_error(BLUEZ_MEDIA_TRANSPORT_INTERFACE ".Volume set failed: %s: %s",
+                     dbus_message_get_error_name(r),
+                     pa_dbus_get_error_message(r));
+        goto finish;
+    }
+
+    pa_log_debug("Volume property set to %d on %s", call_data->volume, t->path);
+
+    if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SINK)
+        t->sink_volume = call_data->volume;
+    else if (t->profile == PA_BLUETOOTH_PROFILE_A2DP_SOURCE)
+        t->source_volume = call_data->volume;
+    else
+        pa_assert_not_reached();
+
+finish:
+    pa_xfree(call_data);
+
+    dbus_message_unref(r);
+
+    PA_LLIST_REMOVE(pa_dbus_pending, y->pending, p);
+    pa_dbus_pending_free(p);
+}
+
 static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
     static const char *volume_str = "Volume";
     static const char *mediatransport_str = BLUEZ_MEDIA_TRANSPORT_INTERFACE;
-    DBusMessage *m, *r;
+    struct set_volume_and_transport *call_data;
+    DBusMessage *m;
     DBusMessageIter iter;
-    DBusError err;
     uint16_t gain;
 
     pa_assert(t);
@@ -488,8 +532,6 @@ static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, p
     if (t->sink_volume == volume)
         return volume;
 
-    dbus_error_init(&err);
-
     pa_assert_se(m = dbus_message_new_method_call(BLUEZ_SERVICE, t->path, DBUS_INTERFACE_PROPERTIES, "Set"));
 
     dbus_message_iter_init_append(m, &iter);
@@ -497,18 +539,11 @@ static pa_volume_t bluez5_transport_set_sink_volume(pa_bluetooth_transport *t, p
     pa_assert_se(dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &volume_str));
     pa_dbus_append_basic_variant(&iter, DBUS_TYPE_UINT16, &gain);
 
-    r = dbus_connection_send_with_reply_and_block(pa_dbus_connection_get(t->device->discovery->connection), m, -1, &err);
-    dbus_message_unref(m);
-    if (r)
-        dbus_message_unref(r);
+    call_data = pa_xnew0(struct set_volume_and_transport, 1);
+    call_data->t = t;
+    call_data->volume = volume;
 
-    if (dbus_error_is_set(&err)) {
-        pa_log_error("Failed to set Volume property on %s: %s", t->path, err.message);
-        dbus_error_free(&err);
-    } else {
-        pa_log_debug("Volume property set to %d on %s", gain, t->path);
-        t->sink_volume = volume;
-    }
+    send_and_add_to_pending(t->device->discovery, m, set_volume_reply, call_data);
 
     return volume;
 }
