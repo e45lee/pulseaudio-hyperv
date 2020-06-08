@@ -39,6 +39,19 @@
 #define PA_BLUETOOTH_UUID_HFP_HF      "0000111e-0000-1000-8000-00805f9b34fb"
 #define PA_BLUETOOTH_UUID_HFP_AG      "0000111f-0000-1000-8000-00805f9b34fb"
 
+#define A2DP_GAIN_TO_VOLUME(gain)                                              \
+    ((pa_volume_t)(((gain)*PA_VOLUME_NORM + A2DP_MAX_GAIN / 2) / A2DP_MAX_GAIN))
+#define VOLUME_TO_A2DP_GAIN(volume)                                            \
+    ((uint16_t)(((volume)*A2DP_MAX_GAIN + PA_VOLUME_NORM / 2) / PA_VOLUME_NORM))
+
+#define A2DP_MAX_GAIN 127
+/* Some devices only go as low as 1 */
+#define A2DP_MUTE_GAIN 1
+#define A2DP_MIN_GAIN (A2DP_MUTE_GAIN + 1)
+
+#define A2DP_MUTE_VOLUME A2DP_GAIN_TO_VOLUME(A2DP_MUTE_GAIN)
+#define A2DP_MIN_VOLUME A2DP_GAIN_TO_VOLUME(A2DP_MIN_GAIN)
+
 typedef struct pa_bluetooth_transport pa_bluetooth_transport;
 typedef struct pa_bluetooth_device pa_bluetooth_device;
 typedef struct pa_bluetooth_adapter pa_bluetooth_adapter;
@@ -46,11 +59,11 @@ typedef struct pa_bluetooth_discovery pa_bluetooth_discovery;
 typedef struct pa_bluetooth_backend pa_bluetooth_backend;
 
 typedef enum pa_bluetooth_hook {
-    PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED,          /* Call data: pa_bluetooth_device */
-    PA_BLUETOOTH_HOOK_DEVICE_UNLINK,                      /* Call data: pa_bluetooth_device */
-    PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED,            /* Call data: pa_bluetooth_transport */
-    PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED,  /* Call data: pa_bluetooth_transport */
-    PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED,     /* Call data: pa_bluetooth_transport */
+    PA_BLUETOOTH_HOOK_DEVICE_CONNECTION_CHANGED,        /* Call data: pa_bluetooth_device */
+    PA_BLUETOOTH_HOOK_DEVICE_UNLINK,                    /* Call data: pa_bluetooth_device */
+    PA_BLUETOOTH_HOOK_TRANSPORT_STATE_CHANGED,          /* Call data: pa_bluetooth_transport */
+    PA_BLUETOOTH_HOOK_TRANSPORT_SOURCE_VOLUME_CHANGED,  /* Call data: pa_bluetooth_transport */
+    PA_BLUETOOTH_HOOK_TRANSPORT_SINK_VOLUME_CHANGED,    /* Call data: pa_bluetooth_transport */
     PA_BLUETOOTH_HOOK_MAX
 } pa_bluetooth_hook_t;
 
@@ -72,8 +85,8 @@ typedef enum pa_bluetooth_transport_state {
 typedef int (*pa_bluetooth_transport_acquire_cb)(pa_bluetooth_transport *t, bool optional, size_t *imtu, size_t *omtu);
 typedef void (*pa_bluetooth_transport_release_cb)(pa_bluetooth_transport *t);
 typedef void (*pa_bluetooth_transport_destroy_cb)(pa_bluetooth_transport *t);
-typedef void (*pa_bluetooth_transport_set_speaker_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);
-typedef void (*pa_bluetooth_transport_set_microphone_gain_cb)(pa_bluetooth_transport *t, uint16_t gain);
+typedef pa_volume_t (*pa_bluetooth_transport_set_sink_volume_cb)(pa_bluetooth_transport *t, pa_volume_t volume);
+typedef pa_volume_t (*pa_bluetooth_transport_set_source_volume_cb)(pa_bluetooth_transport *t, pa_volume_t volume);
 
 struct pa_bluetooth_transport {
     pa_bluetooth_device *device;
@@ -88,16 +101,16 @@ struct pa_bluetooth_transport {
 
     const pa_a2dp_codec *a2dp_codec;
 
-    uint16_t microphone_gain;
-    uint16_t speaker_gain;
+    pa_volume_t source_volume;
+    pa_volume_t sink_volume;
 
     pa_bluetooth_transport_state_t state;
 
     pa_bluetooth_transport_acquire_cb acquire;
     pa_bluetooth_transport_release_cb release;
     pa_bluetooth_transport_destroy_cb destroy;
-    pa_bluetooth_transport_set_speaker_gain_cb set_speaker_gain;
-    pa_bluetooth_transport_set_microphone_gain_cb set_microphone_gain;
+    pa_bluetooth_transport_set_sink_volume_cb set_sink_volume;
+    pa_bluetooth_transport_set_source_volume_cb set_source_volume;
     void *userdata;
 };
 
@@ -169,6 +182,7 @@ pa_bluetooth_device* pa_bluetooth_discovery_get_device_by_address(pa_bluetooth_d
 pa_hook* pa_bluetooth_discovery_hook(pa_bluetooth_discovery *y, pa_bluetooth_hook_t hook);
 
 const char *pa_bluetooth_profile_to_string(pa_bluetooth_profile_t profile);
+bool pa_bluetooth_profile_should_attenuate_volume(pa_bluetooth_profile_t profile);
 
 static inline bool pa_bluetooth_uuid_is_hsp_hs(const char *uuid) {
     return pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS) || pa_streq(uuid, PA_BLUETOOTH_UUID_HSP_HS_ALT);

@@ -36,6 +36,8 @@
 
 #include "bluez5-util.h"
 
+#define HSP_MAX_GAIN 15
+
 struct pa_bluetooth_backend {
   pa_core *core;
   pa_dbus_connection *connection;
@@ -89,6 +91,32 @@ struct transport_data {
     "  </method>"                                                       \
     " </interface>"                                                     \
     "</node>"
+
+static pa_volume_t hsp_gain_to_volume(uint16_t gain) {
+    pa_volume_t volume = (pa_volume_t) ((
+        gain * PA_VOLUME_NORM
+        /* Round to closest by adding half the denominator */
+        + HSP_MAX_GAIN / 2
+    ) / HSP_MAX_GAIN);
+
+    if (volume > PA_VOLUME_NORM)
+        volume = PA_VOLUME_NORM;
+
+    return volume;
+}
+
+static uint16_t volume_to_hsp_gain(pa_volume_t volume) {
+    uint16_t gain = (
+        volume * HSP_MAX_GAIN
+        /* Round to closest by adding half the denominator */
+        + PA_VOLUME_NORM / 2
+    ) / PA_VOLUME_NORM;
+
+    if (gain > HSP_MAX_GAIN)
+        gain = HSP_MAX_GAIN;
+
+    return gain;
+}
 
 static pa_dbus_pending* send_and_add_to_pending(pa_bluetooth_backend *backend, DBusMessage *m,
         DBusPendingCallNotifyFunction func, void *call_data) {
@@ -387,13 +415,13 @@ static void rfcomm_io_callback(pa_mainloop_api *io, pa_io_event *e, int fd, pa_i
          * RING: Sent by AG to HS to notify of an incoming call. It can safely be ignored because
          * it does not expect a reply. */
         if (sscanf(buf, "AT+VGS=%d", &gain) == 1 || sscanf(buf, "\r\n+VGM=%d\r\n", &gain) == 1) {
-            t->speaker_gain = gain;
-            pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SPEAKER_GAIN_CHANGED), t);
+            t->sink_volume = hsp_gain_to_volume(gain);
+            pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SINK_VOLUME_CHANGED), t);
             do_reply = true;
 
         } else if (sscanf(buf, "AT+VGM=%d", &gain) == 1 || sscanf(buf, "\r\n+VGS=%d\r\n", &gain) == 1) {
-            t->microphone_gain = gain;
-            pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_MICROPHONE_GAIN_CHANGED), t);
+            t->source_volume = hsp_gain_to_volume(gain);
+            pa_hook_fire(pa_bluetooth_discovery_hook(t->device->discovery, PA_BLUETOOTH_HOOK_TRANSPORT_SOURCE_VOLUME_CHANGED), t);
             do_reply = true;
         } else if (sscanf(buf, "AT+CKPD=%d", &dummy) == 1) {
             do_reply = true;
@@ -436,15 +464,19 @@ static void transport_destroy(pa_bluetooth_transport *t) {
     pa_xfree(trd);
 }
 
-static void set_speaker_gain(pa_bluetooth_transport *t, uint16_t gain) {
+static pa_volume_t set_sink_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
     struct transport_data *trd = t->userdata;
     char buf[512];
     ssize_t len, written;
+    uint16_t gain = volume_to_hsp_gain(volume);
 
-    if (t->speaker_gain == gain)
-      return;
+    /* Propagate rounding and bound checks */
+    volume = hsp_gain_to_volume(gain);
 
-    t->speaker_gain = gain;
+    if (t->sink_volume == volume)
+      return volume;
+
+    t->sink_volume = volume;
 
     /* If we are in the AG role, we send a command to the head set to change
      * the speaker gain. In the HS role, source and sink are swapped, so
@@ -461,17 +493,23 @@ static void set_speaker_gain(pa_bluetooth_transport *t, uint16_t gain) {
 
     if (written != len)
         pa_log_error("RFCOMM write error: %s", pa_cstrerror(errno));
+
+    return volume;
 }
 
-static void set_microphone_gain(pa_bluetooth_transport *t, uint16_t gain) {
+static pa_volume_t set_source_volume(pa_bluetooth_transport *t, pa_volume_t volume) {
     struct transport_data *trd = t->userdata;
     char buf[512];
     ssize_t len, written;
+    uint16_t gain = volume_to_hsp_gain(volume);
 
-    if (t->microphone_gain == gain)
-      return;
+    /* Propagate rounding and bound checks */
+    volume = hsp_gain_to_volume(gain);
 
-    t->microphone_gain = gain;
+    if (t->source_volume == volume)
+      return volume;
+
+    t->source_volume = volume;
 
     /* If we are in the AG role, we send a command to the head set to change
      * the microphone gain. In the HS role, source and sink are swapped, so
@@ -488,6 +526,8 @@ static void set_microphone_gain(pa_bluetooth_transport *t, uint16_t gain) {
 
     if (written != len)
         pa_log_error("RFCOMM write error: %s", pa_cstrerror(errno));
+
+    return volume;
 }
 
 static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m, void *userdata) {
@@ -543,8 +583,8 @@ static DBusMessage *profile_new_connection(DBusConnection *conn, DBusMessage *m,
     t->acquire = sco_acquire_cb;
     t->release = sco_release_cb;
     t->destroy = transport_destroy;
-    t->set_speaker_gain = set_speaker_gain;
-    t->set_microphone_gain = set_microphone_gain;
+    t->set_sink_volume = set_sink_volume;
+    t->set_source_volume = set_source_volume;
 
     trd = pa_xnew0(struct transport_data, 1);
     trd->rfcomm_fd = fd;
