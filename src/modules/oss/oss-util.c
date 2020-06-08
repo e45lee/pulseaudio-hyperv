@@ -40,6 +40,7 @@
 #include "oss-util.h"
 
 int pa_oss_open(const char *device, int *mode, int* pcaps) {
+    static const int nonblock_io = 1;
     int fd = -1;
     int caps;
     char *t;
@@ -89,6 +90,10 @@ int pa_oss_open(const char *device, int *mode, int* pcaps) {
     }
 
 success:
+    if (ioctl(fd, FIONBIO, &nonblock_io) < 0) {
+        pa_log("FIONBIO: %s", pa_cstrerror(errno));
+        goto fail;
+    }
 
     t = pa_sprintf_malloc(
             "%s%s%s%s%s%s%s%s%s%s%s%s%s%s",
@@ -164,8 +169,13 @@ int pa_oss_auto_format(int fd, pa_sample_spec *ss) {
         [PA_SAMPLE_FLOAT32BE] = AFMT_QUERY, /* not supported */
         [PA_SAMPLE_S32LE] = AFMT_QUERY, /* not supported */
         [PA_SAMPLE_S32BE] = AFMT_QUERY, /* not supported */
+#if defined(AFMT_S24_LE) && defined(AFMT_S24_BE)
+        [PA_SAMPLE_S24LE] = AFMT_S24_LE,
+        [PA_SAMPLE_S24BE] = AFMT_S24_BE,
+#else
         [PA_SAMPLE_S24LE] = AFMT_QUERY, /* not supported */
         [PA_SAMPLE_S24BE] = AFMT_QUERY, /* not supported */
+#endif
         [PA_SAMPLE_S24_32LE] = AFMT_QUERY, /* not supported */
         [PA_SAMPLE_S24_32BE] = AFMT_QUERY, /* not supported */
     };
@@ -290,41 +300,35 @@ int pa_oss_set_volume(int fd, unsigned long mixer, const pa_sample_spec *ss, con
 }
 
 static int get_device_number(const char *dev) {
-    const char *p, *e;
+    const char *p;
+    const char *e;
     char *rp = NULL;
-    int r;
+    int r = -1;
 
     if (!(p = rp = pa_readlink(dev))) {
-#ifdef ENOLINK
-        if (errno != EINVAL && errno != ENOLINK) {
-#else
-        if (errno != EINVAL) {
-#endif
-            r = -1;
-            goto finish;
-        }
-
+        if (errno != EINVAL && errno != ENOLINK)
+            return -2;
         p = dev;
     }
 
-    if ((e = strrchr(p, '/')))
-        p = e+1;
+    /* find the last forward slash */
+    while ((e = strrchr(p, '/')))
+        p = e + 1;
 
-    if (p == 0) {
-        r = 0;
-        goto finish;
+    /* collect unit number at end, if any */
+    while (*p) {
+        if (*p >= '0' && *p <= '9') {
+            if (r < 0)
+                r = 0;
+            else
+                r *= 10;
+            r += *p - '0';
+        } else {
+            r = -1;
+        }
+        p++;
     }
 
-    p = strchr(p, 0) -1;
-
-    if (*p >= '0' && *p <= '9') {
-        r = *p - '0';
-        goto finish;
-    }
-
-    r = -1;
-
-finish:
     pa_xfree(rp);
     return r;
 }
@@ -334,7 +338,7 @@ int pa_oss_get_hw_description(const char *dev, char *name, size_t l) {
     int n, r = -1;
     int b = 0;
 
-    if ((n = get_device_number(dev)) < 0)
+    if ((n = get_device_number(dev)) == -2)
         return -1;
 
     if (!(f = pa_fopen_cloexec("/dev/sndstat", "r")) &&
@@ -348,8 +352,8 @@ int pa_oss_get_hw_description(const char *dev, char *name, size_t l) {
     }
 
     while (!feof(f)) {
-        char line[64];
-        int device;
+        char line[1024] = { 0 };
+        unsigned device;
 
         if (!fgets(line, sizeof(line), f))
             break;
@@ -357,26 +361,29 @@ int pa_oss_get_hw_description(const char *dev, char *name, size_t l) {
         line[strcspn(line, "\r\n")] = 0;
 
         if (!b) {
-            b = pa_streq(line, "Audio devices:");
+            b = pa_streq(line, "Audio devices:") || pa_streq(line, "Installed devices:");
             continue;
         }
 
         if (line[0] == 0)
             break;
 
-        if (sscanf(line, "%i: ", &device) != 1)
+        if (sscanf(line, "%u: ", &device) != 1 && sscanf(line, "pcm%u: ", &device) != 1)
             continue;
 
         if (device == n) {
             char *k = strchr(line, ':');
             pa_assert(k);
             k++;
-            k += strspn(k, " ");
+            k += strspn(k, " <");
 
             if (pa_endswith(k, " (DUPLEX)"))
                 k[strlen(k)-9] = 0;
 
-            pa_strlcpy(name, k, l);
+            k[strcspn(k, ">")] = 0;
+
+            // Include the number to disambiguate devices with the same name
+            pa_snprintf(name, l, "%u - %s", device, k);
             r = 0;
             break;
         }
@@ -400,10 +407,10 @@ int pa_oss_open_mixer_for_device(const char *device) {
     char *fn;
     int fd;
 
-    if ((n = get_device_number(device)) < 0)
+    if ((n = get_device_number(device)) == -2)
         return -1;
 
-    if (n == 0)
+    if (n == -1)
         if ((fd = open_mixer("/dev/mixer")) >= 0)
             return fd;
 

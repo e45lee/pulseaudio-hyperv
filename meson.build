@@ -160,6 +160,8 @@ if host_machine.system() == 'darwin'
 elif host_machine.system() == 'windows'
   cdata.set('OS_IS_WIN32', 1)
   cdata.set('WIN32_LEAN_AND_MEAN', 1) # Needed to avoid including unnecessary headers on Windows
+elif host_machine.system() == 'freebsd'
+  cdata.set('OS_IS_FREEBSD', 1)
 #elif host_machine.system() == 'solaris'
 #  # Apparently meson has no solaris support?
 #  # Needed to get declarations for msg_control and msg_controllen on Solaris
@@ -292,11 +294,14 @@ foreach f : check_functions
   endif
 endforeach
 
-if cc.has_function('SYS_memfd_create', prefix : '#include <sys/syscall.h>')
+if cc.has_header_symbol('sys/syscall.h', 'SYS_memfd_create') \
+  or cc.has_function('memfd_create')
   cdata.set('HAVE_MEMFD', 1)
 endif
 
-if cc.has_function('dgettext')
+# Prefer libintl, because its headers can take priority over libc's (FreeBSD)
+libintl_dep = cc.find_library('intl', required : false)
+if not libintl_dep.found() and cc.has_function('dgettext')
   libintl_dep = []
 else
   libintl_dep = cc.find_library('intl')
@@ -376,12 +381,12 @@ endforeach
 cap_dep = cc.find_library('cap', required : false)
 
 shm_dep = cc.find_library('rt', required : false)
-if shm_dep.found()
+if cc.has_function('shm_open', dependencies : shm_dep)
   cdata.set('HAVE_SHM_OPEN', 1)
 endif
 
 dl_dep = cc.find_library('dl', required : false)
-if dl_dep.found()
+if cc.has_function('dladdr', dependencies : dl_dep)
   cdata.set('HAVE_DLADDR', 1)
 endif
 
@@ -389,6 +394,8 @@ have_iconv = false
 if cc.has_function('iconv_open')
   iconv_dep = dependency('', required : false)
   have_iconv = true
+  # tell the libiconv header to pretend to be libc iconv
+  cdata.set('LIBICONV_PLUG', 1)
 else
   iconv_dep = cc.find_library('iconv', required : false)
   have_iconv = iconv_dep.found()
@@ -404,6 +411,8 @@ size_t iconv (iconv_t cd, char * *inbuf, size_t *inbytesleft, char * *outbuf, si
     cdata.set('ICONV_CONST', 'const')
   endif
 endif
+
+execinfo_dep = cc.find_library('execinfo', required : false)
 
 # Atomic operations
 
