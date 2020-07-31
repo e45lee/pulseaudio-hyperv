@@ -76,3 +76,4 @@ ctl.!default {
 
 ## Credits
 https://github.com/Biswa96/wslbridge2 for the code necessary to bind a Hyper-V socket against the WSL2 VM.
+https://github.com/Martin1994/pulseaudio as a reference for WSL1 AF_UNIX sockets.
