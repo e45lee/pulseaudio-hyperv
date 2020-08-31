@@ -85,7 +85,12 @@ pulsesysconfdir = join_paths(sysconfdir, 'pulse')
 
 modlibexecdir = get_option('modlibexecdir')
 if modlibexecdir == ''
-  modlibexecdir = join_paths(libdir, 'pulse-' + pa_version_major_minor, 'modules')
+  if host_machine.system() == 'windows'
+    # Windows only supports loading libraries from the same dir as the executable
+    modlibexecdir = bindir
+  else 
+    modlibexecdir = join_paths(libdir, 'pulse-' + pa_version_major_minor, 'modules')
+  endif
 endif
 
 padsplibdir = get_option('padsplibdir')
@@ -175,6 +180,7 @@ if host_machine.system() == 'darwin'
   cdata.set('_DARWIN_C_SOURCE', '200112L') # Needed to get NSIG on Mac OS
 elif host_machine.system() == 'windows'
   cdata.set('OS_IS_WIN32', 1)
+  cdata.set('_WIN32_WINNT', 0x0601)
   cdata.set('HAVE_WINDOWS_H', 1)
   cdata.set('HAVE_WAVEOUT', 1)
   cdata.set('HAVE_WINSOCK2_H', 1)
