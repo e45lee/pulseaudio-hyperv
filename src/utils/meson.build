@@ -123,3 +123,5 @@ if get_option('client')
 
   install_data('pa-info', install_dir : bindir)
 endif
+
+install_data('start-pulseaudio.vbs', install_dir : bindir)

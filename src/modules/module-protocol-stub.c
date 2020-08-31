@@ -395,7 +395,7 @@ int pa__init(pa_module*m) {
 #endif /* HAVE_IPV6 */
 #elif defined(USE_HYPERV_SOCKETS)
     if (pa_socket_server_get_address(u->socket_server_hyperv, t, sizeof(t)))
-        pa_http_protocl_add_server_string(u->http_protocol, t);
+        pa_http_protocol_add_server_string(u->http_protocol, t);
 #else /* USE_TCP_SOCKETS */
     if (pa_socket_server_get_address(u->socket_server_unix, t, sizeof(t)))
         pa_http_protocol_add_server_string(u->http_protocol, t);

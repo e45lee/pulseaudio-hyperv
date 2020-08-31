@@ -1,26 +1,26 @@
-name: Build CI
+name: Build CI - Meson
 
 on:
   push:
-    branches: [ hyperv-sockets ]
+    branches: [ hyperv-sockets, hyperv-sockets-16.x ]
   pull_request:
-    branches: [ hyperv-sockets ]
+    branches: [ hyperv-sockets, hyperv-sockets-16.x ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: opensuse/leap:15.1
+      image: opensuse/tumbleweed
       
     steps:      
       - name: Refresh Software Sources
         run: |
-          zypper --gpg-auto-import-keys --non-interactive addrepo https://download.opensuse.org/repositories/windows:mingw:win32/openSUSE_Leap_15.1/windows:mingw:win32.repo
+          zypper --gpg-auto-import-keys --non-interactive addrepo https://download.opensuse.org/repositories/windows:mingw:win32/openSUSE_Tumbleweed/windows:mingw:win32.repo
           zypper --gpg-auto-import-keys --non-interactive refresh
           zypper --gpg-auto-import-keys --non-interactive modifyrepo --all --keep-packages
       - name: Install Base System
         run: zypper --gpg-auto-import-keys --non-interactive install tar which gzip xz git
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0 
       - name: Cache Software Packages
@@ -32,7 +32,7 @@ jobs:
       - name: Install Packages
         run: >
           zypper --gpg-auto-import-keys --non-interactive install
-          libtool autoconf automake intltool orc make
+          libtool autoconf automake intltool orc make meson gcc gcc-c++ doxygen
           mingw32-cross-pkg-config mingw32-cross-gcc-c++ mingw32-cross-gcc mingw32-libtool 
           mingw32-winpthreads-devel
           mingw32-fftw3-devel
@@ -47,24 +47,23 @@ jobs:
           mingw32-win_iconv-devel mingw32-win_iconv
           mingw32-winpthreads-devel
           mingw32-zlib-devel mingw32-zlib
+          mingw32-glib2-devel
           mingw32-libjson-c-devel 
           mingw32-gettext-runtime mingw32-gettext-tools
-          mingw32-libssp0 mingw32-libltdl        
-      - name: pre-configure
-        run: autoreconf --force --install --verbose
+          mingw32-libssp0 mingw32-libltdl
+          mingw32-libintl-devel mingw32-libintl8  
+      - name: git setup
+        run: git config --global --add safe.directory '*'
       - name: configure
-        run: mkdir build && cd build && lt_cv_deplibs_check_method="pass_all" mingw32-configure --enable-shared --disable-static
+        run: meson setup build/  --prefix=$(pwd)/install -Ddatabase=simple -Dgsettings=disabled -Dbluez5=disabled -Dtests=false -Dorc=disabled --cross-file .github/workflows/data/linux-mingw-w64-32bit.txt
       - name: make
-        run: cd build && mingw32-make -j2
+        run: cd build && ninja
       - name: install
-        run: cd build && mingw32-make DESTDIR=$(pwd)/../install install -j2
+        run: cd build && meson install
       - name: deploy
-        working-directory: install/usr/i686-w64-mingw32/sys-root/
         run: |
-          cp /usr/i686-w64-mingw32/sys-root/i686-w64-mingw32/bin/*.dll mingw/bin/
-          cp mingw/lib/bin/*.dll mingw/bin/
-          cp mingw/lib/pulse-*/bin/*.dll mingw/bin
-          cp -R mingw $GITHUB_WORKSPACE/pulseaudio-bin
+          cp /usr/i686-w64-mingw32/sys-root/i686-w64-mingw32/bin/*.dll install/bin/
+          cp -R install $GITHUB_WORKSPACE/pulseaudio-bin
       - uses: actions/upload-artifact@v2
         with:
           name: pulseaudio-bin
