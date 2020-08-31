@@ -10,12 +10,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: opensuse/leap:15.1
+      image: opensuse/leap:15.2
       
     steps:      
       - name: Refresh Software Sources
         run: |
-          zypper --gpg-auto-import-keys --non-interactive addrepo https://download.opensuse.org/repositories/windows:mingw:win32/openSUSE_Leap_15.1/windows:mingw:win32.repo
+          zypper --gpg-auto-import-keys --non-interactive addrepo https://download.opensuse.org/repositories/windows:mingw:win32/openSUSE_Leap_15.2/windows:mingw:win32.repo
           zypper --gpg-auto-import-keys --non-interactive refresh
           zypper --gpg-auto-import-keys --non-interactive modifyrepo --all --keep-packages
       - name: Install Base System
