@@ -51,8 +51,6 @@ jobs:
           mingw32-gettext-runtime mingw32-gettext-tools
           mingw32-libssp0 mingw32-libltdl
           mingw32-libintl-devel mingw32-libintl8  
-      - name: pre-configure
-        run: autoreconf --force --install --verbose
       - name: configure
         run: meson setup build/  --prefix=$(pwd)/install -Ddatabase=simple -Dbluez5=false -Dtests=false --cross-file .github/workflows/data/linux-mingw-w64-32bit.txt
       - name: make
@@ -62,9 +60,6 @@ jobs:
       - name: deploy
         run: |
           cp /usr/i686-w64-mingw32/sys-root/i686-w64-mingw32/bin/*.dll install/bin/
-          cp install/lib/pulseaudio/*.dll install/bin/
-          cp install/lib/pulse-*/modules/libcli.dll install/bin
-          cp install/lib/pulse-*/modules/libprotocol-*.dll install/bin
           cp -R install $GITHUB_WORKSPACE/pulseaudio-bin
       - uses: actions/upload-artifact@v2
         with:
