@@ -85,7 +85,12 @@ pulsesysconfdir = join_paths(sysconfdir, 'pulse')
 
 modlibexecdir = get_option('modlibexecdir')
 if modlibexecdir == ''
-  modlibexecdir = join_paths(libdir, 'pulse-' + pa_version_major_minor, 'modules')
+  if host_machine.system() == 'windows'
+    # Windows only supports loading libraries from the same dir as the executable
+    modlibexecdir = bindir
+  else 
+    modlibexecdir = join_paths(libdir, 'pulse-' + pa_version_major_minor, 'modules')
+  endif
 endif
 
 padsplibdir = get_option('padsplibdir')

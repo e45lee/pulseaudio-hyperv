@@ -68,6 +68,9 @@ if host_machine.system() == 'windows'
   ksuser_dep = meson.get_compiler('c').find_library('ksuser')
   all_modules += [
     [ 'module-waveout', 'module-waveout.c', [], [], [winmm_dep, ksuser_dep] ],
+    [ 'module-http-protocol-hyperv', 'module-protocol-stub.c', [], ['-DUSE_PROTOCOL_HTTP', '-DUSE_HYPERV_SOCKETS'], [], libprotocol_http ],
+    [ 'module-native-protocol-hyperv', 'module-protocol-stub.c', [], ['-DUSE_PROTOCOL_NATIVE', '-DUSE_HYPERV_SOCKETS'], [], libprotocol_native ],
+    [ 'module-simple-protocol-hyperv', 'module-protocol-stub.c', [], ['-DUSE_PROTOCOL_SIMPLE', '-DUSE_HYPERV_SOCKETS'], [], libprotocol_simple ],
   ]
 endif
 

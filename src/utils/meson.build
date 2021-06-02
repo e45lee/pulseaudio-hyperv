@@ -121,3 +121,5 @@ if dbus_dep.found() and fftw_dep.found()
 endif
 
 install_data('pa-info', install_dir : bindir)
+
+install_data('start-pulseaudio.vbs', install_dir : bindir)

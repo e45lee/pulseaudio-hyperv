@@ -178,7 +178,9 @@ if host_machine.system() == 'windows'
     'pulsecore/poll-win32.c',
     'pulsecore/semaphore-win32.c',
     'pulsecore/thread-win32.c',
+    'pulsecore/GetVmId.cc'
   ]
+  libpulsecommon_headers += ['pulsecore/GetVmId.h']
 else
   libpulsecommon_sources += [
     'pulsecore/mutex-posix.c',
